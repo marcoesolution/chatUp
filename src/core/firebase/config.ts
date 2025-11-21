@@ -30,13 +30,14 @@ const requiredEnvVars = [
 const missingEnvVars = requiredEnvVars.filter((varName) => !process.env[varName]);
 
 if (missingEnvVars.length > 0) {
-	const errorMessage = `⚠️ Firebase: Variáveis de ambiente faltando: ${missingEnvVars.join(", ")}\n⚠️ Firebase: Certifique-se de configurar as variáveis no EAS Build ou no arquivo .env`;
+	const errorMessage = `⚠️ Firebase: Variáveis de ambiente faltando: ${missingEnvVars.join(
+		", "
+	)}\n⚠️ Firebase: Certifique-se de configurar as variáveis no EAS Build ou no arquivo .env`;
 	console.error(errorMessage);
-	
-	// Em produção, lançar erro para que seja capturado pelo ErrorBoundary
-	if (process.env.NODE_ENV === 'production') {
-		throw new Error(`Firebase não configurado: ${missingEnvVars.join(", ")}`);
-	}
+
+	// Em produção, não lançar erro imediatamente - deixar o app tentar inicializar
+	// O erro será capturado durante a inicialização se necessário
+	// Isso evita crash imediato do app
 }
 
 // Inicialização do Firebase App

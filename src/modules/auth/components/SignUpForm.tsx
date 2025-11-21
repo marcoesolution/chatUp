@@ -2,7 +2,7 @@ import React from "react";
 import { useForm, Controller } from "react-hook-form";
 import { KeyboardAvoidingView, Platform, ScrollView } from "react-native";
 import styled, { useTheme } from "styled-components/native";
-import { Mail, Lock, User } from "lucide-react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { Input, Button, Link } from "@/shared/components";
 import type { RegisterData } from "../types";
 
@@ -114,7 +114,7 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSubmit, onGoToLogin, i
 							<Input
 								label="Name"
 								placeholder="Enter your name"
-								icon={<User size={20} color={theme.colors.icon.secondary} strokeWidth={2} />}
+								icon={<Ionicons name="person" size={20} color={theme.colors.icon.secondary} />}
 								autoCapitalize="words"
 								autoCorrect={false}
 								value={value}
@@ -139,7 +139,7 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSubmit, onGoToLogin, i
 							<Input
 								label="Email"
 								placeholder="Enter your email"
-								icon={<Mail size={20} color={theme.colors.icon.secondary} strokeWidth={2} />}
+								icon={<Ionicons name="mail" size={20} color={theme.colors.icon.secondary} />}
 								keyboardType="email-address"
 								autoCapitalize="none"
 								autoCorrect={false}
@@ -165,7 +165,7 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSubmit, onGoToLogin, i
 							<Input
 								label="Password"
 								placeholder="Enter your password"
-								icon={<Lock size={20} color={theme.colors.icon.secondary} strokeWidth={2} />}
+								icon={<Ionicons name="lock-closed" size={20} color={theme.colors.icon.secondary} />}
 								secureTextEntry
 								showPasswordToggle
 								autoCapitalize="none"

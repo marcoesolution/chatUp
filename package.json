@@ -22,11 +22,14 @@
     "eas:login": "eas login",
     "eas:logout": "eas logout",
     "eas:whoami": "eas whoami",
-    "eas:secrets:list": "eas secret:list",
-    "eas:secrets:help": "echo 'Para adicionar secrets, use: eas secret:create --scope project --name NOME --value VALOR'",
+    "eas:env:list": "eas env:list",
+    "eas:env:help": "echo 'Para adicionar variáveis de ambiente, use: eas env:create production --scope project --name NOME --value VALOR --type string --visibility plaintext --non-interactive'",
+    "config:firebase": "./configurar-firebase.sh",
     "clean": "rm -rf node_modules && npm cache clean --force",
     "clean:build": "rm -rf android ios .expo",
-    "fix:gradle": "./fix-gradle-build.sh"
+    "fix:gradle": "./fix-gradle-build.sh",
+    "build:android:apk:debug": "./capture-build-errors.sh",
+    "build:android:apk:verbose": "EAS_LOCAL_BUILD_SKIP_CLEANUP=1 eas build --platform android --profile production --local --non-interactive"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
@@ -35,6 +38,8 @@
     "@react-native-community/netinfo": "^11.3.1",
     "@tanstack/react-query": "^5.62.0",
     "axios": "^1.7.9",
+    "babel-plugin-module-resolver": "^5.0.0",
+    "babel-plugin-styled-components": "^2.1.4",
     "expo": "~54.0.0",
     "expo-auth-session": "~7.0.9",
     "expo-crypto": "~15.0.7",
@@ -44,16 +49,12 @@
     "expo-status-bar": "~3.0.8",
     "expo-web-browser": "~15.0.9",
     "firebase": "^12.6.0",
-    "lucide-react-native": "^0.344.0",
     "react": "19.1.0",
     "react-hook-form": "^7.66.1",
     "react-native": "0.81.5",
     "react-native-safe-area-context": "~5.6.0",
     "react-native-screens": "~4.16.0",
-    "react-native-svg": "~15.8.0",
-    "styled-components": "^6.1.19",
-    "babel-plugin-module-resolver": "^5.0.0",
-    "babel-plugin-styled-components": "^2.1.4"
+    "styled-components": "^6.1.19"
   },
   "devDependencies": {
     "@babel/core": "^7.25.0",

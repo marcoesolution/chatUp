@@ -2,7 +2,7 @@ import React from "react";
 import { useForm, Controller } from "react-hook-form";
 import { KeyboardAvoidingView, Platform, ScrollView } from "react-native";
 import styled, { useTheme } from "styled-components/native";
-import { Mail, Lock, Chrome, Facebook } from "lucide-react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { Input, Button, Link } from "@/shared/components";
 import type { LoginCredentials } from "../types";
 
@@ -175,7 +175,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
 							<Input
 								label="Email"
 								placeholder="Enter your email"
-								icon={<Mail size={20} color={theme.colors.icon.secondary} strokeWidth={2} />}
+								icon={<Ionicons name="mail" size={20} color={theme.colors.icon.secondary} />}
 								keyboardType="email-address"
 								autoCapitalize="none"
 								autoCorrect={false}
@@ -201,7 +201,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
 							<Input
 								label="Password"
 								placeholder="Enter your password"
-								icon={<Lock size={20} color={theme.colors.icon.secondary} strokeWidth={2} />}
+								icon={<Ionicons name="lock-closed" size={20} color={theme.colors.icon.secondary} />}
 								secureTextEntry
 								showPasswordToggle
 								autoCapitalize="none"
@@ -242,7 +242,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
 						disabled={!onGoogleSignIn}
 					>
 						<SocialIconContainer>
-							<Chrome size={20} color={theme.colors.icon.primary} strokeWidth={2} />
+							<Ionicons name="logo-google" size={20} color={theme.colors.icon.primary} />
 						</SocialIconContainer>
 						<SocialButtonText>Continue with Google</SocialButtonText>
 					</SocialButton>
@@ -253,7 +253,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
 						disabled={!onFacebookSignIn}
 					>
 						<SocialIconContainer>
-							<Facebook size={20} color={theme.colors.icon.primary} strokeWidth={2} />
+							<Ionicons name="logo-facebook" size={20} color={theme.colors.icon.primary} />
 						</SocialIconContainer>
 						<SocialButtonText>Continue with Facebook</SocialButtonText>
 					</SocialButton>

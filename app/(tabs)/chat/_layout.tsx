@@ -1,6 +1,6 @@
 import { Stack, useRouter } from 'expo-router';
 import { TouchableOpacity } from 'react-native';
-import { ArrowLeft } from 'lucide-react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from 'styled-components/native';
 import { mockContacts } from '@/modules/chat';
 
@@ -45,10 +45,10 @@ export default function ChatLayout() {
 								}}
 								activeOpacity={0.7}
 							>
-								<ArrowLeft
+								<Ionicons
+									name="arrow-back"
 									size={24}
 									color={theme.colors.button.primary}
-									strokeWidth={2}
 								/>
 							</TouchableOpacity>
 						),

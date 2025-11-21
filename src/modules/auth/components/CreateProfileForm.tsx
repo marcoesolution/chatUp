@@ -2,7 +2,7 @@ import React, { useEffect } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { KeyboardAvoidingView, Platform, ScrollView } from "react-native";
 import styled, { useTheme } from "styled-components/native";
-import { User, Phone, FileText } from "lucide-react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { Input, Button } from "@/shared/components";
 import type { CreateProfileData } from "../types";
 
@@ -131,7 +131,7 @@ export const CreateProfileForm: React.FC<CreateProfileFormProps> = ({
 							<Input
 								label="Name"
 								placeholder="Enter your full name"
-								icon={<User size={20} color={theme.colors.icon.secondary} strokeWidth={2} />}
+								icon={<Ionicons name="person" size={20} color={theme.colors.icon.secondary} />}
 								autoCapitalize="words"
 								autoCorrect={false}
 								value={value}
@@ -176,7 +176,7 @@ export const CreateProfileForm: React.FC<CreateProfileFormProps> = ({
 							<Input
 								label="Phone (Optional)"
 								placeholder="Enter your phone number"
-								icon={<Phone size={20} color={theme.colors.icon.secondary} strokeWidth={2} />}
+								icon={<Ionicons name="call" size={20} color={theme.colors.icon.secondary} />}
 								keyboardType="phone-pad"
 								autoCapitalize="none"
 								autoCorrect={false}
@@ -201,7 +201,7 @@ export const CreateProfileForm: React.FC<CreateProfileFormProps> = ({
 							<Input
 								label="Bio (Optional)"
 								placeholder="Tell us about yourself"
-								icon={<FileText size={20} color={theme.colors.icon.secondary} strokeWidth={2} />}
+								icon={<Ionicons name="document-text" size={20} color={theme.colors.icon.secondary} />}
 								multiline
 								numberOfLines={4}
 								autoCapitalize="sentences"

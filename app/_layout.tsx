@@ -75,42 +75,42 @@ const styles = StyleSheet.create({
 export default function RootLayout() {
   return (
     <ErrorBoundary>
-      <SafeAreaProvider>
-        <ThemeProvider>
-          <QueryClientProvider client={queryClient}>
-            <Stack
-              screenOptions={{
-                headerStyle: {
-                  backgroundColor: '#007AFF',
-                },
-                headerTintColor: '#fff',
-                headerTitleStyle: {
-                  fontWeight: 'bold',
-                },
-              }}
-            >
-              <Stack.Screen
-                name="index"
-                options={{
-                  headerShown: false,
-                }}
-              />
-              <Stack.Screen
-                name="(tabs)"
-                options={{
-                  headerShown: false,
-                }}
-              />
-              <Stack.Screen
-                name="(auth)"
-                options={{
-                  headerShown: false,
-                }}
-              />
-            </Stack>
-          </QueryClientProvider>
-        </ThemeProvider>
-      </SafeAreaProvider>
+    <SafeAreaProvider>
+      <ThemeProvider>
+        <QueryClientProvider client={queryClient}>
+        <Stack
+          screenOptions={{
+            headerStyle: {
+              backgroundColor: '#007AFF',
+            },
+            headerTintColor: '#fff',
+            headerTitleStyle: {
+              fontWeight: 'bold',
+            },
+          }}
+        >
+          <Stack.Screen
+            name="index"
+            options={{
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="(tabs)"
+            options={{
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="(auth)"
+            options={{
+              headerShown: false,
+            }}
+          />
+        </Stack>
+        </QueryClientProvider>
+      </ThemeProvider>
+    </SafeAreaProvider>
     </ErrorBoundary>
   );
 }

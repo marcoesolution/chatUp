@@ -4,7 +4,7 @@ import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import styled, { useTheme } from 'styled-components/native';
-import { Send } from 'lucide-react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useMessages } from '@/modules/chat/hooks/useMessages';
 import { useAuth } from '@/modules/auth';
 import { mockContacts } from '@/modules/chat';
@@ -244,7 +244,7 @@ export default function ChatScreen() {
 					disabled={!messageText.trim() || isSending}
 					activeOpacity={0.7}
 				>
-					<Send size={20} color={theme.colors.text.primary} />
+					<Ionicons name="send" size={20} color={theme.colors.text.primary} />
 				</SendButton>
 			</InputContainer>
 		</Container>
