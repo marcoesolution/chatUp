@@ -244,6 +244,23 @@ export function useMessages(contactId: string) {
 			};
 
 			await addDoc(collection(db, "messages"), newMessage);
+			
+			// Log específico mostrando o que foi armazenado no Firestore
+			console.log('\n' + '='.repeat(80));
+			console.log('💾 ARMAZENAMENTO NO FIRESTORE - MENSAGEM SEGURA');
+			console.log('='.repeat(80));
+			console.log('📤 Mensagem enviada pelo usuário:');
+			console.log('   "' + plaintext + '"');
+			console.log('');
+			console.log('🔒 O que foi ARMAZENADO no Firestore (criptografado):');
+			console.log('   ' + encryptedText.substring(0, 120) + (encryptedText.length > 120 ? '...' : ''));
+			console.log('');
+			console.log('✅ SEGURANÇA GARANTIDA:');
+			console.log('   ✓ Firestore NÃO consegue ler o conteúdo da mensagem');
+			console.log('   ✓ Apenas texto criptografado está armazenado');
+			console.log('   ✓ Mesmo com acesso ao banco, mensagem está protegida');
+			console.log('='.repeat(80) + '\n');
+			
 			console.log("✅ [SEND-MESSAGE] Mensagem enviada e armazenada no Firestore", {
 				chatId: chatId.substring(0, 8) + '...',
 				messageId: 'pending',

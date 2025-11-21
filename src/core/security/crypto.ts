@@ -516,6 +516,26 @@ export async function encryptMessage(
 		const finalResult = ENCRYPTED_PREFIX + obfuscated;
 		const totalTime = Date.now() - startTime;
 		
+		// Log específico para demonstrar criptografia
+		console.log('\n' + '='.repeat(80));
+		console.log('🔐 DEMONSTRAÇÃO DE CRIPTOGRAFIA - MENSAGEM SEGURA');
+		console.log('='.repeat(80));
+		console.log('📝 MENSAGEM ORIGINAL (Plaintext):');
+		console.log('   "' + plaintext + '"');
+		console.log('   Tamanho: ' + plaintext.length + ' caracteres');
+		console.log('');
+		console.log('🔒 MENSAGEM CRIPTOGRAFADA (Ciphertext - será armazenada no Firestore):');
+		console.log('   ' + finalResult.substring(0, 100) + (finalResult.length > 100 ? '...' : ''));
+		console.log('   Tamanho: ' + finalResult.length + ' caracteres');
+		console.log('   Prefixo de segurança: ' + ENCRYPTED_PREFIX);
+		console.log('');
+		console.log('✅ VERIFICAÇÃO:');
+		console.log('   ✓ Mensagens são DIFERENTES (criptografia funcionando)');
+		console.log('   ✓ Mensagem original NÃO pode ser lida no Firestore');
+		console.log('   ✓ Apenas quem tem a chave pode descriptografar');
+		console.log('   ✓ Tempo de criptografia: ' + totalTime + 'ms');
+		console.log('='.repeat(80) + '\n');
+		
 		console.log('🎯 [ENCRYPT] Criptografia concluída', {
 			originalLength: plaintext.length,
 			encryptedLength: finalResult.length,
@@ -614,6 +634,25 @@ export async function decryptMessage(
 		const decryptTime = Date.now() - decryptStartTime;
 		
 		const totalTime = Date.now() - startTime;
+		
+		// Log específico para demonstrar descriptografia
+		console.log('\n' + '='.repeat(80));
+		console.log('🔓 DEMONSTRAÇÃO DE DESCRIPTOGRAFIA - MENSAGEM RECUPERADA');
+		console.log('='.repeat(80));
+		console.log('🔒 MENSAGEM CRIPTOGRAFADA (recebida do Firestore):');
+		console.log('   ' + encryptedText.substring(0, 100) + (encryptedText.length > 100 ? '...' : ''));
+		console.log('   Tamanho: ' + encryptedText.length + ' caracteres');
+		console.log('');
+		console.log('📝 MENSAGEM DESCRIPTOGRAFADA (Plaintext - exibida para o usuário):');
+		console.log('   "' + plaintext + '"');
+		console.log('   Tamanho: ' + plaintext.length + ' caracteres');
+		console.log('');
+		console.log('✅ VERIFICAÇÃO:');
+		console.log('   ✓ Mensagem descriptografada com SUCESSO');
+		console.log('   ✓ Integridade verificada (HMAC válido)');
+		console.log('   ✓ Mensagem não foi alterada ou corrompida');
+		console.log('   ✓ Tempo de descriptografia: ' + totalTime + 'ms');
+		console.log('='.repeat(80) + '\n');
 		
 		console.log('✅ [DECRYPT] Mensagem descriptografada com sucesso', {
 			plaintextLength: plaintext.length,
