@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, TextInput as RNTextInput } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
+import { useNavigation } from '@react-navigation/native';
 import styled, { useTheme } from 'styled-components/native';
 import { Send } from 'lucide-react-native';
 import { useMessages } from '@/modules/chat/hooks/useMessages';
@@ -99,18 +100,30 @@ const LoadingText = styled.Text`
 
 export default function ChatScreen() {
 	const router = useRouter();
+	const navigation = useNavigation();
 	const { contactId } = useLocalSearchParams<{ contactId: string }>();
 	const theme = useTheme();
 	const { firebaseUser } = useAuth();
 	
-	// Log para debug
-	React.useEffect(() => {
-		console.log("💬 ChatScreen: Renderizado", {
-			contactId,
-			hasFirebaseUser: !!firebaseUser,
-			firebaseUserId: firebaseUser?.uid,
-		});
-	}, [contactId, firebaseUser]);
+	// Esconder tab bar quando a tela de chat estiver em foco
+	useFocusEffect(
+		React.useCallback(() => {
+			// Esconder tab bar
+			navigation.getParent()?.setOptions({
+				tabBarStyle: { display: 'none' },
+			});
+
+			// Mostrar tab bar quando sair da tela
+			return () => {
+				navigation.getParent()?.setOptions({
+					tabBarStyle: {
+						backgroundColor: theme.colors.background.secondary,
+						borderTopColor: theme.colors.border.secondary,
+					},
+				});
+			};
+		}, [navigation, theme])
+	);
 
 	const { messages, isLoading, error, sendMessage } = useMessages(contactId || '');
 	const [messageText, setMessageText] = useState('');
@@ -120,14 +133,6 @@ export default function ChatScreen() {
 
 	// Encontrar informações do contato
 	const contact = mockContacts.find((c) => c.id === contactId);
-	
-	// Log das mensagens recebidas
-	React.useEffect(() => {
-		console.log("💬 ChatScreen: Mensagens atualizadas", {
-			count: messages.length,
-			messages: messages.map((m) => ({ id: m.id, text: m.text, senderId: m.senderId })),
-		});
-	}, [messages]);
 
 	// Rolar para o final quando novas mensagens chegarem
 	useEffect(() => {

@@ -37,8 +37,11 @@ export default function ChatLayout() {
 							<TouchableOpacity
 								onPress={() => router.push('/(tabs)/')}
 								style={{
-									marginLeft: 16,
+									marginLeft: 4,
 									padding: 8,
+									marginRight: 12,
+									justifyContent: 'center',
+									alignItems: 'center',
 								}}
 								activeOpacity={0.7}
 							>
@@ -49,6 +52,13 @@ export default function ChatLayout() {
 								/>
 							</TouchableOpacity>
 						),
+						headerTitleContainerStyle: {
+							paddingLeft: 8,
+							alignItems: 'center',
+						},
+						headerLeftContainerStyle: {
+							alignItems: 'center',
+						},
 					};
 				}}
 			/>
