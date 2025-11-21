@@ -14,6 +14,7 @@ import * as AuthSession from "expo-auth-session";
 import * as WebBrowser from "expo-web-browser";
 import { Platform } from "react-native";
 import { auth, db } from "@/core/firebase";
+import { clearAllKeys } from "@/core/security";
 import type { UserProfile, CreateProfileData } from "../types";
 
 // Necessário para o AuthSession funcionar corretamente
@@ -323,6 +324,15 @@ export function useFirebaseAuth() {
 		setIsLoading(true);
 
 		try {
+			// Limpar chaves de criptografia antes de fazer logout
+			try {
+				await clearAllKeys();
+				console.log("🔒 Chaves de criptografia removidas");
+			} catch (keyError) {
+				console.warn("⚠️ Erro ao limpar chaves de criptografia:", keyError);
+				// Não falhar o logout se houver erro ao limpar chaves
+			}
+
 			await signOut(auth);
 			setUser(null);
 			setUserProfile(null);
