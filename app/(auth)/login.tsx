@@ -1,50 +1,15 @@
-import React from 'react';
-import { StatusBar } from 'react-native';
-import { useRouter } from 'expo-router';
-import styled from 'styled-components/native';
-import { LoginForm } from '@/modules/auth/components';
-import { useAuth } from '@/modules/auth';
-import type { LoginCredentials } from '@/modules/auth/types';
+import React from "react";
+import { StatusBar } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
+import styled from "styled-components/native";
+import { LoginForm } from "@/modules/auth/components";
+import { useAuth } from "@/modules/auth";
+import type { LoginCredentials } from "@/modules/auth/types";
 
-const Container = styled.View`
+const Container = styled(SafeAreaView)`
 	flex: 1;
-	background-color: #ffffff;
-`;
-
-const Header = styled.View`
-	padding: 24px;
-	padding-top: 60px;
-	background-color: #667eea;
-	align-items: center;
-`;
-
-const LogoContainer = styled.View`
-	width: 80px;
-	height: 80px;
-	border-radius: 40px;
-	background-color: #ffffff;
-	align-items: center;
-	justify-content: center;
-	margin-bottom: 16px;
-	shadow-color: #000;
-	shadow-offset: 0px 4px;
-	shadow-opacity: 0.2;
-	shadow-radius: 8px;
-	elevation: 8;
-`;
-
-const LogoText = styled.Text`
-	font-size: 32px;
-	font-weight: 800;
-	color: #667eea;
-`;
-
-const Slogan = styled.Text`
-	font-size: 14px;
-	color: #ffffff;
-	font-weight: 600;
-	opacity: 0.9;
-	letter-spacing: 0.5px;
+	background-color: ${(props) => props.theme.colors.background.primary};
 `;
 
 export default function LoginScreen() {
@@ -67,13 +32,13 @@ export default function LoginScreen() {
 			await login(credentials);
 			// Navegação será feita pelo useEffect acima
 		} catch (error: any) {
-			console.error('Login error:', error);
+			console.error("Login error:", error);
 		}
 	};
 
 	const handleForgotPassword = () => {
 		// TODO: Implementar navegação para recuperação de senha
-		console.log('Forgot password pressed');
+		console.log("Forgot password pressed");
 	};
 
 	const handleSignUp = () => {
@@ -85,7 +50,7 @@ export default function LoginScreen() {
 			await loginWithGoogle();
 			// Navegação será feita pelo useEffect acima
 		} catch (error: any) {
-			console.error('Google sign in error:', error);
+			console.error("Google sign in error:", error);
 			// O erro já está sendo tratado no hook e exibido através do estado 'error'
 		}
 	};
@@ -97,13 +62,7 @@ export default function LoginScreen() {
 
 	return (
 		<Container>
-			<StatusBar barStyle="light-content" />
-			<Header>
-				<LogoContainer>
-					<LogoText>💬</LogoText>
-				</LogoContainer>
-				<Slogan>Unir pessoas próximas</Slogan>
-			</Header>
+			<StatusBar barStyle="dark-content" />
 			<LoginForm
 				onSubmit={handleLogin}
 				onForgotPassword={handleForgotPassword}
@@ -116,4 +75,3 @@ export default function LoginScreen() {
 		</Container>
 	);
 }
-

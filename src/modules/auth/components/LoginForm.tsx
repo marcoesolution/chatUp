@@ -1,10 +1,12 @@
 import React from "react";
 import { useForm, Controller } from "react-hook-form";
-import { KeyboardAvoidingView, Platform, ScrollView } from "react-native";
+import { KeyboardAvoidingView, Platform, ScrollView, Image } from "react-native";
 import styled, { useTheme } from "styled-components/native";
 import { Ionicons } from "@expo/vector-icons";
 import { Input, Button, Link } from "@/shared/components";
 import type { LoginCredentials } from "../types";
+
+const logoImage = require("../../../../assets/logo-chatup.png");
 
 interface LoginFormProps {
 	onSubmit: (data: LoginCredentials) => void;
@@ -29,23 +31,20 @@ const Form = styled.View`
 	padding: ${(props) => props.theme.spacing.lg}px;
 `;
 
-const Title = styled.Text`
-	font-size: ${(props) => props.theme.typography.fontSize["3xl"]}px;
-	font-weight: ${(props) => props.theme.typography.fontWeight.extrabold};
-	font-family: ${(props) => props.theme.typography.fontFamily.primary};
-	color: ${(props) => props.theme.colors.text.primary};
-	margin-bottom: ${(props) => props.theme.spacing.sm}px;
-	letter-spacing: -0.5px;
-	text-align: center;
+const LogoContainer = styled.View`
+	align-items: center;
+	justify-content: center;
+	margin-bottom: ${(props) => props.theme.spacing["2xl"]}px;
+	margin-top: ${(props) => props.theme.spacing.lg}px;
+	background-color: transparent;
 `;
 
-const Subtitle = styled.Text`
-	font-size: ${(props) => props.theme.typography.fontSize.base}px;
-	font-family: ${(props) => props.theme.typography.fontFamily.secondary};
-	color: ${(props) => props.theme.colors.text.secondary};
-	margin-bottom: ${(props) => props.theme.spacing.xl}px;
-	line-height: ${(props) => props.theme.typography.lineHeight.normal};
-	text-align: center;
+const LogoImage = styled.Image.attrs({
+	resizeMode: "contain",
+})`
+	width: 280px;
+	height: 70px;
+	background-color: transparent;
 `;
 
 const ButtonContainer = styled.View`
@@ -117,7 +116,7 @@ const FooterText = styled.Text`
 `;
 
 const ErrorText = styled.Text`
-	color: ${(props) => props.theme.colors.error};
+	color: ${(props) => props.theme.colors.status.error};
 	font-size: ${(props) => props.theme.typography.fontSize.sm}px;
 	font-family: ${(props) => props.theme.typography.fontFamily.primary};
 	margin-bottom: ${(props) => props.theme.spacing.md}px;
@@ -157,8 +156,9 @@ export const LoginForm: React.FC<LoginFormProps> = ({
 		>
 			<ScrollContent contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
 				<Form>
-					<Title>Welcome Back!</Title>
-					<Subtitle>Log in to continue your conversations</Subtitle>
+					<LogoContainer>
+						<LogoImage source={logoImage} />
+					</LogoContainer>
 
 					{error && <ErrorText>{error}</ErrorText>}
 
