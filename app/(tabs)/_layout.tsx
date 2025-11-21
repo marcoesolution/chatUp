@@ -1,30 +1,32 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from 'styled-components/native';
 
 export default function TabsLayout() {
+  const theme = useTheme();
+  
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: '#007AFF',
-        tabBarInactiveTintColor: '#999999',
+        tabBarActiveTintColor: theme.colors.button.primary,
+        tabBarInactiveTintColor: theme.colors.text.tertiary,
         headerShown: true,
+        tabBarStyle: {
+          backgroundColor: theme.colors.background.secondary,
+          borderTopColor: theme.colors.border.secondary,
+        },
+        headerStyle: {
+          backgroundColor: theme.colors.background.secondary,
+        },
+        headerTintColor: theme.colors.text.primary,
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Home',
+          title: 'Conversas',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="home" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="todos"
-        options={{
-          title: 'Todos',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="checkmark-circle" size={size} color={color} />
+            <Ionicons name="chatbubbles" size={size} color={color} />
           ),
         }}
       />
@@ -34,6 +36,15 @@ export default function TabsLayout() {
           title: 'Perfil',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="person" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="logout"
+        options={{
+          title: 'Sair',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="log-out" size={size} color={color} />
           ),
         }}
       />

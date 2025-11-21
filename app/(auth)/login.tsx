@@ -74,7 +74,6 @@ export default function LoginScreen() {
 	const handleForgotPassword = () => {
 		// TODO: Implementar navegação para recuperação de senha
 		console.log('Forgot password pressed');
-		router.push('/(auth)/forgot-password');
 	};
 
 	const handleSignUp = () => {

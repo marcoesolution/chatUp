@@ -11,28 +11,37 @@ const Container = styled.View`
 	background-color: ${(props) => props.theme.colors.background.primary};
 `;
 
-export default function IndexScreen() {
+const LoadingText = styled.Text`
+	margin-top: ${(props) => props.theme.spacing.md}px;
+	font-size: 16px;
+	color: ${(props) => props.theme.colors.text.secondary};
+`;
+
+export default function LogoutScreen() {
 	const router = useRouter();
-	const { isAuthenticated, hasCompleteProfile, isLoading } = useAuth();
+	const { logout } = useAuth();
 	const theme = useTheme();
 
 	useEffect(() => {
-		if (!isLoading) {
-			if (isAuthenticated) {
-				if (hasCompleteProfile) {
-					router.replace('/(tabs)');
-				} else {
-					router.replace('/(auth)/create-profile');
-				}
-			} else {
+		const performLogout = async () => {
+			try {
+				await logout();
+				router.replace('/(auth)/login');
+			} catch (error) {
+				console.error('Logout error:', error);
+				// Mesmo com erro, redireciona para login
 				router.replace('/(auth)/login');
 			}
-		}
-	}, [isAuthenticated, hasCompleteProfile, isLoading]);
+		};
+
+		performLogout();
+	}, []);
 
 	return (
 		<Container>
 			<ActivityIndicator size="large" color={theme.colors.button.primary} />
+			<LoadingText>Saindo...</LoadingText>
 		</Container>
 	);
 }
+
