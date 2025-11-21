@@ -31,7 +31,7 @@ export function useFirebaseAuth() {
 
 	// Observar mudanças no estado de autenticação
 	useEffect(() => {
-		if (!auth) return;
+		if (!auth || !db) return;
 
 		const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
 			setUser(firebaseUser);
@@ -40,7 +40,34 @@ export function useFirebaseAuth() {
 			if (firebaseUser) {
 				// Buscar perfil do usuário no Firestore
 				try {
-					const profile = await getUserProfile(firebaseUser.uid);
+					let profile = await getUserProfile(firebaseUser.uid);
+					
+					// Se o usuário tem photoURL no Firebase Auth mas não no Firestore, atualizar
+					// Isso garante que a foto do Google sempre seja sincronizada
+					if (firebaseUser.photoURL && (!profile || !profile.photoURL || profile.photoURL !== firebaseUser.photoURL)) {
+						console.log("🔄 Sincronizando photoURL do Google com Firestore...");
+						console.log("📸 PhotoURL do Firebase Auth:", firebaseUser.photoURL);
+						const updateData: any = {
+							photoURL: firebaseUser.photoURL,
+							updatedAt: serverTimestamp(),
+						};
+						
+						// Se não tiver perfil, criar um básico
+						if (!profile) {
+							updateData.email = firebaseUser.email || "";
+							updateData.displayName = firebaseUser.displayName || "";
+							updateData.createdAt = serverTimestamp();
+							updateData.hasProfile = false;
+							console.log("📝 Criando perfil básico com photoURL do Google");
+						} else {
+							console.log("🔄 Atualizando perfil existente com photoURL do Google");
+						}
+						
+						await setDoc(doc(db, "users", firebaseUser.uid), updateData, { merge: true });
+						profile = await getUserProfile(firebaseUser.uid);
+						console.log("✅ PhotoURL sincronizado. Valor salvo:", profile?.photoURL);
+					}
+					
 					setUserProfile(profile);
 				} catch (err: any) {
 					console.error("Erro ao buscar perfil:", err);
@@ -74,15 +101,27 @@ export function useFirebaseAuth() {
 	 */
 	const signIn = async (email: string, password: string) => {
 		if (!auth) throw new Error("Firebase Auth não está inicializado");
+		if (!db) throw new Error("Firestore não está inicializado");
 
 		setError(null);
 		setIsLoading(true);
 
 		try {
 			const userCredential = await signInWithEmailAndPassword(auth, email, password);
+			console.log("✅ Login com email/senha bem-sucedido:", userCredential.user.email);
+			
+			// Buscar perfil do usuário no Firestore
+			let profile = await getUserProfile(userCredential.user.uid);
+			
+			// Se o usuário não tem photoURL no Firebase Auth (login com email/senha não fornece),
+			// mas tem no Firestore, manter o que está salvo
+			// Se não tem em nenhum lugar, não há foto disponível
+			if (!userCredential.user.photoURL && profile && !profile.photoURL) {
+				console.warn("⚠️ Login com email/senha não fornece photoURL. Para ter a foto do Google, faça login com Google.");
+			}
+			
 			// O onAuthStateChanged vai atualizar o estado automaticamente
 			// Mas buscamos o perfil aqui também para garantir
-			const profile = await getUserProfile(userCredential.user.uid);
 			setUserProfile(profile);
 			return { user: userCredential.user, profile };
 		} catch (err: any) {
@@ -144,22 +183,41 @@ export function useFirebaseAuth() {
 	 */
 	const createProfile = async (userId: string, profileData: CreateProfileData) => {
 		if (!db) throw new Error("Firestore não está inicializado");
+		if (!auth) throw new Error("Firebase Auth não está inicializado");
 
 		setError(null);
 		setIsLoading(true);
 
 		try {
-			const profileDoc = {
+			// Buscar o usuário atual do Firebase Auth para preservar o photoURL
+			const currentUser = auth.currentUser;
+			
+			const profileDoc: any = {
 				...profileData,
 				hasProfile: true,
 				updatedAt: serverTimestamp(),
 			};
 
+			// IMPORTANTE: Sempre preservar o photoURL do Firebase Auth se existir
+			// Isso garante que a foto do Google não seja perdida ao completar o perfil
+			if (currentUser?.photoURL) {
+				profileDoc.photoURL = currentUser.photoURL;
+				console.log("✅ Preservando photoURL do Google ao criar perfil:", currentUser.photoURL);
+			} else if (profileData.photoURL) {
+				// Se não tiver no Firebase Auth, usar o que veio no profileData
+				profileDoc.photoURL = profileData.photoURL;
+				console.log("✅ Usando photoURL do profileData:", profileData.photoURL);
+			} else {
+				console.warn("⚠️ Nenhum photoURL disponível para salvar");
+			}
+
+			console.log("📦 Dados do perfil que serão salvos:", JSON.stringify(profileDoc, null, 2));
 			await setDoc(doc(db, "users", userId), profileDoc, { merge: true });
 
 			// Atualizar estado local
 			const updatedProfile = await getUserProfile(userId);
 			setUserProfile(updatedProfile);
+			console.log("✅ Perfil criado. PhotoURL salvo:", updatedProfile?.photoURL);
 
 			return updatedProfile;
 		} catch (err: any) {
@@ -196,15 +254,24 @@ export function useFirebaseAuth() {
 				throw new Error(errorMsg);
 			}
 
-			// Configurar redirect URI
-			const redirectUri = AuthSession.makeRedirectUri({
-				useProxy: true,
-			});
+			console.log("🔑 Web Client ID configurado:", webClientId.substring(0, 20) + "...");
+
+			// Configurar redirect URI usando o proxy do Expo
+			// O slug do projeto está em app.json (atualmente "chatUp")
+			// O formato do proxy do Expo é: https://auth.expo.io/@anonymous/[slug]
+			// IMPORTANTE: O slug deve corresponder EXATAMENTE ao app.json
+			// O Expo usa o slug em minúsculas no proxy: "chatup"
+			const redirectUri = `https://auth.expo.io/@anonymous/chatup`;
 
 			console.log("🔐 Iniciando login com Google...");
 			console.log("📋 Redirect URI:", redirectUri);
+			console.log("📋 ⚠️ IMPORTANTE: Este URI EXATO deve estar no Google Cloud Console!");
+			console.log("📋 Vá em: Google Cloud Console > APIs e Serviços > Credenciais");
+			console.log("📋 Encontre seu OAuth Client ID e adicione este URI:");
+			console.log("📋", redirectUri);
 
-			// Criar URL de autorização manualmente sem PKCE
+			// Criar URL de autorização manualmente
+			// Usar WebBrowser.openAuthSessionAsync que deve usar o navegador do sistema
 			const scopes = ["openid", "profile", "email"].join(" ");
 			const state = Math.random().toString(36).substring(7);
 			const nonce = Math.random().toString(36).substring(7);
@@ -218,21 +285,44 @@ export function useFirebaseAuth() {
 				`nonce=${nonce}`;
 
 			console.log("🔗 URL de autorização criada");
+			console.log("📋 Redirect URI:", redirectUri);
+			console.log("⚠️ Se aparecer erro 403, o Google pode estar bloqueando WebView");
+			console.log("⚠️ Tente usar o app em um dispositivo físico ou emulador Android/iOS");
 
-			// Abrir o navegador para autenticação usando WebBrowser
+			// Abrir no navegador do sistema
+			// No Android/iOS, isso deve usar Custom Tabs/ASWebAuthenticationSession
+			// que são considerados navegadores seguros pelo Google
 			const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUri);
 
 			console.log("📥 Resultado do OAuth:", result.type);
+			if (result.type === "success" && result.url) {
+				console.log("✅ URL de retorno recebida:", result.url.substring(0, 200));
+			}
 
 			if (result.type !== "success") {
-				const errorMsg =
-					result.type === "cancel"
-						? "Autenticação com Google cancelada pelo usuário"
-						: `Erro na autenticação: ${result.type}`;
-				console.error("❌", errorMsg);
+				// Tratar diferentes tipos de cancelamento/erro de forma mais amigável
+				let errorMsg = "";
+				let shouldThrow = true;
+
+				if (result.type === "cancel" || result.type === "dismiss") {
+					errorMsg = "Autenticação com Google cancelada. Você pode tentar novamente quando quiser.";
+					shouldThrow = false; // Não lançar erro para cancelamento, apenas informar
+					console.log("ℹ️", errorMsg);
+				} else {
+					errorMsg = `Erro na autenticação: ${result.type}`;
+					console.error("❌", errorMsg);
+				}
+
 				setError(errorMsg);
 				setIsLoading(false);
-				throw new Error(errorMsg);
+
+				// Apenas lançar erro se não for um cancelamento
+				if (shouldThrow) {
+					throw new Error(errorMsg);
+				} else {
+					// Para cancelamento, apenas retornar sem fazer nada
+					return;
+				}
 			}
 
 			// Extrair o ID token da URL de retorno
@@ -271,24 +361,48 @@ export function useFirebaseAuth() {
 			const userCredential = await signInWithCredential(auth, googleCredential);
 
 			console.log("✅ Login no Firebase bem-sucedido:", userCredential.user.email);
+			console.log("📸 PhotoURL do Google:", userCredential.user.photoURL);
 
 			// Verificar se o usuário já tem perfil no Firestore
 			let profile = await getUserProfile(userCredential.user.uid);
 
+			// Preparar dados do Google para atualizar
+			// IMPORTANTE: Sempre incluir photoURL se existir no Firebase Auth
+			const googleUserData: any = {
+				email: userCredential.user.email || "",
+				displayName: userCredential.user.displayName || "",
+				updatedAt: serverTimestamp(),
+			};
+
+			// Adicionar photoURL apenas se existir (não usar null para não sobrescrever)
+			if (userCredential.user.photoURL) {
+				googleUserData.photoURL = userCredential.user.photoURL;
+				console.log("✅ photoURL será salvo:", userCredential.user.photoURL);
+			} else {
+				console.warn("⚠️ photoURL não está disponível no Firebase Auth");
+			}
+
 			// Se não tiver perfil, criar um básico
 			if (!profile) {
-				console.log("📝 Criando perfil no Firestore...");
+				console.log("📝 Criando perfil no Firestore com dados do Google...");
 				const userData = {
-					email: userCredential.user.email || "",
-					displayName: userCredential.user.displayName || "",
-					photoURL: userCredential.user.photoURL || null,
+					...googleUserData,
 					createdAt: serverTimestamp(),
-					updatedAt: serverTimestamp(),
 					hasProfile: false, // Pode precisar completar o perfil
 				};
 
+				console.log("📦 Dados que serão salvos:", JSON.stringify(userData, null, 2));
 				await setDoc(doc(db, "users", userCredential.user.uid), userData);
 				profile = await getUserProfile(userCredential.user.uid);
+				console.log("✅ Perfil criado. PhotoURL salvo:", profile?.photoURL);
+			} else {
+				// Se já tiver perfil, atualizar com os dados mais recentes do Google
+				// Isso garante que photoURL e displayName sempre estejam atualizados
+				console.log("🔄 Atualizando perfil com dados do Google...");
+				console.log("📦 Dados que serão atualizados:", JSON.stringify(googleUserData, null, 2));
+				await setDoc(doc(db, "users", userCredential.user.uid), googleUserData, { merge: true });
+				profile = await getUserProfile(userCredential.user.uid);
+				console.log("✅ Perfil atualizado. PhotoURL salvo:", profile?.photoURL);
 			}
 
 			// Atualizar estado local
@@ -350,6 +464,39 @@ export function useFirebaseAuth() {
 	 */
 	const hasCompleteProfile = userProfile?.hasProfile ?? false;
 
+	/**
+	 * Sincronizar photoURL do Firebase Auth com o Firestore
+	 */
+	const syncPhotoURL = async () => {
+		if (!user || !db) return;
+
+		try {
+			// Verificar se o Firebase Auth tem photoURL mas o Firestore não tem
+			if (user.photoURL && (!userProfile || !userProfile.photoURL || userProfile.photoURL !== user.photoURL)) {
+				console.log("🔄 Forçando sincronização do photoURL do Google com Firestore...");
+				const updateData: any = {
+					photoURL: user.photoURL,
+					updatedAt: serverTimestamp(),
+				};
+
+				// Se não tiver perfil, criar um básico
+				if (!userProfile) {
+					updateData.email = user.email || "";
+					updateData.displayName = user.displayName || "";
+					updateData.createdAt = serverTimestamp();
+					updateData.hasProfile = false;
+				}
+
+				await setDoc(doc(db, "users", user.uid), updateData, { merge: true });
+				const updatedProfile = await getUserProfile(user.uid);
+				setUserProfile(updatedProfile);
+				console.log("✅ photoURL sincronizado com sucesso:", user.photoURL);
+			}
+		} catch (err: any) {
+			console.error("❌ Erro ao sincronizar photoURL:", err);
+		}
+	};
+
 	return {
 		user,
 		userProfile,
@@ -363,6 +510,7 @@ export function useFirebaseAuth() {
 		createProfile,
 		logout,
 		refreshProfile: () => user && getUserProfile(user.uid).then(setUserProfile),
+		syncPhotoURL,
 	};
 }
 
