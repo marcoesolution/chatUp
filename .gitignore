@@ -50,3 +50,5 @@ coverage/
 *.swp
 *.swo
 *~
+
+docs/
