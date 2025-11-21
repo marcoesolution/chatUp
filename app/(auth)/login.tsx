@@ -49,13 +49,24 @@ const Slogan = styled.Text`
 
 export default function LoginScreen() {
 	const router = useRouter();
-	const { login, isLoading } = useAuth();
+	const { login, isLoading, error, hasCompleteProfile, isAuthenticated } = useAuth();
+
+	// Redirecionar quando autenticação mudar
+	React.useEffect(() => {
+		if (isAuthenticated && !isLoading) {
+			if (hasCompleteProfile) {
+				router.replace("/(tabs)");
+			} else {
+				router.replace("/(auth)/create-profile");
+			}
+		}
+	}, [isAuthenticated, hasCompleteProfile, isLoading]);
 
 	const handleLogin = async (credentials: LoginCredentials) => {
 		try {
-			login(credentials);
-			// Navegação será feita após login bem-sucedido
-		} catch (error) {
+			await login(credentials);
+			// Navegação será feita pelo useEffect acima
+		} catch (error: any) {
 			console.error('Login error:', error);
 		}
 	};
@@ -64,6 +75,20 @@ export default function LoginScreen() {
 		// TODO: Implementar navegação para recuperação de senha
 		console.log('Forgot password pressed');
 		router.push('/(auth)/forgot-password');
+	};
+
+	const handleSignUp = () => {
+		router.push("/(auth)/signup");
+	};
+
+	const handleGoogleSignIn = () => {
+		// TODO: Implementar autenticação com Google
+		console.log("Google sign in pressed");
+	};
+
+	const handleFacebookSignIn = () => {
+		// TODO: Implementar autenticação com Facebook
+		console.log("Facebook sign in pressed");
 	};
 
 	return (
@@ -78,7 +103,11 @@ export default function LoginScreen() {
 			<LoginForm
 				onSubmit={handleLogin}
 				onForgotPassword={handleForgotPassword}
+				onSignUp={handleSignUp}
+				onGoogleSignIn={handleGoogleSignIn}
+				onFacebookSignIn={handleFacebookSignIn}
 				isLoading={isLoading}
+				error={error}
 			/>
 		</Container>
 	);

@@ -3,6 +3,8 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from '@/core/queryClient';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ThemeProvider } from '@/core/theme/ThemeProvider';
+// Inicializa o Firebase quando o app inicia
+import '@/core/firebase';
 
 export default function RootLayout() {
   return (

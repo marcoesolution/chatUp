@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { StatusBar } from "react-native";
 import { useRouter } from "expo-router";
 import styled, { useTheme } from "styled-components/native";
@@ -42,13 +42,24 @@ const LogoIconContainer = styled.View`
 export default function LoginScreen() {
 	const theme = useTheme();
 	const router = useRouter();
-	const { login, isLoading } = useAuth();
+	const { login, isLoading, error, hasCompleteProfile, isAuthenticated } = useAuth();
+
+	// Redirecionar se já estiver autenticado
+	React.useEffect(() => {
+		if (isAuthenticated && !isLoading) {
+			if (hasCompleteProfile) {
+				router.replace("/(tabs)");
+			} else {
+				router.replace("/(auth)/create-profile");
+			}
+		}
+	}, [isAuthenticated, hasCompleteProfile, isLoading]);
 
 	const handleLogin = async (credentials: LoginCredentials) => {
 		try {
-			login(credentials);
-			// Navegação será feita após login bem-sucedido
-		} catch (error) {
+			await login(credentials);
+			// Navegação será feita pelo useEffect acima
+		} catch (error: any) {
 			console.error("Login error:", error);
 		}
 	};
@@ -57,6 +68,22 @@ export default function LoginScreen() {
 		// TODO: Implementar navegação para recuperação de senha
 		console.log("Forgot password pressed");
 		router.push("/(auth)/forgot-password");
+	};
+
+	const handleSignUp = () => {
+		router.push("/(auth)/signup");
+	};
+
+	const handleGoogleSignIn = () => {
+		// TODO: Implementar autenticação com Google
+		console.log("Google sign in pressed");
+		// Alert.alert("Em breve", "Autenticação com Google será implementada em breve");
+	};
+
+	const handleFacebookSignIn = () => {
+		// TODO: Implementar autenticação com Facebook
+		console.log("Facebook sign in pressed");
+		// Alert.alert("Em breve", "Autenticação com Facebook será implementada em breve");
 	};
 
 	return (
@@ -74,7 +101,15 @@ export default function LoginScreen() {
 					</LogoIconContainer>
 				</LogoContainer>
 			</Header>
-			<LoginForm onSubmit={handleLogin} onForgotPassword={handleForgotPassword} isLoading={isLoading} />
+			<LoginForm
+				onSubmit={handleLogin}
+				onForgotPassword={handleForgotPassword}
+				onSignUp={handleSignUp}
+				onGoogleSignIn={handleGoogleSignIn}
+				onFacebookSignIn={handleFacebookSignIn}
+				isLoading={isLoading}
+				error={error}
+			/>
 		</Container>
 	);
 }

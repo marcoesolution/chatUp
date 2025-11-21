@@ -2,16 +2,13 @@ import React from "react";
 import { useForm, Controller } from "react-hook-form";
 import { KeyboardAvoidingView, Platform, ScrollView } from "react-native";
 import styled, { useTheme } from "styled-components/native";
-import { Mail, Lock, Chrome, Facebook } from "lucide-react-native";
+import { Mail, Lock, User } from "lucide-react-native";
 import { Input, Button, Link } from "@/shared/components";
-import type { LoginCredentials } from "../types";
+import type { RegisterData } from "../types";
 
-interface LoginFormProps {
-	onSubmit: (data: LoginCredentials) => void;
-	onForgotPassword: () => void;
-	onSignUp?: () => void;
-	onGoogleSignIn?: () => void;
-	onFacebookSignIn?: () => void;
+interface SignUpFormProps {
+	onSubmit: (data: RegisterData) => void;
+	onGoToLogin: () => void;
 	isLoading?: boolean;
 	error?: string | null;
 }
@@ -53,54 +50,12 @@ const ButtonContainer = styled.View`
 	margin-bottom: 24px;
 `;
 
-const DividerContainer = styled.View`
-	flex-direction: row;
-	align-items: center;
-	margin: 24px 0;
-`;
-
-const DividerLine = styled.View`
-	flex: 1;
-	height: 1px;
-	background-color: ${(props) => props.theme.colors.border.secondary};
-`;
-
-const DividerText = styled.Text`
-	margin: 0 ${(props) => props.theme.spacing.md}px;
+const ErrorText = styled.Text`
+	color: ${(props) => props.theme.colors.error};
 	font-size: ${(props) => props.theme.typography.fontSize.sm}px;
 	font-family: ${(props) => props.theme.typography.fontFamily.primary};
-	color: ${(props) => props.theme.colors.text.secondary};
-`;
-
-const SocialButton = styled.TouchableOpacity`
-	flex-direction: row;
-	align-items: center;
-	justify-content: center;
-	background-color: ${(props) => props.theme.colors.background.input};
-	border-radius: ${(props) => props.theme.borderRadius.md}px;
-	padding: ${(props) => props.theme.spacing.md}px;
 	margin-bottom: ${(props) => props.theme.spacing.md}px;
-`;
-
-const SocialButtonText = styled.Text`
-	font-size: ${(props) => props.theme.typography.fontSize.base}px;
-	font-weight: ${(props) => props.theme.typography.fontWeight.semibold};
-	font-family: ${(props) => props.theme.typography.fontFamily.primary};
-	color: ${(props) => props.theme.colors.text.primary};
-	margin-left: ${(props) => props.theme.spacing.md}px;
-`;
-
-const SocialIconContainer = styled.View`
-	width: 20px;
-	height: 20px;
-	justify-content: center;
-	align-items: center;
-`;
-
-const ForgotPasswordContainer = styled.View`
-	align-items: flex-end;
-	margin-top: 8px;
-	margin-bottom: 24px;
+	text-align: center;
 `;
 
 const FooterContainer = styled.View`
@@ -116,37 +71,21 @@ const FooterText = styled.Text`
 	color: ${(props) => props.theme.colors.text.secondary};
 `;
 
-const ErrorText = styled.Text`
-	color: ${(props) => props.theme.colors.error};
-	font-size: ${(props) => props.theme.typography.fontSize.sm}px;
-	font-family: ${(props) => props.theme.typography.fontFamily.primary};
-	margin-bottom: ${(props) => props.theme.spacing.md}px;
-	text-align: center;
-`;
-
-export const LoginForm: React.FC<LoginFormProps> = ({
-	onSubmit,
-	onForgotPassword,
-	onSignUp,
-	onGoogleSignIn,
-	onFacebookSignIn,
-	isLoading = false,
-	error,
-}) => {
+export const SignUpForm: React.FC<SignUpFormProps> = ({ onSubmit, onGoToLogin, isLoading = false, error }) => {
 	const theme = useTheme();
 	const {
 		control,
 		handleSubmit,
 		formState: { errors },
-	} = useForm<LoginCredentials>({
+	} = useForm<RegisterData>({
 		defaultValues: {
+			name: "",
 			email: "",
 			password: "",
 		},
 	});
 
-	const handleFormSubmit = (data: LoginCredentials) => {
-		console.log("Login form submitted:", data);
+	const handleFormSubmit = (data: RegisterData) => {
 		onSubmit(data);
 	};
 
@@ -157,10 +96,35 @@ export const LoginForm: React.FC<LoginFormProps> = ({
 		>
 			<ScrollContent contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
 				<Form>
-					<Title>Welcome Back!</Title>
-					<Subtitle>Log in to continue your conversations</Subtitle>
+					<Title>Create Account</Title>
+					<Subtitle>Sign up to start chatting</Subtitle>
 
 					{error && <ErrorText>{error}</ErrorText>}
+
+					<Controller
+						control={control}
+						rules={{
+							required: "Nome é obrigatório",
+							minLength: {
+								value: 2,
+								message: "Nome deve ter no mínimo 2 caracteres",
+							},
+						}}
+						render={({ field: { onChange, onBlur, value } }) => (
+							<Input
+								label="Name"
+								placeholder="Enter your name"
+								icon={<User size={20} color={theme.colors.icon.secondary} strokeWidth={2} />}
+								autoCapitalize="words"
+								autoCorrect={false}
+								value={value}
+								onChangeText={onChange}
+								onBlur={onBlur}
+								error={errors.name?.message}
+							/>
+						)}
+						name="name"
+					/>
 
 					<Controller
 						control={control}
@@ -217,51 +181,17 @@ export const LoginForm: React.FC<LoginFormProps> = ({
 
 					<ButtonContainer>
 						<Button
-							title="Log In"
+							title="Sign Up"
 							onPress={handleSubmit(handleFormSubmit)}
 							variant="primary"
 							loading={isLoading}
 						/>
 					</ButtonContainer>
 
-					<ForgotPasswordContainer>
-						<Link onPress={onForgotPassword} variant="primary">
-							Forgot Password?
-						</Link>
-					</ForgotPasswordContainer>
-
-					<DividerContainer>
-						<DividerLine />
-						<DividerText>OR</DividerText>
-						<DividerLine />
-					</DividerContainer>
-
-					<SocialButton
-						activeOpacity={0.7}
-						onPress={onGoogleSignIn || (() => console.log("Google sign in pressed"))}
-						disabled={!onGoogleSignIn}
-					>
-						<SocialIconContainer>
-							<Chrome size={20} color={theme.colors.icon.primary} strokeWidth={2} />
-						</SocialIconContainer>
-						<SocialButtonText>Continue with Google</SocialButtonText>
-					</SocialButton>
-
-					<SocialButton
-						activeOpacity={0.7}
-						onPress={onFacebookSignIn || (() => console.log("Facebook sign in pressed"))}
-						disabled={!onFacebookSignIn}
-					>
-						<SocialIconContainer>
-							<Facebook size={20} color={theme.colors.icon.primary} strokeWidth={2} />
-						</SocialIconContainer>
-						<SocialButtonText>Continue with Facebook</SocialButtonText>
-					</SocialButton>
-
 					<FooterContainer>
-						<FooterText>Don't have an account? </FooterText>
-						<Link onPress={onSignUp || (() => console.log("Sign up pressed"))} variant="primary">
-							Sign Up
+						<FooterText>Already have an account? </FooterText>
+						<Link onPress={onGoToLogin} variant="primary">
+							Log In
 						</Link>
 					</FooterContainer>
 				</Form>
@@ -269,3 +199,4 @@ export const LoginForm: React.FC<LoginFormProps> = ({
 		</FormContainer>
 	);
 };
+

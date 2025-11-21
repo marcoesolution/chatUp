@@ -50,6 +50,7 @@ MyProject/
 - **TypeScript** ~5.9.2
 - **TanStack Query** ^5.62.0 (Gerenciamento de estado do servidor)
 - **Axios** ^1.7.9 (Requisições HTTP)
+- **Firebase** ^12.6.0 (Autenticação, Firestore, Storage)
 - **Jest** ^29.7.0 (Testes)
 
 ## 📦 Instalação
@@ -66,11 +67,22 @@ npm install
 cp .env.example .env
 ```
 
-Edite o arquivo `.env` e configure a URL da API:
+Edite o arquivo `.env` e configure as variáveis necessárias:
 
 ```
+# API URL
 EXPO_PUBLIC_API_URL=https://api.example.com
+
+# Firebase Configuration (veja FIREBASE_SETUP.md para mais detalhes)
+EXPO_PUBLIC_FIREBASE_API_KEY=your-api-key
+EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
+EXPO_PUBLIC_FIREBASE_PROJECT_ID=your-project-id
+EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET=your-project.appspot.com
+EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your-sender-id
+EXPO_PUBLIC_FIREBASE_APP_ID=your-app-id
 ```
+
+> 📖 **Importante**: Para configurar o Firebase, siga o guia completo em [FIREBASE_SETUP.md](./FIREBASE_SETUP.md)
 
 3. Inicie o projeto:
 
@@ -142,6 +154,26 @@ import { useTodos } from '@/modules/todos';
 ```
 
 ## 🔧 Configurações Importantes
+
+### Firebase
+
+O Firebase está configurado e pronto para uso. Os serviços disponíveis são:
+
+- **Auth**: Autenticação de usuários (`auth`)
+- **Firestore**: Banco de dados NoSQL (`db`)
+- **Storage**: Armazenamento de arquivos (`storage`)
+
+**Importação:**
+```typescript
+import { auth, db, storage } from '@/core/firebase';
+```
+
+**Documentação completa:** Veja [FIREBASE_SETUP.md](./FIREBASE_SETUP.md) para:
+- Passo a passo de configuração no Firebase Console
+- Exemplos de uso de cada serviço
+- Configuração de regras de segurança
+
+**Exemplos de código:** Veja `src/core/firebase/examples.ts` para exemplos práticos.
 
 ### TanStack Query
 

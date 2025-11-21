@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "firebase": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "--yes",
+        "@gannonh/firebase-mcp@1.4.9"
+      ],
+      "env": {
+        "SERVICE_ACCOUNT_KEY_PATH": "/home/marco/.firebase/chatup-ddcf8-service-account.json",
+        "GOOGLE_APPLICATION_CREDENTIALS": "/home/marco/.firebase/chatup-ddcf8-service-account.json",
+        "FIREBASE_PROJECT_ID": "chatup-ddcf8"
+      }
+    }
+  }
+}
