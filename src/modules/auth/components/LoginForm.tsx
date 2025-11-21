@@ -34,8 +34,8 @@ const Form = styled.View`
 const LogoContainer = styled.View`
 	align-items: center;
 	justify-content: center;
-	margin-bottom: ${(props) => props.theme.spacing["2xl"]}px;
-	margin-top: ${(props) => props.theme.spacing.lg}px;
+	margin-bottom: ${(props) => props.theme.spacing.xl}px;
+	margin-top: ${(props) => props.theme.spacing.md}px;
 	background-color: transparent;
 `;
 
@@ -49,26 +49,7 @@ const LogoImage = styled.Image.attrs({
 
 const ButtonContainer = styled.View`
 	margin-top: 8px;
-	margin-bottom: 24px;
-`;
-
-const DividerContainer = styled.View`
-	flex-direction: row;
-	align-items: center;
-	margin: 24px 0;
-`;
-
-const DividerLine = styled.View`
-	flex: 1;
-	height: 1px;
-	background-color: ${(props) => props.theme.colors.border.secondary};
-`;
-
-const DividerText = styled.Text`
-	margin: 0 ${(props) => props.theme.spacing.md}px;
-	font-size: ${(props) => props.theme.typography.fontSize.sm}px;
-	font-family: ${(props) => props.theme.typography.fontFamily.primary};
-	color: ${(props) => props.theme.colors.text.secondary};
+	margin-bottom: ${(props) => props.theme.spacing.md}px;
 `;
 
 const SocialButton = styled.TouchableOpacity`
@@ -78,6 +59,7 @@ const SocialButton = styled.TouchableOpacity`
 	background-color: ${(props) => props.theme.colors.background.input};
 	border-radius: ${(props) => props.theme.borderRadius.md}px;
 	padding: ${(props) => props.theme.spacing.md}px;
+	margin-top: ${(props) => props.theme.spacing.md}px;
 	margin-bottom: ${(props) => props.theme.spacing.md}px;
 `;
 
@@ -99,14 +81,14 @@ const SocialIconContainer = styled.View`
 const ForgotPasswordContainer = styled.View`
 	align-items: flex-end;
 	margin-top: 8px;
-	margin-bottom: 24px;
+	margin-bottom: ${(props) => props.theme.spacing.md}px;
 `;
 
 const FooterContainer = styled.View`
 	flex-direction: row;
 	justify-content: center;
 	align-items: center;
-	margin-top: 24px;
+	margin-top: ${(props) => props.theme.spacing.md}px;
 `;
 
 const FooterText = styled.Text`
@@ -230,12 +212,6 @@ export const LoginForm: React.FC<LoginFormProps> = ({
 						</Link>
 					</ForgotPasswordContainer>
 
-					<DividerContainer>
-						<DividerLine />
-						<DividerText>OR</DividerText>
-						<DividerLine />
-					</DividerContainer>
-
 					<SocialButton
 						activeOpacity={0.7}
 						onPress={onGoogleSignIn || (() => console.log("Google sign in pressed"))}
@@ -245,17 +221,6 @@ export const LoginForm: React.FC<LoginFormProps> = ({
 							<Ionicons name="logo-google" size={20} color={theme.colors.icon.primary} />
 						</SocialIconContainer>
 						<SocialButtonText>Continue with Google</SocialButtonText>
-					</SocialButton>
-
-					<SocialButton
-						activeOpacity={0.7}
-						onPress={onFacebookSignIn || (() => console.log("Facebook sign in pressed"))}
-						disabled={!onFacebookSignIn}
-					>
-						<SocialIconContainer>
-							<Ionicons name="logo-facebook" size={20} color={theme.colors.icon.primary} />
-						</SocialIconContainer>
-						<SocialButtonText>Continue with Facebook</SocialButtonText>
 					</SocialButton>
 
 					<FooterContainer>
