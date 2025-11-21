@@ -31,7 +31,9 @@
       "predictiveBackGestureEnabled": false,
       "permissions": [
         "ACCESS_FINE_LOCATION",
-        "ACCESS_COARSE_LOCATION"
+        "ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
       ]
     },
     "web": {
@@ -45,6 +47,12 @@
           "locationAlwaysAndWhenInUsePermission": "Este app precisa da sua localização para mostrar usuários próximos a você."
         }
       ]
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "d662ef19-e2a8-4cf3-b18a-564a4faa4a3d"
+      }
+    }
   }
 }

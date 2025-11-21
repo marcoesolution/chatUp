@@ -11,7 +11,17 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "install:fix": "npm install --legacy-peer-deps",
-    "check:deps": "npx expo install --check"
+    "check:deps": "npx expo install --check",
+    "build:android:apk": "eas build --platform android --profile production --local",
+    "build:android:apk:cloud": "eas build --platform android --profile production",
+    "build:android:aab": "eas build --platform android --profile production-aab --local",
+    "build:android:aab:cloud": "eas build --platform android --profile production-aab",
+    "build:ios": "eas build --platform ios --profile production",
+    "build:all": "eas build --platform all --profile production",
+    "eas:setup": "eas build:configure",
+    "eas:login": "eas login",
+    "eas:logout": "eas logout",
+    "eas:whoami": "eas whoami"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
