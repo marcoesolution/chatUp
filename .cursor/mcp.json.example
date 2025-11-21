@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "firebase": {
+      "command": "npx",
+      "args": ["-y", "@gannonh/firebase-mcp@latest"],
+      "env": {
+        "FIREBASE_SERVICE_ACCOUNT": "/caminho/absoluto/para/seu/service-account.json"
+      },
+      "inputs": {
+        "projectId": "chatup-ddcf8"
+      }
+    }
+  }
+}
+

@@ -32,6 +32,12 @@ yarn-error.*
 .env*.local
 .env
 
+# Firebase Service Account (NUNCA commitar!)
+.firebase/
+**/service-account*.json
+**/*-firebase-adminsdk-*.json
+**/*firebase-adminsdk*.json
+
 # typescript
 *.tsbuildinfo
 
