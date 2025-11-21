@@ -52,6 +52,7 @@ export default function TabsLayout() {
         name="chat"
         options={{
           href: null, // Esconder da tab bar
+          headerShown: false, // Esconder header do Tabs para o chat
         }}
       />
     </Tabs>

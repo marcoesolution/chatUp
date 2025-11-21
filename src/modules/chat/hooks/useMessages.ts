@@ -55,11 +55,11 @@ export function useMessages(contactId: string) {
 			chatId,
 		});
 
-		// Query para buscar mensagens do chat
+		// Usar query simples sem orderBy para evitar necessidade de índice composto
+		// Ordenaremos manualmente no cliente
 		const messagesQuery = query(
 			collection(db, "messages"),
 			where("chatId", "==", chatId),
-			orderBy("timestamp", "asc"),
 			limit(100) // Limitar a 100 mensagens por vez
 		);
 
@@ -76,12 +76,6 @@ export function useMessages(contactId: string) {
 				
 				snapshot.forEach((docSnapshot) => {
 					const data = docSnapshot.data();
-					console.log("📝 Mensagem encontrada:", {
-						id: docSnapshot.id,
-						text: data.text,
-						senderId: data.senderId,
-						timestamp: data.timestamp,
-					});
 					messagesData.push({
 						id: docSnapshot.id,
 						chatId: data.chatId,
@@ -94,6 +88,9 @@ export function useMessages(contactId: string) {
 						updatedAt: data.updatedAt,
 					});
 				});
+				
+				// Ordenar manualmente por timestamp (mais antigas primeiro)
+				messagesData.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
 
 				console.log("✅ useMessages: Mensagens processadas", messagesData.length);
 				setMessages(messagesData);
@@ -102,66 +99,8 @@ export function useMessages(contactId: string) {
 			},
 			(err) => {
 				console.error("❌ Erro ao buscar mensagens:", err);
-				console.error("❌ Detalhes do erro:", {
-					code: err.code,
-					message: err.message,
-				});
-				
-				// Se for erro de índice, tentar query sem orderBy
-				if (err.code === 'failed-precondition') {
-					console.warn("⚠️ Tentando query sem orderBy devido a índice faltando...");
-					console.warn("💡 Crie o índice no Firebase Console usando o link do erro acima");
-					
-					const simpleQuery = query(
-						collection(db, "messages"),
-						where("chatId", "==", chatId),
-						limit(100)
-					);
-					
-					const simpleUnsubscribe = onSnapshot(
-						simpleQuery,
-						(snapshot) => {
-							console.log("📨 Query simples: Snapshot recebido", {
-								size: snapshot.size,
-								empty: snapshot.empty,
-							});
-
-							const messagesData: Message[] = [];
-							snapshot.forEach((docSnapshot) => {
-								const data = docSnapshot.data();
-								messagesData.push({
-									id: docSnapshot.id,
-									chatId: data.chatId,
-									senderId: data.senderId,
-									receiverId: data.receiverId,
-									text: data.text,
-									timestamp: data.timestamp?.toDate() || new Date(),
-									read: data.read || false,
-									createdAt: data.createdAt,
-									updatedAt: data.updatedAt,
-								});
-							});
-							
-							// Ordenar manualmente por timestamp
-							messagesData.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
-							
-							console.log("✅ Query simples: Mensagens processadas", messagesData.length);
-							setMessages(messagesData);
-							setIsLoading(false);
-							setError(null);
-						},
-						(simpleErr) => {
-							console.error("❌ Erro na query simples:", simpleErr);
-							setError("Erro ao carregar mensagens");
-							setIsLoading(false);
-						}
-					);
-					
-					return () => simpleUnsubscribe();
-				} else {
-					setError("Erro ao carregar mensagens");
-					setIsLoading(false);
-				}
+				setError("Erro ao carregar mensagens");
+				setIsLoading(false);
 			}
 		);
 
