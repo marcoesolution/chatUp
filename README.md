@@ -29,7 +29,7 @@ MyProject/
 │   ├── modules/          # Módulos de domínio (Features)
 │   │   ├── auth/         # Autenticação
 │   │   ├── profile/      # Perfil do usuário
-│   │   └── todos/        # Gerenciamento de tarefas
+│   │   └── chat/         # Chat e conversas
 │   ├── shared/           # Componentes e utilitários compartilhados
 │   │   ├── components/   # UI genérica (Button, Card, etc.)
 │   │   ├── hooks/        # Hooks reutilizáveis
@@ -121,12 +121,12 @@ modules/[nome]/
 ### Hooks com TanStack Query
 
 ```typescript
-// Exemplo: useTodos
-export function useTodos() {
+// Exemplo: useProfile
+export function useProfile() {
   const { data, isLoading, error } = useQuery({
-    queryKey: ['todos'],
+    queryKey: ['profile'],
     queryFn: async () => {
-      const response = await axiosInstance.get('/todos');
+      const response = await axiosInstance.get('/profile');
       return response.data;
     },
   });
@@ -150,7 +150,8 @@ Exemplo:
 
 ```typescript
 import { Button } from '@/shared/components';
-import { useTodos } from '@/modules/todos';
+import { useAuth } from '@/modules/auth';
+import { mockContacts } from '@/modules/chat';
 ```
 
 ## 🔧 Configurações Importantes

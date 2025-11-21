@@ -49,7 +49,11 @@ const firebaseConfig = {
 2. Clique em **"Começar"** ou **"Get started"**
 3. Na aba **"Sign-in method"** ou **"Métodos de login"**, habilite os métodos desejados:
    - **Email/Password**: Clique em "Email/Password" → Ative → Salvar
-   - **Google**: Clique em "Google" → Ative → Configure (se necessário) → Salvar
+   - **Google**: 
+     - Clique em "Google" → Ative
+     - **IMPORTANTE**: Copie o **"Web client ID"** que aparece na tela (você precisará dele depois)
+     - Configure o email de suporte do projeto (opcional)
+     - Clique em **"Salvar"**
    - **Outros métodos**: Facebook, Twitter, etc. (conforme necessário)
 
 ### 4. Configurar Firestore Database
@@ -70,18 +74,44 @@ const firebaseConfig = {
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Permitir leitura/escrita apenas para usuários autenticados
-    match /{document=**} {
-      allow read, write: if request.auth != null;
+    
+    // Regras para mensagens de chat
+    match /messages/{messageId} {
+      // Permitir leitura apenas se o usuário for o remetente ou destinatário
+      allow read: if request.auth != null && 
+        (request.auth.uid == resource.data.senderId || 
+         request.auth.uid == resource.data.receiverId);
+      
+      // Permitir criação apenas se o usuário for o remetente
+      allow create: if request.auth != null && 
+        request.auth.uid == request.resource.data.senderId &&
+        request.resource.data.receiverId != request.auth.uid &&
+        request.resource.data.text is string &&
+        request.resource.data.text.size() > 0 &&
+        request.resource.data.text.size() <= 1000 &&
+        request.resource.data.chatId is string &&
+        request.resource.data.read == false;
+      
+      // Permitir atualização apenas para marcar como lida
+      allow update: if request.auth != null && 
+        request.auth.uid == resource.data.receiverId &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read', 'updatedAt']) &&
+        request.resource.data.read == true;
+      
+      // Não permitir exclusão de mensagens
+      allow delete: if false;
     }
     
-    // Ou regras mais específicas por coleção:
-    // match /users/{userId} {
-    //   allow read, write: if request.auth != null && request.auth.uid == userId;
-    // }
+    // Regras para usuários
+    match /users/{userId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
   }
 }
 ```
+
+> 📖 **Nota**: Para mais detalhes sobre a estrutura de dados do chat, consulte [FIRESTORE_CHAT_SETUP.md](./FIRESTORE_CHAT_SETUP.md)
 
 2. Clique em **"Publicar"** ou **"Publish"**
 
@@ -134,9 +164,14 @@ EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET=seu-projeto.appspot.com
 EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=123456789012
 EXPO_PUBLIC_FIREBASE_APP_ID=1:123456789012:web:abcdef1234567890
 EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID=G-XXXXXXXXXX
+
+# Google OAuth (obtido no passo 3 - Authentication > Sign-in method > Google)
+EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=seu-web-client-id.apps.googleusercontent.com
 ```
 
-3. **IMPORTANTE**: Substitua todos os valores pelos valores reais do seu projeto Firebase.
+3. **IMPORTANTE**: 
+   - Substitua todos os valores pelos valores reais do seu projeto Firebase
+   - O `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` é o **Web client ID** que você copiou ao habilitar o Google Sign-In no Firebase
 
 ### 7. Verificar Instalação
 

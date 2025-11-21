@@ -49,7 +49,7 @@ const Slogan = styled.Text`
 
 export default function LoginScreen() {
 	const router = useRouter();
-	const { login, isLoading, error, hasCompleteProfile, isAuthenticated } = useAuth();
+	const { login, loginWithGoogle, isLoading, error, hasCompleteProfile, isAuthenticated } = useAuth();
 
 	// Redirecionar quando autenticação mudar
 	React.useEffect(() => {
@@ -74,16 +74,20 @@ export default function LoginScreen() {
 	const handleForgotPassword = () => {
 		// TODO: Implementar navegação para recuperação de senha
 		console.log('Forgot password pressed');
-		router.push('/(auth)/forgot-password');
 	};
 
 	const handleSignUp = () => {
 		router.push("/(auth)/signup");
 	};
 
-	const handleGoogleSignIn = () => {
-		// TODO: Implementar autenticação com Google
-		console.log("Google sign in pressed");
+	const handleGoogleSignIn = async () => {
+		try {
+			await loginWithGoogle();
+			// Navegação será feita pelo useEffect acima
+		} catch (error: any) {
+			console.error('Google sign in error:', error);
+			// O erro já está sendo tratado no hook e exibido através do estado 'error'
+		}
 	};
 
 	const handleFacebookSignIn = () => {
