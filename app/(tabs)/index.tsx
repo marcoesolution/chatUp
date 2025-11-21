@@ -1,8 +1,9 @@
 import React from 'react';
-import { FlatList, TouchableOpacity } from 'react-native';
+import { FlatList, ActivityIndicator, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import styled, { useTheme } from 'styled-components/native';
-import { mockContacts } from '@/modules/chat';
+import { useNearbyUsers } from '@/modules/location';
+import { useContacts } from '@/modules/chat/hooks/useContacts';
 import type { Contact } from '@/modules/chat/types';
 
 const Container = styled.View`
@@ -88,6 +89,25 @@ const EmptyText = styled.Text`
 	text-align: center;
 `;
 
+const ErrorText = styled.Text`
+	font-size: 16px;
+	color: ${(props) => props.theme.colors.status.error};
+	text-align: center;
+	margin-bottom: ${(props) => props.theme.spacing.md}px;
+`;
+
+const LoadingContainer = styled.View`
+	flex: 1;
+	justify-content: center;
+	align-items: center;
+`;
+
+const DistanceText = styled.Text`
+	font-size: 12px;
+	color: ${(props) => props.theme.colors.text.tertiary};
+	margin-top: 2px;
+`;
+
 interface ContactListItemProps {
 	contact: Contact;
 	onPress: () => void;
@@ -134,6 +154,14 @@ function ContactListItem({ contact, onPress }: ContactListItemProps) {
 export default function ConversationsScreen() {
 	const router = useRouter();
 	const theme = useTheme();
+	
+	// Buscar usuários próximos
+	const { nearbyUsers, isLoading: isLoadingNearby, error: nearbyError } = useNearbyUsers();
+	
+	// Buscar informações de chat para os usuários próximos
+	const { contacts, isLoading: isLoadingContacts } = useContacts(nearbyUsers);
+	
+	const isLoading = isLoadingNearby || isLoadingContacts;
 
 	const handleContactPress = (contactId: string) => {
 		console.log('Navegando para chat do contato:', contactId);
@@ -161,18 +189,49 @@ export default function ConversationsScreen() {
 		/>
 	);
 
+	// Mostrar loading
+	if (isLoading) {
+		return (
+			<Container>
+				<LoadingContainer>
+					<ActivityIndicator size="large" color={theme.colors.button.primary} />
+					<EmptyText style={{ marginTop: theme.spacing.md }}>
+						Buscando usuários próximos...
+					</EmptyText>
+				</LoadingContainer>
+			</Container>
+		);
+	}
+
+	// Mostrar erro
+	if (nearbyError) {
+		return (
+			<Container>
+				<EmptyContainer>
+					<ErrorText>{nearbyError}</ErrorText>
+					<EmptyText>
+						Verifique se a localização está habilitada e tente novamente.
+					</EmptyText>
+				</EmptyContainer>
+			</Container>
+		);
+	}
+
 	return (
 		<Container>
 			<FlatList
-				data={mockContacts}
+				data={contacts}
 				renderItem={renderContact}
 				keyExtractor={(item) => item.id}
 				contentContainerStyle={
-					mockContacts.length === 0 ? { flex: 1 } : undefined
+					contacts.length === 0 ? { flex: 1 } : undefined
 				}
 				ListEmptyComponent={
 					<EmptyContainer>
-						<EmptyText>Nenhum contato disponível</EmptyText>
+						<EmptyText>Nenhum usuário próximo encontrado</EmptyText>
+						<EmptyText style={{ marginTop: theme.spacing.sm, fontSize: 14 }}>
+							Usuários dentro de 2km aparecerão aqui automaticamente
+						</EmptyText>
 					</EmptyContainer>
 				}
 			/>
