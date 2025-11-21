@@ -102,8 +102,13 @@ function ContactListItem({ contact, onPress }: ContactListItemProps) {
 		.toUpperCase()
 		.slice(0, 2);
 
+	const handlePress = () => {
+		console.log('ContactListItem: onPress chamado para contato:', contact.id);
+		onPress();
+	};
+
 	return (
-		<ContactItem onPress={onPress} activeOpacity={0.7}>
+		<ContactItem onPress={handlePress} activeOpacity={0.7}>
 			<AvatarContainer>
 				<AvatarText>{initials}</AvatarText>
 			</AvatarContainer>
@@ -131,8 +136,22 @@ export default function ConversationsScreen() {
 	const theme = useTheme();
 
 	const handleContactPress = (contactId: string) => {
-		// TODO: Navegar para a tela de chat do contato
-		console.log('Contact pressed:', contactId);
+		console.log('Navegando para chat do contato:', contactId);
+		// Tentar diferentes formatos de caminho
+		const paths = [
+			`/(tabs)/chat/${contactId}`,
+			`./chat/${contactId}`,
+			`chat/${contactId}`,
+		];
+		
+		// Tentar o primeiro caminho
+		try {
+			router.push(paths[0] as any);
+		} catch (error) {
+			console.error('Erro ao navegar com caminho 1:', error);
+			// Tentar caminho alternativo
+			router.push(paths[1] as any);
+		}
 	};
 
 	const renderContact = ({ item }: { item: Contact }) => (

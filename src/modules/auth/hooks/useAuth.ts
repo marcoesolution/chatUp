@@ -15,6 +15,7 @@ export function useAuth() {
 		error,
 		signIn,
 		signUp,
+		signInWithGoogle,
 		createProfile,
 		logout,
 	} = useFirebaseAuth();
@@ -25,6 +26,10 @@ export function useAuth() {
 
 	const register = async (data: RegisterData) => {
 		await signUp(data.email, data.password, data.name);
+	};
+
+	const loginWithGoogle = async () => {
+		await signInWithGoogle();
 	};
 
 	return {
@@ -41,6 +46,7 @@ export function useAuth() {
 		hasCompleteProfile,
 		login,
 		register,
+		loginWithGoogle,
 		createProfile,
 		logout,
 		isLoading,

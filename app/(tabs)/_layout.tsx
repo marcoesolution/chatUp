@@ -48,6 +48,12 @@ export default function TabsLayout() {
           ),
         }}
       />
+      <Tabs.Screen
+        name="chat"
+        options={{
+          href: null, // Esconder da tab bar
+        }}
+      />
     </Tabs>
   );
 }
