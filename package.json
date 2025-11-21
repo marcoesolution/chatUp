@@ -23,7 +23,10 @@
     "eas:logout": "eas logout",
     "eas:whoami": "eas whoami",
     "eas:secrets:list": "eas secret:list",
-    "eas:secrets:help": "echo 'Para adicionar secrets, use: eas secret:create --scope project --name NOME --value VALOR'"
+    "eas:secrets:help": "echo 'Para adicionar secrets, use: eas secret:create --scope project --name NOME --value VALOR'",
+    "clean": "rm -rf node_modules && npm cache clean --force",
+    "clean:build": "rm -rf android ios .expo",
+    "fix:gradle": "./fix-gradle-build.sh"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
