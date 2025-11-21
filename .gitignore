@@ -46,6 +46,8 @@ coverage/
 
 # IDE
 .vscode/
+.docs/
+.cursor/
 .idea/
 *.swp
 *.swo
