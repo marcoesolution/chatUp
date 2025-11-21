@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, TextInput as RNTextInput } from 'react-native';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { useNavigation } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import styled, { useTheme } from 'styled-components/native';
 import { Send } from 'lucide-react-native';
 import { useMessages } from '@/modules/chat/hooks/useMessages';
@@ -42,9 +43,10 @@ const MessageTime = styled.Text<{ isOwn: boolean }>`
 	opacity: 0.7;
 `;
 
-const InputContainer = styled.View`
+const InputContainer = styled.View<{ bottomInset: number }>`
 	flex-direction: row;
 	padding: ${(props) => props.theme.spacing.md}px;
+	padding-bottom: ${(props) => Math.max(props.theme.spacing.md, props.bottomInset)}px;
 	background-color: ${(props) => props.theme.colors.background.secondary};
 	border-top-width: 1px;
 	border-top-color: ${(props) => props.theme.colors.border.secondary};
@@ -104,6 +106,7 @@ export default function ChatScreen() {
 	const { contactId } = useLocalSearchParams<{ contactId: string }>();
 	const theme = useTheme();
 	const { firebaseUser } = useAuth();
+	const insets = useSafeAreaInsets();
 	
 	// Esconder tab bar quando a tela de chat estiver em foco
 	useFocusEffect(
@@ -197,12 +200,15 @@ export default function ChatScreen() {
 
 	return (
 		<Container
-				behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-				keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-			>
+			behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+			keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+		>
 			<MessagesContainer
 				ref={scrollViewRef}
-				contentContainerStyle={{ flexGrow: 1 }}
+				contentContainerStyle={{ 
+					flexGrow: 1,
+					paddingBottom: insets.bottom > 0 ? insets.bottom : 0,
+				}}
 				keyboardShouldPersistTaps="handled"
 			>
 				{messages.length === 0 ? (
@@ -222,7 +228,7 @@ export default function ChatScreen() {
 				)}
 			</MessagesContainer>
 
-			<InputContainer>
+			<InputContainer bottomInset={insets.bottom}>
 				<TextInput
 					ref={inputRef}
 					value={messageText}

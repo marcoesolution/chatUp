@@ -15,6 +15,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/core/firebase";
 import { useAuth } from "@/modules/auth";
+import { encryptMessage, decryptMessage } from "@/core/security";
 import type { Message, CreateMessageData } from "../types";
 
 /**
@@ -66,7 +67,7 @@ export function useMessages(contactId: string) {
 		// Escutar mudanças em tempo real
 		const unsubscribe = onSnapshot(
 			messagesQuery,
-			(snapshot) => {
+			async (snapshot) => {
 				console.log("📨 useMessages: Snapshot recebido", {
 					size: snapshot.size,
 					empty: snapshot.empty,
@@ -74,20 +75,57 @@ export function useMessages(contactId: string) {
 
 				const messagesData: Message[] = [];
 				
-				snapshot.forEach((docSnapshot) => {
+				// Processar mensagens e descriptografar
+				console.log("📥 [RECEIVE-MESSAGES] Processando mensagens recebidas", {
+					totalMessages: snapshot.docs.length,
+					chatId: chatId.substring(0, 8) + '...',
+					currentUserId: currentUserId.substring(0, 8) + '...',
+				});
+				
+				for (const docSnapshot of snapshot.docs) {
 					const data = docSnapshot.data();
+					
+					console.log("📨 [RECEIVE-MESSAGE] Processando mensagem individual", {
+						messageId: docSnapshot.id.substring(0, 8) + '...',
+						senderId: data.senderId?.substring(0, 8) + '...',
+						receiverId: data.receiverId?.substring(0, 8) + '...',
+						isEncrypted: data.text?.startsWith('ENC:') || false,
+						textLength: data.text?.length || 0,
+					});
+					
+					// Tentar descriptografar a mensagem
+					let decryptedText = data.text;
+					try {
+						// Descriptografar usando a chave do usuário atual
+						// A mensagem foi criptografada pelo remetente, então precisamos
+						// descriptografar usando a chave do chat do ponto de vista do usuário atual
+						decryptedText = await decryptMessage(data.text, chatId, currentUserId);
+						console.log("✅ [RECEIVE-MESSAGE] Mensagem processada com sucesso", {
+							messageId: docSnapshot.id.substring(0, 8) + '...',
+							wasEncrypted: data.text?.startsWith('ENC:') || false,
+							decryptedLength: decryptedText.length,
+						});
+					} catch (error) {
+						console.warn("⚠️ [RECEIVE-MESSAGE] Erro ao descriptografar mensagem, usando texto original", {
+							messageId: docSnapshot.id.substring(0, 8) + '...',
+							error: error instanceof Error ? error.message : String(error),
+							fallbackToOriginal: true,
+						});
+						// Se falhar, usar o texto original (pode ser mensagem antiga não criptografada)
+					}
+					
 					messagesData.push({
 						id: docSnapshot.id,
 						chatId: data.chatId,
 						senderId: data.senderId,
 						receiverId: data.receiverId,
-						text: data.text,
+						text: decryptedText,
 						timestamp: data.timestamp?.toDate() || new Date(),
 						read: data.read || false,
 						createdAt: data.createdAt,
 						updatedAt: data.updatedAt,
 					});
-				});
+				}
 				
 				// Ordenar manualmente por timestamp (mais antigas primeiro)
 				messagesData.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
@@ -152,7 +190,7 @@ export function useMessages(contactId: string) {
 	}, [firebaseUser, contactId]);
 
 	/**
-	 * Enviar uma nova mensagem
+	 * Enviar uma nova mensagem (com criptografia automática)
 	 */
 	const sendMessage = async (messageData: CreateMessageData) => {
 		if (!firebaseUser || !db) {
@@ -167,11 +205,38 @@ export function useMessages(contactId: string) {
 		const chatId = generateChatId(currentUserId, messageData.receiverId);
 
 		try {
+			// Criptografar a mensagem antes de enviar
+			const plaintext = messageData.text.trim();
+			let encryptedText: string;
+			
+			console.log("📤 [SEND-MESSAGE] Preparando mensagem para envio", {
+				chatId: chatId.substring(0, 8) + '...',
+				senderId: currentUserId.substring(0, 8) + '...',
+				receiverId: messageData.receiverId.substring(0, 8) + '...',
+				plaintextLength: plaintext.length,
+				plaintextPreview: plaintext.substring(0, 50) + (plaintext.length > 50 ? '...' : ''),
+			});
+			
+			try {
+				encryptedText = await encryptMessage(plaintext, chatId, currentUserId);
+				console.log("✅ [SEND-MESSAGE] Mensagem criptografada com sucesso", {
+					originalLength: plaintext.length,
+					encryptedLength: encryptedText.length,
+					willBeStored: true,
+				});
+			} catch (encryptError) {
+				console.error("❌ [SEND-MESSAGE] Erro ao criptografar mensagem:", encryptError);
+				// Se a criptografia falhar, ainda podemos enviar a mensagem não criptografada
+				// (para compatibilidade, mas em produção você pode querer falhar aqui)
+				encryptedText = plaintext;
+				console.warn("⚠️ [SEND-MESSAGE] Enviando mensagem sem criptografia (fallback)");
+			}
+
 			const newMessage = {
 				chatId,
 				senderId: currentUserId,
 				receiverId: messageData.receiverId,
-				text: messageData.text.trim(),
+				text: encryptedText, // Armazenar mensagem criptografada
 				timestamp: serverTimestamp(),
 				read: false,
 				createdAt: serverTimestamp(),
@@ -179,6 +244,12 @@ export function useMessages(contactId: string) {
 			};
 
 			await addDoc(collection(db, "messages"), newMessage);
+			console.log("✅ [SEND-MESSAGE] Mensagem enviada e armazenada no Firestore", {
+				chatId: chatId.substring(0, 8) + '...',
+				messageId: 'pending',
+				isEncrypted: encryptedText.startsWith('ENC:'),
+				storedTextLength: encryptedText.length,
+			});
 
 			// Atualizar última mensagem do chat (opcional, pode ser feito via Cloud Function)
 			// Por enquanto, vamos apenas enviar a mensagem
