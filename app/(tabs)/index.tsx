@@ -1,13 +1,14 @@
-import React from 'react';
-import { FlatList, ActivityIndicator, View } from 'react-native';
-import { useRouter } from 'expo-router';
-import styled, { useTheme } from 'styled-components/native';
-import { Ionicons } from '@expo/vector-icons';
-import { useNearbyUsers } from '@/modules/location';
-import { useLocation } from '@/modules/location';
-import { useContacts } from '@/modules/chat/hooks/useContacts';
-import { Button } from '@/shared/components';
-import type { Contact } from '@/modules/chat/types';
+import React from "react";
+import { FlatList, ActivityIndicator, View } from "react-native";
+import { useRouter, useFocusEffect } from "expo-router";
+import styled, { useTheme } from "styled-components/native";
+import { Ionicons } from "@expo/vector-icons";
+import { useNearbyUsers } from "@/modules/location";
+import { useLocation } from "@/modules/location";
+import { useContacts } from "@/modules/chat/hooks/useContacts";
+import { useAppUpdate, UpdateRequiredScreen } from "@/modules/update";
+import { Button } from "@/shared/components";
+import type { Contact } from "@/modules/chat/types";
 
 const Container = styled.View`
 	flex: 1;
@@ -135,14 +136,14 @@ interface ContactListItemProps {
 function ContactListItem({ contact, onPress }: ContactListItemProps) {
 	const theme = useTheme();
 	const initials = contact.name
-		.split(' ')
+		.split(" ")
 		.map((n) => n[0])
-		.join('')
+		.join("")
 		.toUpperCase()
 		.slice(0, 2);
 
 	const handlePress = () => {
-		console.log('ContactListItem: onPress chamado para contato:', contact.id);
+		console.log("ContactListItem: onPress chamado para contato:", contact.id);
 		onPress();
 	};
 
@@ -154,15 +155,11 @@ function ContactListItem({ contact, onPress }: ContactListItemProps) {
 			<ContactInfo>
 				<ContactDetails>
 					<ContactName>{contact.name}</ContactName>
-					{contact.lastMessage && (
-						<LastMessage numberOfLines={1}>{contact.lastMessage}</LastMessage>
-					)}
+					{contact.lastMessage && <LastMessage numberOfLines={1}>{contact.lastMessage}</LastMessage>}
 				</ContactDetails>
 				{contact.unreadCount > 0 && (
 					<UnreadBadge>
-						<UnreadCount>
-							{contact.unreadCount > 99 ? '99+' : contact.unreadCount}
-						</UnreadCount>
+						<UnreadCount>{contact.unreadCount > 99 ? "99+" : contact.unreadCount}</UnreadCount>
 					</UnreadBadge>
 				)}
 			</ContactInfo>
@@ -173,50 +170,67 @@ function ContactListItem({ contact, onPress }: ContactListItemProps) {
 export default function ConversationsScreen() {
 	const router = useRouter();
 	const theme = useTheme();
-	
+
+	// Hook de atualização do app
+	const {
+		isUpdateRequired,
+		isUpdateAvailable,
+		isChecking,
+		isDownloading,
+		error: updateError,
+		checkForUpdates,
+		downloadAndReload,
+	} = useAppUpdate();
+
+	// Verificar atualizações quando a tela receber foco
+	useFocusEffect(
+		React.useCallback(() => {
+			checkForUpdates();
+		}, [checkForUpdates])
+	);
+
 	// Hook de localização para acessar openSettings
 	const { openSettings, permissionStatus } = useLocation();
-	
+
 	// Buscar usuários próximos
 	const { nearbyUsers, isLoading: isLoadingNearby, error: nearbyError } = useNearbyUsers();
-	
+
 	// Buscar informações de chat para os usuários próximos
 	const { contacts, isLoading: isLoadingContacts } = useContacts(nearbyUsers);
-	
+
 	const isLoading = isLoadingNearby || isLoadingContacts;
-	
+
+	// Mostrar tela de atualização se houver atualização obrigatória disponível
+	// Só mostra após terminar de verificar (não durante o loading inicial)
+	if (!isChecking && (isUpdateRequired || isUpdateAvailable)) {
+		return <UpdateRequiredScreen onUpdate={downloadAndReload} isDownloading={isDownloading} error={updateError} />;
+	}
+
 	// Verificar se o erro é relacionado a permissão de localização
-	const isLocationPermissionError = 
-		nearbyError && 
-		(nearbyError.includes('localização') || 
-		 nearbyError.includes('permissão') || 
-		 nearbyError.includes('Localização') ||
-		 !permissionStatus?.granted);
+	const isLocationPermissionError =
+		nearbyError &&
+		(nearbyError.includes("localização") ||
+			nearbyError.includes("permissão") ||
+			nearbyError.includes("Localização") ||
+			!permissionStatus?.granted);
 
 	const handleContactPress = (contactId: string) => {
-		console.log('Navegando para chat do contato:', contactId);
+		console.log("Navegando para chat do contato:", contactId);
 		// Tentar diferentes formatos de caminho
-		const paths = [
-			`/(tabs)/chat/${contactId}`,
-			`./chat/${contactId}`,
-			`chat/${contactId}`,
-		];
-		
+		const paths = [`/(tabs)/chat/${contactId}`, `./chat/${contactId}`, `chat/${contactId}`];
+
 		// Tentar o primeiro caminho
 		try {
 			router.push(paths[0] as any);
 		} catch (error) {
-			console.error('Erro ao navegar com caminho 1:', error);
+			console.error("Erro ao navegar com caminho 1:", error);
 			// Tentar caminho alternativo
 			router.push(paths[1] as any);
 		}
 	};
 
 	const renderContact = ({ item }: { item: Contact }) => (
-		<ContactListItem
-			contact={item}
-			onPress={() => handleContactPress(item.id)}
-		/>
+		<ContactListItem contact={item} onPress={() => handleContactPress(item.id)} />
 	);
 
 	// Mostrar loading
@@ -225,9 +239,7 @@ export default function ConversationsScreen() {
 			<Container>
 				<LoadingContainer>
 					<ActivityIndicator size="large" color={theme.colors.button.primary} />
-					<EmptyText style={{ marginTop: theme.spacing.md }}>
-						Buscando usuários próximos...
-					</EmptyText>
+					<EmptyText style={{ marginTop: theme.spacing.md }}>Buscando usuários próximos...</EmptyText>
 				</LoadingContainer>
 			</Container>
 		);
@@ -240,26 +252,18 @@ export default function ConversationsScreen() {
 				<EmptyContainer>
 					{isLocationPermissionError && (
 						<ErrorIcon>
-							<Ionicons 
-								name="location-outline" 
-								size={64} 
-								color={theme.colors.status.error} 
-							/>
+							<Ionicons name="location-outline" size={64} color={theme.colors.status.error} />
 						</ErrorIcon>
 					)}
 					<ErrorText>{nearbyError}</ErrorText>
 					<EmptyText>
-						{isLocationPermissionError 
-							? 'Para ver usuários próximos, é necessário permitir o acesso à localização.'
-							: 'Verifique se a localização está habilitada e tente novamente.'}
+						{isLocationPermissionError
+							? "Para ver usuários próximos, é necessário permitir o acesso à localização."
+							: "Verifique se a localização está habilitada e tente novamente."}
 					</EmptyText>
 					{isLocationPermissionError && (
 						<ErrorButtonContainer>
-							<Button
-								title="Abrir Configurações"
-								onPress={openSettings}
-								variant="primary"
-							/>
+							<Button title="Abrir Configurações" onPress={openSettings} variant="primary" />
 						</ErrorButtonContainer>
 					)}
 				</EmptyContainer>
@@ -273,9 +277,7 @@ export default function ConversationsScreen() {
 				data={contacts}
 				renderItem={renderContact}
 				keyExtractor={(item) => item.id}
-				contentContainerStyle={
-					contacts.length === 0 ? { flex: 1 } : undefined
-				}
+				contentContainerStyle={contacts.length === 0 ? { flex: 1 } : undefined}
 				ListEmptyComponent={
 					<EmptyContainer>
 						<EmptyText>Nenhum usuário próximo encontrado</EmptyText>
