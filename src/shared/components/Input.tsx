@@ -1,7 +1,7 @@
 import React, { useState, ReactNode } from "react";
 import { TextInput, TextInputProps } from "react-native";
 import styled, { useTheme } from "styled-components/native";
-import { Eye, EyeOff } from "lucide-react-native";
+import { Ionicons } from "@expo/vector-icons";
 
 interface InputProps extends TextInputProps {
 	label?: string;
@@ -82,11 +82,11 @@ export const Input: React.FC<InputProps> = ({
 				/>
 				{showPasswordToggle && secureTextEntry && (
 					<PasswordToggle onPress={() => setIsPasswordVisible(!isPasswordVisible)} activeOpacity={0.7}>
-						{isPasswordVisible ? (
-							<Eye size={20} color={theme.colors.icon.secondary} strokeWidth={2} />
-						) : (
-							<EyeOff size={20} color={theme.colors.icon.secondary} strokeWidth={2} />
-						)}
+						<Ionicons 
+							name={isPasswordVisible ? "eye" : "eye-off"} 
+							size={20} 
+							color={theme.colors.icon.secondary} 
+						/>
 					</PasswordToggle>
 				)}
 			</InputContainer>

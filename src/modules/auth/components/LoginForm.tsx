@@ -1,10 +1,12 @@
 import React from "react";
 import { useForm, Controller } from "react-hook-form";
-import { KeyboardAvoidingView, Platform, ScrollView } from "react-native";
+import { KeyboardAvoidingView, Platform, ScrollView, Image } from "react-native";
 import styled, { useTheme } from "styled-components/native";
-import { Mail, Lock, Chrome, Facebook } from "lucide-react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { Input, Button, Link } from "@/shared/components";
 import type { LoginCredentials } from "../types";
+
+const logoImage = require("../../../../assets/logo-chatup.png");
 
 interface LoginFormProps {
 	onSubmit: (data: LoginCredentials) => void;
@@ -29,23 +31,20 @@ const Form = styled.View`
 	padding: ${(props) => props.theme.spacing.lg}px;
 `;
 
-const Title = styled.Text`
-	font-size: ${(props) => props.theme.typography.fontSize["3xl"]}px;
-	font-weight: ${(props) => props.theme.typography.fontWeight.extrabold};
-	font-family: ${(props) => props.theme.typography.fontFamily.primary};
-	color: ${(props) => props.theme.colors.text.primary};
-	margin-bottom: ${(props) => props.theme.spacing.sm}px;
-	letter-spacing: -0.5px;
-	text-align: center;
+const LogoContainer = styled.View`
+	align-items: center;
+	justify-content: center;
+	margin-bottom: ${(props) => props.theme.spacing["2xl"]}px;
+	margin-top: ${(props) => props.theme.spacing.lg}px;
+	background-color: transparent;
 `;
 
-const Subtitle = styled.Text`
-	font-size: ${(props) => props.theme.typography.fontSize.base}px;
-	font-family: ${(props) => props.theme.typography.fontFamily.secondary};
-	color: ${(props) => props.theme.colors.text.secondary};
-	margin-bottom: ${(props) => props.theme.spacing.xl}px;
-	line-height: ${(props) => props.theme.typography.lineHeight.normal};
-	text-align: center;
+const LogoImage = styled.Image.attrs({
+	resizeMode: "contain",
+})`
+	width: 280px;
+	height: 70px;
+	background-color: transparent;
 `;
 
 const ButtonContainer = styled.View`
@@ -117,7 +116,7 @@ const FooterText = styled.Text`
 `;
 
 const ErrorText = styled.Text`
-	color: ${(props) => props.theme.colors.error};
+	color: ${(props) => props.theme.colors.status.error};
 	font-size: ${(props) => props.theme.typography.fontSize.sm}px;
 	font-family: ${(props) => props.theme.typography.fontFamily.primary};
 	margin-bottom: ${(props) => props.theme.spacing.md}px;
@@ -157,8 +156,9 @@ export const LoginForm: React.FC<LoginFormProps> = ({
 		>
 			<ScrollContent contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
 				<Form>
-					<Title>Welcome Back!</Title>
-					<Subtitle>Log in to continue your conversations</Subtitle>
+					<LogoContainer>
+						<LogoImage source={logoImage} />
+					</LogoContainer>
 
 					{error && <ErrorText>{error}</ErrorText>}
 
@@ -175,7 +175,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
 							<Input
 								label="Email"
 								placeholder="Enter your email"
-								icon={<Mail size={20} color={theme.colors.icon.secondary} strokeWidth={2} />}
+								icon={<Ionicons name="mail" size={20} color={theme.colors.icon.secondary} />}
 								keyboardType="email-address"
 								autoCapitalize="none"
 								autoCorrect={false}
@@ -201,7 +201,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
 							<Input
 								label="Password"
 								placeholder="Enter your password"
-								icon={<Lock size={20} color={theme.colors.icon.secondary} strokeWidth={2} />}
+								icon={<Ionicons name="lock-closed" size={20} color={theme.colors.icon.secondary} />}
 								secureTextEntry
 								showPasswordToggle
 								autoCapitalize="none"
@@ -242,7 +242,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
 						disabled={!onGoogleSignIn}
 					>
 						<SocialIconContainer>
-							<Chrome size={20} color={theme.colors.icon.primary} strokeWidth={2} />
+							<Ionicons name="logo-google" size={20} color={theme.colors.icon.primary} />
 						</SocialIconContainer>
 						<SocialButtonText>Continue with Google</SocialButtonText>
 					</SocialButton>
@@ -253,7 +253,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
 						disabled={!onFacebookSignIn}
 					>
 						<SocialIconContainer>
-							<Facebook size={20} color={theme.colors.icon.primary} strokeWidth={2} />
+							<Ionicons name="logo-facebook" size={20} color={theme.colors.icon.primary} />
 						</SocialIconContainer>
 						<SocialButtonText>Continue with Facebook</SocialButtonText>
 					</SocialButton>

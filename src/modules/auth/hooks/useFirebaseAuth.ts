@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
 	signInWithEmailAndPassword,
 	createUserWithEmailAndPassword,
@@ -9,12 +9,13 @@ import {
 	GoogleAuthProvider,
 	User as FirebaseUser,
 } from "firebase/auth";
-import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, setDoc, serverTimestamp, Timestamp } from "firebase/firestore";
 import * as AuthSession from "expo-auth-session";
 import * as WebBrowser from "expo-web-browser";
 import { Platform } from "react-native";
 import { auth, db } from "@/core/firebase";
 import { clearAllKeys } from "@/core/security";
+import { useLocation } from "@/modules/location";
 import type { UserProfile, CreateProfileData } from "../types";
 
 // Necessário para o AuthSession funcionar corretamente
@@ -28,6 +29,10 @@ export function useFirebaseAuth() {
 	const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
 	const [isLoading, setIsLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
+	
+	// Hook de localização para atualizar posição do usuário
+	const { location: userLocation, permissionStatus } = useLocation();
+	const lastLocationUpdateRef = useRef<{ lat: number; lon: number } | null>(null);
 
 	// Observar mudanças no estado de autenticação
 	useEffect(() => {
@@ -496,6 +501,73 @@ export function useFirebaseAuth() {
 			console.error("❌ Erro ao sincronizar photoURL:", err);
 		}
 	};
+
+	/**
+	 * Atualizar localização do usuário no Firestore
+	 */
+	const updateUserLocation = useCallback(async () => {
+		if (!user || !db || !userLocation || !permissionStatus?.granted) {
+			return;
+		}
+
+		try {
+			// Verificar se a localização mudou significativamente (mais de 10 metros)
+			const lastLocation = lastLocationUpdateRef.current;
+			if (
+				lastLocation &&
+				Math.abs(lastLocation.lat - userLocation.latitude) < 0.0001 &&
+				Math.abs(lastLocation.lon - userLocation.longitude) < 0.0001
+			) {
+				// Localização não mudou significativamente, não atualizar
+				return;
+			}
+
+			const locationData = {
+				location: {
+					latitude: userLocation.latitude,
+					longitude: userLocation.longitude,
+					updatedAt: userLocation.updatedAt instanceof Date 
+						? Timestamp.fromDate(userLocation.updatedAt)
+						: userLocation.updatedAt,
+				},
+				isLocationEnabled: true,
+				updatedAt: serverTimestamp(),
+			};
+
+			await setDoc(doc(db, "users", user.uid), locationData, { merge: true });
+			
+			// Atualizar referência da última localização
+			lastLocationUpdateRef.current = {
+				lat: userLocation.latitude,
+				lon: userLocation.longitude,
+			};
+
+			// Atualizar perfil local se necessário
+			if (userProfile) {
+				setUserProfile({
+					...userProfile,
+					location: userLocation,
+					isLocationEnabled: true,
+				});
+			}
+
+			console.log("📍 Localização atualizada no Firestore:", {
+				latitude: userLocation.latitude,
+				longitude: userLocation.longitude,
+			});
+		} catch (err: any) {
+			console.error("❌ Erro ao atualizar localização:", err);
+		}
+	}, [user, db, userLocation, permissionStatus, userProfile]);
+
+	/**
+	 * Efeito para atualizar localização no Firestore quando a localização muda
+	 */
+	useEffect(() => {
+		if (user && userLocation && permissionStatus?.granted) {
+			updateUserLocation();
+		}
+	}, [user, userLocation, permissionStatus, updateUserLocation]);
 
 	return {
 		user,

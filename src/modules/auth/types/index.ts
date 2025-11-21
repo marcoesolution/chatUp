@@ -2,6 +2,8 @@
  * Tipos relacionados ao módulo de autenticação
  */
 
+import type { Location } from '@/modules/location/types';
+
 export interface LoginCredentials {
 	email: string;
 	password: string;
@@ -40,6 +42,8 @@ export interface UserProfile {
 	photoURL?: string;
 	phoneNumber?: string;
 	bio?: string;
+	location?: Location;
+	isLocationEnabled?: boolean; // sempre true (obrigatório)
 	createdAt?: any; // Firestore Timestamp
 	updatedAt?: any; // Firestore Timestamp
 }

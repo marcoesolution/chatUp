@@ -30,19 +30,38 @@ const requiredEnvVars = [
 const missingEnvVars = requiredEnvVars.filter((varName) => !process.env[varName]);
 
 if (missingEnvVars.length > 0) {
-	console.warn(`⚠️ Firebase: Variáveis de ambiente faltando: ${missingEnvVars.join(", ")}`);
-	console.warn("⚠️ Firebase: Certifique-se de configurar o arquivo .env com as credenciais do Firebase");
+	const errorMessage = `⚠️ Firebase: Variáveis de ambiente faltando: ${missingEnvVars.join(
+		", "
+	)}\n⚠️ Firebase: Certifique-se de configurar as variáveis no EAS Build ou no arquivo .env`;
+	console.error(errorMessage);
+
+	// Em produção, não lançar erro imediatamente - deixar o app tentar inicializar
+	// O erro será capturado durante a inicialização se necessário
+	// Isso evita crash imediato do app
 }
 
 // Inicialização do Firebase App
 let app: FirebaseApp | null = null;
 
+console.log("🔍 Firebase Config: Iniciando inicialização...");
+console.log("🔍 Firebase Config: Variáveis de ambiente:", {
+	hasApiKey: !!process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
+	hasAuthDomain: !!process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
+	hasProjectId: !!process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID,
+	hasStorageBucket: !!process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET,
+	hasMessagingSenderId: !!process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+	hasAppId: !!process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
+});
+
 if (!getApps().length) {
 	try {
+		console.log("🔍 Firebase Config: Tentando inicializar Firebase...");
 		app = initializeApp(firebaseConfig);
 		console.log("✅ Firebase inicializado com sucesso");
 	} catch (error) {
 		console.error("❌ Erro ao inicializar Firebase:", error);
+		console.error("❌ Detalhes do erro:", JSON.stringify(error, null, 2));
+		// Não lançar erro aqui, deixar o app tentar continuar
 	}
 } else {
 	app = getApps()[0];

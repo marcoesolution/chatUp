@@ -1,8 +1,12 @@
 import React from 'react';
-import { FlatList, TouchableOpacity } from 'react-native';
+import { FlatList, ActivityIndicator, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import styled, { useTheme } from 'styled-components/native';
-import { mockContacts } from '@/modules/chat';
+import { Ionicons } from '@expo/vector-icons';
+import { useNearbyUsers } from '@/modules/location';
+import { useLocation } from '@/modules/location';
+import { useContacts } from '@/modules/chat/hooks/useContacts';
+import { Button } from '@/shared/components';
 import type { Contact } from '@/modules/chat/types';
 
 const Container = styled.View`
@@ -88,6 +92,41 @@ const EmptyText = styled.Text`
 	text-align: center;
 `;
 
+const ErrorText = styled.Text`
+	font-size: 16px;
+	color: ${(props) => props.theme.colors.status.error};
+	text-align: center;
+	margin-bottom: ${(props) => props.theme.spacing.md}px;
+`;
+
+const ErrorContainer = styled.View`
+	align-items: center;
+	justify-content: center;
+	padding: ${(props) => props.theme.spacing.xl}px;
+`;
+
+const ErrorIcon = styled.View`
+	margin-bottom: ${(props) => props.theme.spacing.lg}px;
+`;
+
+const ErrorButtonContainer = styled.View`
+	margin-top: ${(props) => props.theme.spacing.lg}px;
+	width: 100%;
+	max-width: 300px;
+`;
+
+const LoadingContainer = styled.View`
+	flex: 1;
+	justify-content: center;
+	align-items: center;
+`;
+
+const DistanceText = styled.Text`
+	font-size: 12px;
+	color: ${(props) => props.theme.colors.text.tertiary};
+	margin-top: 2px;
+`;
+
 interface ContactListItemProps {
 	contact: Contact;
 	onPress: () => void;
@@ -134,6 +173,25 @@ function ContactListItem({ contact, onPress }: ContactListItemProps) {
 export default function ConversationsScreen() {
 	const router = useRouter();
 	const theme = useTheme();
+	
+	// Hook de localização para acessar openSettings
+	const { openSettings, permissionStatus } = useLocation();
+	
+	// Buscar usuários próximos
+	const { nearbyUsers, isLoading: isLoadingNearby, error: nearbyError } = useNearbyUsers();
+	
+	// Buscar informações de chat para os usuários próximos
+	const { contacts, isLoading: isLoadingContacts } = useContacts(nearbyUsers);
+	
+	const isLoading = isLoadingNearby || isLoadingContacts;
+	
+	// Verificar se o erro é relacionado a permissão de localização
+	const isLocationPermissionError = 
+		nearbyError && 
+		(nearbyError.includes('localização') || 
+		 nearbyError.includes('permissão') || 
+		 nearbyError.includes('Localização') ||
+		 !permissionStatus?.granted);
 
 	const handleContactPress = (contactId: string) => {
 		console.log('Navegando para chat do contato:', contactId);
@@ -161,18 +219,69 @@ export default function ConversationsScreen() {
 		/>
 	);
 
+	// Mostrar loading
+	if (isLoading) {
+		return (
+			<Container>
+				<LoadingContainer>
+					<ActivityIndicator size="large" color={theme.colors.button.primary} />
+					<EmptyText style={{ marginTop: theme.spacing.md }}>
+						Buscando usuários próximos...
+					</EmptyText>
+				</LoadingContainer>
+			</Container>
+		);
+	}
+
+	// Mostrar erro
+	if (nearbyError) {
+		return (
+			<Container>
+				<EmptyContainer>
+					{isLocationPermissionError && (
+						<ErrorIcon>
+							<Ionicons 
+								name="location-outline" 
+								size={64} 
+								color={theme.colors.status.error} 
+							/>
+						</ErrorIcon>
+					)}
+					<ErrorText>{nearbyError}</ErrorText>
+					<EmptyText>
+						{isLocationPermissionError 
+							? 'Para ver usuários próximos, é necessário permitir o acesso à localização.'
+							: 'Verifique se a localização está habilitada e tente novamente.'}
+					</EmptyText>
+					{isLocationPermissionError && (
+						<ErrorButtonContainer>
+							<Button
+								title="Abrir Configurações"
+								onPress={openSettings}
+								variant="primary"
+							/>
+						</ErrorButtonContainer>
+					)}
+				</EmptyContainer>
+			</Container>
+		);
+	}
+
 	return (
 		<Container>
 			<FlatList
-				data={mockContacts}
+				data={contacts}
 				renderItem={renderContact}
 				keyExtractor={(item) => item.id}
 				contentContainerStyle={
-					mockContacts.length === 0 ? { flex: 1 } : undefined
+					contacts.length === 0 ? { flex: 1 } : undefined
 				}
 				ListEmptyComponent={
 					<EmptyContainer>
-						<EmptyText>Nenhum contato disponível</EmptyText>
+						<EmptyText>Nenhum usuário próximo encontrado</EmptyText>
+						<EmptyText style={{ marginTop: theme.spacing.sm, fontSize: 14 }}>
+							Usuários dentro de 2km aparecerão aqui automaticamente
+						</EmptyText>
 					</EmptyContainer>
 				}
 			/>
