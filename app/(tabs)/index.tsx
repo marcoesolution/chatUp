@@ -2,8 +2,11 @@ import React from 'react';
 import { FlatList, ActivityIndicator, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import styled, { useTheme } from 'styled-components/native';
+import { Ionicons } from '@expo/vector-icons';
 import { useNearbyUsers } from '@/modules/location';
+import { useLocation } from '@/modules/location';
 import { useContacts } from '@/modules/chat/hooks/useContacts';
+import { Button } from '@/shared/components';
 import type { Contact } from '@/modules/chat/types';
 
 const Container = styled.View`
@@ -96,6 +99,22 @@ const ErrorText = styled.Text`
 	margin-bottom: ${(props) => props.theme.spacing.md}px;
 `;
 
+const ErrorContainer = styled.View`
+	align-items: center;
+	justify-content: center;
+	padding: ${(props) => props.theme.spacing.xl}px;
+`;
+
+const ErrorIcon = styled.View`
+	margin-bottom: ${(props) => props.theme.spacing.lg}px;
+`;
+
+const ErrorButtonContainer = styled.View`
+	margin-top: ${(props) => props.theme.spacing.lg}px;
+	width: 100%;
+	max-width: 300px;
+`;
+
 const LoadingContainer = styled.View`
 	flex: 1;
 	justify-content: center;
@@ -155,6 +174,9 @@ export default function ConversationsScreen() {
 	const router = useRouter();
 	const theme = useTheme();
 	
+	// Hook de localização para acessar openSettings
+	const { openSettings, permissionStatus } = useLocation();
+	
 	// Buscar usuários próximos
 	const { nearbyUsers, isLoading: isLoadingNearby, error: nearbyError } = useNearbyUsers();
 	
@@ -162,6 +184,14 @@ export default function ConversationsScreen() {
 	const { contacts, isLoading: isLoadingContacts } = useContacts(nearbyUsers);
 	
 	const isLoading = isLoadingNearby || isLoadingContacts;
+	
+	// Verificar se o erro é relacionado a permissão de localização
+	const isLocationPermissionError = 
+		nearbyError && 
+		(nearbyError.includes('localização') || 
+		 nearbyError.includes('permissão') || 
+		 nearbyError.includes('Localização') ||
+		 !permissionStatus?.granted);
 
 	const handleContactPress = (contactId: string) => {
 		console.log('Navegando para chat do contato:', contactId);
@@ -208,10 +238,30 @@ export default function ConversationsScreen() {
 		return (
 			<Container>
 				<EmptyContainer>
+					{isLocationPermissionError && (
+						<ErrorIcon>
+							<Ionicons 
+								name="location-outline" 
+								size={64} 
+								color={theme.colors.status.error} 
+							/>
+						</ErrorIcon>
+					)}
 					<ErrorText>{nearbyError}</ErrorText>
 					<EmptyText>
-						Verifique se a localização está habilitada e tente novamente.
+						{isLocationPermissionError 
+							? 'Para ver usuários próximos, é necessário permitir o acesso à localização.'
+							: 'Verifique se a localização está habilitada e tente novamente.'}
 					</EmptyText>
+					{isLocationPermissionError && (
+						<ErrorButtonContainer>
+							<Button
+								title="Abrir Configurações"
+								onPress={openSettings}
+								variant="primary"
+							/>
+						</ErrorButtonContainer>
+					)}
 				</EmptyContainer>
 			</Container>
 		);

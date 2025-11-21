@@ -2,10 +2,10 @@
  * Hook para gerenciar localização do usuário
  */
 
-import { useState, useEffect, useCallback } from 'react';
-import { AppState, AppStateStatus } from 'react-native';
-import * as Location from 'expo-location';
-import type { Location as LocationType, LocationPermissionStatus } from '../types';
+import { useState, useEffect, useCallback } from "react";
+import { AppState, AppStateStatus, Linking, Platform, Alert } from "react-native";
+import * as Location from "expo-location";
+import type { Location as LocationType, LocationPermissionStatus } from "../types";
 
 interface UseLocationReturn {
 	location: LocationType | null;
@@ -14,6 +14,7 @@ interface UseLocationReturn {
 	permissionStatus: LocationPermissionStatus | null;
 	requestPermission: () => Promise<boolean>;
 	updateLocation: () => Promise<void>;
+	openSettings: () => Promise<void>;
 }
 
 /**
@@ -24,8 +25,7 @@ export function useLocation(): UseLocationReturn {
 	const [location, setLocation] = useState<LocationType | null>(null);
 	const [isLoading, setIsLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
-	const [permissionStatus, setPermissionStatus] =
-		useState<LocationPermissionStatus | null>(null);
+	const [permissionStatus, setPermissionStatus] = useState<LocationPermissionStatus | null>(null);
 
 	/**
 	 * Solicita permissão de localização
@@ -35,22 +35,22 @@ export function useLocation(): UseLocationReturn {
 			const { status, canAskAgain } = await Location.requestForegroundPermissionsAsync();
 
 			const permission: LocationPermissionStatus = {
-				granted: status === 'granted',
+				granted: status === "granted",
 				canAskAgain,
-				status: status as 'granted' | 'denied' | 'undetermined',
+				status: status as "granted" | "denied" | "undetermined",
 			};
 
 			setPermissionStatus(permission);
 
-			if (status !== 'granted') {
-				setError('Permissão de localização negada. O app precisa da localização para funcionar.');
+			if (status !== "granted") {
+				setError("Permissão de localização negada. O app precisa da localização para funcionar.");
 				return false;
 			}
 
 			setError(null);
 			return true;
 		} catch (err: any) {
-			const errorMessage = err.message || 'Erro ao solicitar permissão de localização';
+			const errorMessage = err.message || "Erro ao solicitar permissão de localização";
 			setError(errorMessage);
 			return false;
 		}
@@ -64,15 +64,15 @@ export function useLocation(): UseLocationReturn {
 			const { status, canAskAgain } = await Location.getForegroundPermissionsAsync();
 
 			const permission: LocationPermissionStatus = {
-				granted: status === 'granted',
+				granted: status === "granted",
 				canAskAgain,
-				status: status as 'granted' | 'denied' | 'undetermined',
+				status: status as "granted" | "denied" | "undetermined",
 			};
 
 			setPermissionStatus(permission);
-			return status === 'granted';
+			return status === "granted";
 		} catch (err: any) {
-			console.error('Erro ao verificar permissão:', err);
+			console.error("Erro ao verificar permissão:", err);
 			return false;
 		}
 	}, []);
@@ -98,13 +98,12 @@ export function useLocation(): UseLocationReturn {
 			// Verificar se os serviços de localização estão habilitados
 			const isEnabled = await Location.hasServicesEnabledAsync();
 			if (!isEnabled) {
-				throw new Error('Serviços de localização estão desabilitados. Por favor, habilite o GPS.');
+				throw new Error("Serviços de localização estão desabilitados. Por favor, habilite o GPS.");
 			}
 
 			// Obter localização atual com alta precisão
 			const locationResult = await Location.getCurrentPositionAsync({
 				accuracy: Location.Accuracy.Balanced, // Balanceado entre precisão e bateria
-				timeout: 10000, // 10 segundos de timeout
 			});
 
 			const newLocation: LocationType = {
@@ -116,10 +115,9 @@ export function useLocation(): UseLocationReturn {
 			setLocation(newLocation);
 			setError(null);
 		} catch (err: any) {
-			const errorMessage =
-				err.message || 'Erro ao obter localização. Verifique se o GPS está habilitado.';
+			const errorMessage = err.message || "Erro ao obter localização. Verifique se o GPS está habilitado.";
 			setError(errorMessage);
-			console.error('Erro ao atualizar localização:', err);
+			console.error("Erro ao atualizar localização:", err);
 		} finally {
 			setIsLoading(false);
 		}
@@ -142,8 +140,8 @@ export function useLocation(): UseLocationReturn {
 	 * Efeito para atualizar localização quando o app entra em foreground
 	 */
 	useEffect(() => {
-		const subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
-			if (nextAppState === 'active' && permissionStatus?.granted) {
+		const subscription = AppState.addEventListener("change", (nextAppState: AppStateStatus) => {
+			if (nextAppState === "active" && permissionStatus?.granted) {
 				// App entrou em foreground, atualizar localização
 				updateLocation();
 			}
@@ -164,7 +162,7 @@ export function useLocation(): UseLocationReturn {
 
 		// Atualizar localização a cada 30 segundos quando app está ativo
 		const interval = setInterval(() => {
-			if (AppState.currentState === 'active') {
+			if (AppState.currentState === "active") {
 				updateLocation();
 			}
 		}, 30000); // 30 segundos
@@ -174,6 +172,27 @@ export function useLocation(): UseLocationReturn {
 		};
 	}, [permissionStatus, updateLocation]);
 
+	/**
+	 * Abre as configurações do app para o usuário habilitar a permissão de localização
+	 */
+	const openSettings = useCallback(async (): Promise<void> => {
+		try {
+			if (Platform.OS === "android") {
+				// Abrir configurações do app no Android
+				await Linking.openSettings();
+			} else {
+				// iOS
+				await Linking.openURL("app-settings:");
+			}
+		} catch (err: any) {
+			console.error("Erro ao abrir configurações:", err);
+			Alert.alert(
+				"Erro",
+				"Não foi possível abrir as configurações. Por favor, vá em Configurações > Apps > chatUp > Permissões e habilite a localização."
+			);
+		}
+	}, []);
+
 	return {
 		location,
 		isLoading,
@@ -181,6 +200,6 @@ export function useLocation(): UseLocationReturn {
 		permissionStatus,
 		requestPermission,
 		updateLocation,
+		openSettings,
 	};
 }
-
