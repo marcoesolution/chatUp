@@ -18,6 +18,7 @@ export function useAuth() {
 		signInWithGoogle,
 		createProfile,
 		logout,
+		syncPhotoURL,
 	} = useFirebaseAuth();
 
 	const login = async (credentials: LoginCredentials) => {
@@ -49,6 +50,7 @@ export function useAuth() {
 		loginWithGoogle,
 		createProfile,
 		logout,
+		syncPhotoURL,
 		isLoading,
 		error,
 	};
