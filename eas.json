@@ -5,15 +5,13 @@
     "build": {
         "development": {
             "developmentClient": true,
-            "distribution": "internal",
-            "node": "20.x.x"
+            "distribution": "internal"
         },
         "preview": {
             "distribution": "internal",
             "android": {
                 "buildType": "apk"
-            },
-            "node": "20.x.x"
+            }
         },
         "production": {
             "android": {
@@ -21,8 +19,7 @@
             },
             "env": {
                 "NODE_ENV": "production"
-            },
-            "node": "20.x.x"
+            }
         },
         "production-aab": {
             "android": {
@@ -30,8 +27,7 @@
             },
             "env": {
                 "NODE_ENV": "production"
-            },
-            "node": "20.x.x"
+            }
         }
     },
     "submit": {
