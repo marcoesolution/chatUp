@@ -2,26 +2,19 @@
  * Hook para buscar usuários próximos (raio de 2km)
  */
 
-import { useState, useEffect } from 'react';
-import {
-	collection,
-	query,
-	where,
-	onSnapshot,
-	QuerySnapshot,
-	DocumentData,
-} from 'firebase/firestore';
-import { db } from '@/core/firebase';
-import { useAuth } from '@/modules/auth';
-import { useLocation } from './useLocation';
+import { useState, useEffect } from "react";
+import { collection, query, where, onSnapshot, QuerySnapshot, DocumentData } from "firebase/firestore";
+import { db } from "@/core/firebase";
+import { useAuth } from "@/modules/auth";
+import { useLocation } from "./useLocation";
 import {
 	calculateLocationDistance,
 	isWithinRadius,
 	NEARBY_RADIUS_METERS,
 	calculateBoundingBox,
-} from '../utils/geolocation';
-import type { NearbyUser, Location } from '../types';
-import type { UserProfile } from '@/modules/auth/types';
+} from "../utils/geolocation";
+import type { NearbyUser, Location } from "../types";
+import type { UserProfile } from "@/modules/auth/types";
 
 interface UseNearbyUsersReturn {
 	nearbyUsers: NearbyUser[];
@@ -43,11 +36,11 @@ export function useNearbyUsers(): UseNearbyUsersReturn {
 	useEffect(() => {
 		if (!firebaseUser || !userLocation || !permissionStatus?.granted || !db) {
 			if (!firebaseUser) {
-				setError('Usuário não autenticado');
+				setError("Usuário não autenticado");
 			} else if (!userLocation) {
-				setError('Localização não disponível');
+				setError("Localização não disponível");
 			} else if (!permissionStatus?.granted) {
-				setError('Permissão de localização negada');
+				setError("Permissão de localização negada");
 			}
 			setIsLoading(false);
 			setNearbyUsers([]);
@@ -61,10 +54,7 @@ export function useNearbyUsers(): UseNearbyUsersReturn {
 			// Firestore não suporta queries geográficas nativas nem múltiplas condições de range
 			// Vamos buscar todos os usuários com localização habilitada e filtrar no cliente
 			// Para melhor performance, podemos limitar a busca inicial
-			const usersQuery = query(
-				collection(db, 'users'),
-				where('isLocationEnabled', '==', true)
-			);
+			const usersQuery = query(collection(db, "users"), where("isLocationEnabled", "==", true));
 
 			// Escutar mudanças em tempo real
 			const unsubscribe = onSnapshot(
@@ -95,7 +85,7 @@ export function useNearbyUsers(): UseNearbyUsersReturn {
 
 							nearby.push({
 								id: docSnapshot.id,
-								name: userData.displayName || 'Usuário',
+								name: userData.displayName || "Usuário",
 								avatar: userData.photoURL,
 								location: userData.location,
 								distance: Math.round(distance), // Arredondar para metros
@@ -111,8 +101,8 @@ export function useNearbyUsers(): UseNearbyUsersReturn {
 					setError(null);
 				},
 				(err) => {
-					console.error('❌ Erro ao buscar usuários próximos:', err);
-					setError('Erro ao buscar usuários próximos');
+					console.error("❌ Erro ao buscar usuários próximos:", err);
+					setError("Erro ao buscar usuários próximos");
 					setIsLoading(false);
 				}
 			);
@@ -121,8 +111,8 @@ export function useNearbyUsers(): UseNearbyUsersReturn {
 				unsubscribe();
 			};
 		} catch (err: any) {
-			console.error('❌ Erro ao configurar query de usuários próximos:', err);
-			setError(err.message || 'Erro ao buscar usuários próximos');
+			console.error("❌ Erro ao configurar query de usuários próximos:", err);
+			setError(err.message || "Erro ao buscar usuários próximos");
 			setIsLoading(false);
 		}
 	}, [firebaseUser?.uid, userLocation?.latitude, userLocation?.longitude, permissionStatus?.granted]);
@@ -133,4 +123,3 @@ export function useNearbyUsers(): UseNearbyUsersReturn {
 		error,
 	};
 }
-

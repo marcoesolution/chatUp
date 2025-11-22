@@ -5,13 +5,15 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ThemeProvider } from "@/core/theme/ThemeProvider";
 import React from "react";
 import { View, Text, StyleSheet, ActivityIndicator } from "react-native";
-// Atualizações automáticas desabilitadas - apenas manual em settings
-// import { useAppUpdate, UpdateRequiredScreen } from "@/modules/update";
+import { useAppUpdate, UpdateRequiredScreen } from "@/modules/update";
 // Inicializa o Firebase quando o app inicia
+console.log("🔥 [RootLayout] Importando Firebase...");
 try {
 	require("@/core/firebase");
+	console.log("✅ [RootLayout] Firebase importado");
 } catch (err: any) {
-	console.error("❌ Erro ao importar Firebase:", err?.message);
+	console.error("❌ [RootLayout] Erro ao importar Firebase:", err?.message);
+	console.error("❌ [RootLayout] Stack:", err?.stack);
 	// Continuar mesmo com erro no Firebase para não quebrar o app
 }
 
@@ -20,15 +22,19 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
 	constructor(props: { children: React.ReactNode }) {
 		super(props);
 		this.state = { hasError: false, error: null };
+		console.log("🛡️ [ErrorBoundary] Inicializado");
 	}
 
 	static getDerivedStateFromError(error: Error) {
+		console.error("🛡️ [ErrorBoundary] Erro detectado:", error);
+		console.error("🛡️ [ErrorBoundary] Stack:", error.stack);
 		return { hasError: true, error };
 	}
 
 	componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-		console.error("❌ ErrorBoundary - Erro capturado:", error);
-		console.error("❌ ErrorBoundary - Stack:", errorInfo.componentStack);
+		console.error("❌ [ErrorBoundary] Erro capturado:", error);
+		console.error("❌ [ErrorBoundary] ErrorInfo:", errorInfo);
+		console.error("❌ [ErrorBoundary] Component Stack:", errorInfo.componentStack);
 	}
 
 	render() {
@@ -85,8 +91,36 @@ const styles = StyleSheet.create({
 });
 
 function AppContent() {
-	// Atualizações automáticas desabilitadas - apenas manual em settings
-	// Não verificar atualizações automaticamente no app
+	console.log("📱 [AppContent] Componente renderizado");
+
+	// Hook deve ser chamado sempre (não pode ser condicional)
+	const { isUpdateRequired, isChecking, isDownloading, error, downloadAndReload } = useAppUpdate();
+
+	console.log("📱 [AppContent] Estados do hook:", {
+		isUpdateRequired,
+		isChecking,
+		isDownloading,
+		error,
+	});
+
+	// Se está verificando atualizações, mostrar loading
+	if (isChecking) {
+		console.log("⏳ [AppContent] Mostrando tela de loading (isChecking = true)");
+		return (
+			<View style={styles.loadingContainer}>
+				<ActivityIndicator size="large" color="#007AFF" />
+				<Text style={styles.loadingText}>Verificando atualizações...</Text>
+			</View>
+		);
+	}
+
+	// Se há atualização obrigatória, bloquear o app
+	if (isUpdateRequired) {
+		console.log("🚫 [AppContent] Bloqueando app - atualização obrigatória");
+		return <UpdateRequiredScreen onUpdate={downloadAndReload} isDownloading={isDownloading} error={error} />;
+	}
+
+	console.log("✅ [AppContent] Renderizando app normal");
 	// App normal
 	return (
 		<Stack
@@ -123,6 +157,9 @@ function AppContent() {
 }
 
 export default function RootLayout() {
+	console.log("🎯 [RootLayout] Componente raiz renderizado");
+	console.log("🎯 [RootLayout] __DEV__:", __DEV__);
+
 	try {
 		return (
 			<ErrorBoundary>

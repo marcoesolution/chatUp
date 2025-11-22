@@ -1,18 +1,22 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, TextInput as RNTextInput } from 'react-native';
-import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
-import { useNavigation } from '@react-navigation/native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import styled, { useTheme } from 'styled-components/native';
-import { Ionicons } from '@expo/vector-icons';
-import { useMessages } from '@/modules/chat/hooks/useMessages';
-import { useAuth } from '@/modules/auth';
-import { mockContacts } from '@/modules/chat';
-import type { CreateMessageData } from '@/modules/chat/types';
+import React, { useState, useRef, useEffect } from "react";
+import { KeyboardAvoidingView, Platform, ScrollView, TextInput as RNTextInput } from "react-native";
+import { useRouter, useLocalSearchParams, useFocusEffect } from "expo-router";
+import { useNavigation } from "@react-navigation/native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import styled, { useTheme } from "styled-components/native";
+import { Ionicons } from "@expo/vector-icons";
+import { useMessages } from "@/modules/chat/hooks/useMessages";
+import { useAuth } from "@/modules/auth";
+import { mockContacts } from "@/modules/chat";
+import type { CreateMessageData } from "@/modules/chat/types";
+
+const SafeContainer = styled(SafeAreaView)`
+	flex: 1;
+	background-color: ${(props) => props.theme.colors.background.primary};
+`;
 
 const Container = styled(KeyboardAvoidingView)`
 	flex: 1;
-	background-color: ${(props) => props.theme.colors.background.primary};
 `;
 
 const MessagesContainer = styled(ScrollView)`
@@ -25,7 +29,7 @@ const MessageBubble = styled.View<{ isOwn: boolean }>`
 	padding: ${(props) => props.theme.spacing.sm}px ${(props) => props.theme.spacing.md}px;
 	margin-bottom: ${(props) => props.theme.spacing.sm}px;
 	border-radius: ${(props) => props.theme.borderRadius.md}px;
-	align-self: ${(props) => (props.isOwn ? 'flex-end' : 'flex-start')};
+	align-self: ${(props) => (props.isOwn ? "flex-end" : "flex-start")};
 	background-color: ${(props) =>
 		props.isOwn ? props.theme.colors.button.primary : props.theme.colors.background.card};
 `;
@@ -53,7 +57,9 @@ const InputContainer = styled.View<{ bottomInset: number }>`
 	align-items: center;
 `;
 
-const TextInput = styled.TextInput`
+const TextInput = styled.TextInput.attrs((props) => ({
+	placeholderTextColor: props.theme.colors.text.tertiary,
+}))`
 	flex: 1;
 	background-color: ${(props) => props.theme.colors.background.input};
 	border-radius: ${(props) => props.theme.borderRadius.md}px;
@@ -107,13 +113,13 @@ export default function ChatScreen() {
 	const theme = useTheme();
 	const { firebaseUser } = useAuth();
 	const insets = useSafeAreaInsets();
-	
+
 	// Esconder tab bar quando a tela de chat estiver em foco
 	useFocusEffect(
 		React.useCallback(() => {
 			// Esconder tab bar
 			navigation.getParent()?.setOptions({
-				tabBarStyle: { display: 'none' },
+				tabBarStyle: { display: "none" },
 			});
 
 			// Mostrar tab bar quando sair da tela
@@ -128,8 +134,8 @@ export default function ChatScreen() {
 		}, [navigation, theme])
 	);
 
-	const { messages, isLoading, error, sendMessage } = useMessages(contactId || '');
-	const [messageText, setMessageText] = useState('');
+	const { messages, isLoading, error, sendMessage } = useMessages(contactId || "");
+	const [messageText, setMessageText] = useState("");
 	const [isSending, setIsSending] = useState(false);
 	const scrollViewRef = useRef<ScrollView>(null);
 	const inputRef = useRef<RNTextInput>(null);
@@ -148,9 +154,9 @@ export default function ChatScreen() {
 
 	// Formatar hora da mensagem
 	const formatTime = (date: Date) => {
-		return new Intl.DateTimeFormat('pt-BR', {
-			hour: '2-digit',
-			minute: '2-digit',
+		return new Intl.DateTimeFormat("pt-BR", {
+			hour: "2-digit",
+			minute: "2-digit",
 		}).format(date);
 	};
 
@@ -166,10 +172,10 @@ export default function ChatScreen() {
 			};
 
 			await sendMessage(messageData);
-			setMessageText('');
+			setMessageText("");
 			inputRef.current?.blur();
 		} catch (err: any) {
-			console.error('Erro ao enviar mensagem:', err);
+			console.error("Erro ao enviar mensagem:", err);
 			// TODO: Mostrar erro para o usuário
 		} finally {
 			setIsSending(false);
@@ -178,76 +184,83 @@ export default function ChatScreen() {
 
 	if (!contactId) {
 		return (
-			<Container>
+			<SafeContainer>
 				<EmptyContainer>
 					<EmptyText>Contato não encontrado</EmptyText>
 				</EmptyContainer>
-			</Container>
+			</SafeContainer>
 		);
 	}
 
 	if (isLoading) {
 		return (
-			<Container>
+			<SafeContainer>
 				<LoadingContainer>
 					<LoadingText>Carregando mensagens...</LoadingText>
 				</LoadingContainer>
-			</Container>
+			</SafeContainer>
 		);
 	}
 
 	// Header será configurado no _layout.tsx
 
 	return (
-		<Container
-			behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-			keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-		>
-			<MessagesContainer
-				ref={scrollViewRef}
-				contentContainerStyle={{ 
-					flexGrow: 1,
-					paddingBottom: insets.bottom > 0 ? insets.bottom : 0,
-				}}
-				keyboardShouldPersistTaps="handled"
+		<SafeContainer edges={["top"]}>
+			<Container
+				behavior={Platform.OS === "ios" ? "padding" : "height"}
+				keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
+				style={{ flex: 1 }}
 			>
-				{messages.length === 0 ? (
-					<EmptyContainer>
-						<EmptyText>Nenhuma mensagem ainda.{'\n'}Comece a conversar!</EmptyText>
-					</EmptyContainer>
-				) : (
-					messages.map((message) => {
-						const isOwn = message.senderId === firebaseUser?.uid;
-						return (
-							<MessageBubble key={message.id} isOwn={isOwn}>
-								<MessageText isOwn={isOwn}>{message.text}</MessageText>
-								<MessageTime isOwn={isOwn}>{formatTime(message.timestamp)}</MessageTime>
-							</MessageBubble>
-						);
-					})
-				)}
-			</MessagesContainer>
-
-			<InputContainer bottomInset={insets.bottom}>
-				<TextInput
-					ref={inputRef}
-					value={messageText}
-					onChangeText={setMessageText}
-					placeholder="Digite uma mensagem..."
-					placeholderTextColor={theme.colors.text.tertiary}
-					multiline
-					maxLength={1000}
-					editable={!isSending}
-				/>
-				<SendButton
-					onPress={handleSendMessage}
-					disabled={!messageText.trim() || isSending}
-					activeOpacity={0.7}
+				<MessagesContainer
+					ref={scrollViewRef}
+					contentContainerStyle={{
+						flexGrow: 1,
+						paddingBottom: insets.bottom > 0 ? insets.bottom : 0,
+					}}
+					keyboardShouldPersistTaps="handled"
+					keyboardDismissMode="interactive"
+					showsVerticalScrollIndicator={true}
+					nestedScrollEnabled={true}
 				>
-					<Ionicons name="send" size={20} color={theme.colors.text.primary} />
-				</SendButton>
-			</InputContainer>
-		</Container>
+					{messages.length === 0 ? (
+						<EmptyContainer>
+							<EmptyText>Nenhuma mensagem ainda.{"\n"}Comece a conversar!</EmptyText>
+						</EmptyContainer>
+					) : (
+						messages.map((message) => {
+							const isOwn = message.senderId === firebaseUser?.uid;
+							return (
+								<MessageBubble key={message.id} isOwn={isOwn}>
+									<MessageText isOwn={isOwn}>{message.text}</MessageText>
+									<MessageTime isOwn={isOwn}>{formatTime(message.timestamp)}</MessageTime>
+								</MessageBubble>
+							);
+						})
+					)}
+				</MessagesContainer>
+
+				<InputContainer bottomInset={insets.bottom}>
+					<TextInput
+						ref={inputRef as any}
+						value={messageText}
+						onChangeText={setMessageText}
+						placeholder="Digite uma mensagem..."
+						multiline
+						maxLength={1000}
+						editable={!isSending}
+						onSubmitEditing={handleSendMessage}
+						returnKeyType="send"
+						blurOnSubmit={false}
+					/>
+					<SendButton
+						onPress={handleSendMessage}
+						disabled={!messageText.trim() || isSending}
+						activeOpacity={0.7}
+					>
+						<Ionicons name="send" size={20} color={theme.colors.text.primary} />
+					</SendButton>
+				</InputContainer>
+			</Container>
+		</SafeContainer>
 	);
 }
-

@@ -1,16 +1,20 @@
 import React from "react";
 import { FlatList, ActivityIndicator, View } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
 import styled, { useTheme } from "styled-components/native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNearbyUsers } from "@/modules/location";
 import { useLocation } from "@/modules/location";
 import { useContacts } from "@/modules/chat/hooks/useContacts";
-import { useAppUpdate, UpdateRequiredScreen } from "@/modules/update";
+// Atualizações automáticas desabilitadas - apenas manual em settings
+// import { useAppUpdate, UpdateRequiredScreen } from "@/modules/update";
 import { Button } from "@/shared/components";
 import type { Contact } from "@/modules/chat/types";
 
-const Container = styled.View`
+const Container = styled(SafeAreaView).attrs({
+	edges: ["top"],
+})`
 	flex: 1;
 	background-color: ${(props) => props.theme.colors.background.primary};
 `;
@@ -171,23 +175,8 @@ export default function ConversationsScreen() {
 	const router = useRouter();
 	const theme = useTheme();
 
-	// Hook de atualização do app
-	const {
-		isUpdateRequired,
-		isUpdateAvailable,
-		isChecking,
-		isDownloading,
-		error: updateError,
-		checkForUpdates,
-		downloadAndReload,
-	} = useAppUpdate();
-
-	// Verificar atualizações quando a tela receber foco
-	useFocusEffect(
-		React.useCallback(() => {
-			checkForUpdates();
-		}, [checkForUpdates])
-	);
+	// Atualizações automáticas desabilitadas - apenas manual em settings
+	// Não verificar atualizações automaticamente nesta tela
 
 	// Hook de localização para acessar openSettings
 	const { openSettings, permissionStatus } = useLocation();
@@ -200,11 +189,7 @@ export default function ConversationsScreen() {
 
 	const isLoading = isLoadingNearby || isLoadingContacts;
 
-	// Mostrar tela de atualização se houver atualização obrigatória disponível
-	// Só mostra após terminar de verificar (não durante o loading inicial)
-	if (!isChecking && (isUpdateRequired || isUpdateAvailable)) {
-		return <UpdateRequiredScreen onUpdate={downloadAndReload} isDownloading={isDownloading} error={updateError} />;
-	}
+	// Atualizações automáticas desabilitadas - não bloquear app automaticamente
 
 	// Verificar se o erro é relacionado a permissão de localização
 	const isLocationPermissionError =
