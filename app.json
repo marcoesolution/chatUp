@@ -46,19 +46,8 @@
         {
           "locationAlwaysAndWhenInUsePermission": "Este app precisa da sua localização para mostrar usuários próximos a você."
         }
-      ],
-      "expo-updates"
+      ]
     ],
-    "updates": {
-      "url": "https://u.expo.dev/d662ef19-e2a8-4cf3-b18a-564a4faa4a3d",
-      "fallbackToCacheTimeout": 0,
-      "requestHeaders": {
-        "expo-channel-name": "production"
-      }
-    },
-    "runtimeVersion": {
-      "policy": "appVersion"
-    },
     "extra": {
       "router": {},
       "eas": {

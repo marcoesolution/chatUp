@@ -1,12 +1,11 @@
 import React from "react";
 import { FlatList, ActivityIndicator, View } from "react-native";
-import { useRouter, useFocusEffect } from "expo-router";
+import { useRouter } from "expo-router";
 import styled, { useTheme } from "styled-components/native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNearbyUsers } from "@/modules/location";
 import { useLocation } from "@/modules/location";
 import { useContacts } from "@/modules/chat/hooks/useContacts";
-import { useAppUpdate, UpdateRequiredScreen } from "@/modules/update";
 import { Button } from "@/shared/components";
 import type { Contact } from "@/modules/chat/types";
 
@@ -171,24 +170,6 @@ export default function ConversationsScreen() {
 	const router = useRouter();
 	const theme = useTheme();
 
-	// Hook de atualização do app
-	const {
-		isUpdateRequired,
-		isUpdateAvailable,
-		isChecking,
-		isDownloading,
-		error: updateError,
-		checkForUpdates,
-		downloadAndReload,
-	} = useAppUpdate();
-
-	// Verificar atualizações quando a tela receber foco
-	useFocusEffect(
-		React.useCallback(() => {
-			checkForUpdates();
-		}, [checkForUpdates])
-	);
-
 	// Hook de localização para acessar openSettings
 	const { openSettings, permissionStatus } = useLocation();
 
@@ -199,12 +180,6 @@ export default function ConversationsScreen() {
 	const { contacts, isLoading: isLoadingContacts } = useContacts(nearbyUsers);
 
 	const isLoading = isLoadingNearby || isLoadingContacts;
-
-	// Mostrar tela de atualização se houver atualização obrigatória disponível
-	// Só mostra após terminar de verificar (não durante o loading inicial)
-	if (!isChecking && (isUpdateRequired || isUpdateAvailable)) {
-		return <UpdateRequiredScreen onUpdate={downloadAndReload} isDownloading={isDownloading} error={updateError} />;
-	}
 
 	// Verificar se o erro é relacionado a permissão de localização
 	const isLocationPermissionError =

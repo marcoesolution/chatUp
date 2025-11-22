@@ -4,6 +4,9 @@
   "main": "expo-router/entry",
   "scripts": {
     "start": "expo start",
+    "start:tunnel": "expo start --tunnel",
+    "start:lan": "expo start --lan",
+    "start:clear": "expo start --clear",
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
@@ -29,10 +32,7 @@
     "clean:build": "rm -rf android ios .expo",
     "fix:gradle": "./fix-gradle-build.sh",
     "build:android:apk:debug": "./capture-build-errors.sh",
-    "build:android:apk:verbose": "EAS_LOCAL_BUILD_SKIP_CLEANUP=1 eas build --platform android --profile production --local --non-interactive",
-    "update:production": "eas update --branch production --message \"Atualização automática\"",
-    "update:preview": "eas update --branch preview --message \"Atualização de preview\"",
-    "update:check": "eas update:list"
+    "build:android:apk:verbose": "EAS_LOCAL_BUILD_SKIP_CLEANUP=1 eas build --platform android --profile production --local --non-interactive"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
@@ -50,7 +50,6 @@
     "expo-location": "~19.0.7",
     "expo-router": "~6.0.15",
     "expo-status-bar": "~3.0.8",
-    "expo-updates": "^29.0.12",
     "expo-web-browser": "~15.0.9",
     "firebase": "^12.6.0",
     "react": "19.1.0",
