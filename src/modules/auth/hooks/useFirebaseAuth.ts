@@ -36,7 +36,13 @@ export function useFirebaseAuth() {
 
 	// Observar mudanças no estado de autenticação
 	useEffect(() => {
-		if (!auth || !db) return;
+		// Se Firebase não estiver inicializado, definir loading como false e mostrar erro
+		if (!auth || !db) {
+			console.error("❌ Firebase não está inicializado. Auth:", !!auth, "DB:", !!db);
+			setError("Firebase não está configurado. Verifique as variáveis de ambiente.");
+			setIsLoading(false);
+			return;
+		}
 
 		const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
 			setUser(firebaseUser);
@@ -85,7 +91,16 @@ export function useFirebaseAuth() {
 			setIsLoading(false);
 		});
 
-		return () => unsubscribe();
+		// Timeout de segurança: se após 10 segundos ainda estiver carregando, forçar parar
+		const timeoutId = setTimeout(() => {
+			console.warn("⚠️ Timeout: Loading de autenticação demorou mais de 10 segundos. Forçando parada.");
+			setIsLoading(false);
+		}, 10000);
+
+		return () => {
+			unsubscribe();
+			clearTimeout(timeoutId);
+		};
 	}, []);
 
 	/**

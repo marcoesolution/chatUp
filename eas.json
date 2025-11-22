@@ -11,6 +11,15 @@
             "distribution": "internal",
             "android": {
                 "buildType": "apk"
+            },
+            "env": {
+                "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyC6-xVbOJvXBbBiIkaWJx-uOdwXp3NEuZA",
+                "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN": "chatup-ddcf8.firebaseapp.com",
+                "EXPO_PUBLIC_FIREBASE_PROJECT_ID": "chatup-ddcf8",
+                "EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET": "chatup-ddcf8.firebasestorage.app",
+                "EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID": "510679848324",
+                "EXPO_PUBLIC_FIREBASE_APP_ID": "1:510679848324:web:8fd91100b48ff347aab9d1",
+                "EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID": "G-DTZT3VN40J"
             }
         },
         "production": {
@@ -18,7 +27,14 @@
                 "buildType": "apk"
             },
             "env": {
-                "NODE_ENV": "production"
+                "NODE_ENV": "production",
+                "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyC6-xVbOJvXBbBiIkaWJx-uOdwXp3NEuZA",
+                "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN": "chatup-ddcf8.firebaseapp.com",
+                "EXPO_PUBLIC_FIREBASE_PROJECT_ID": "chatup-ddcf8",
+                "EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET": "chatup-ddcf8.firebasestorage.app",
+                "EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID": "510679848324",
+                "EXPO_PUBLIC_FIREBASE_APP_ID": "1:510679848324:web:8fd91100b48ff347aab9d1",
+                "EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID": "G-DTZT3VN40J"
             }
         },
         "production-aab": {
@@ -26,7 +42,14 @@
                 "buildType": "app-bundle"
             },
             "env": {
-                "NODE_ENV": "production"
+                "NODE_ENV": "production",
+                "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyC6-xVbOJvXBbBiIkaWJx-uOdwXp3NEuZA",
+                "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN": "chatup-ddcf8.firebaseapp.com",
+                "EXPO_PUBLIC_FIREBASE_PROJECT_ID": "chatup-ddcf8",
+                "EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET": "chatup-ddcf8.firebasestorage.app",
+                "EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID": "510679848324",
+                "EXPO_PUBLIC_FIREBASE_APP_ID": "1:510679848324:web:8fd91100b48ff347aab9d1",
+                "EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID": "G-DTZT3VN40J"
             }
         }
     },

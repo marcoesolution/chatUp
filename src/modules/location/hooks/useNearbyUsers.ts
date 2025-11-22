@@ -35,22 +35,51 @@ interface UseNearbyUsersReturn {
  */
 export function useNearbyUsers(): UseNearbyUsersReturn {
 	const { firebaseUser, userProfile } = useAuth();
-	const { location: userLocation, permissionStatus } = useLocation();
+	const { location: userLocation, permissionStatus, isLoading: isLocationLoading, error: locationError } = useLocation();
 	const [nearbyUsers, setNearbyUsers] = useState<NearbyUser[]>([]);
 	const [isLoading, setIsLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 
 	useEffect(() => {
-		if (!firebaseUser || !userLocation || !permissionStatus?.granted || !db) {
+		// Se ainda está carregando a localização, aguardar
+		if (isLocationLoading) {
+			setIsLoading(true);
+			setError(null);
+			return;
+		}
+
+		// Verificar condições básicas
+		if (!firebaseUser || !db) {
 			if (!firebaseUser) {
 				setError('Usuário não autenticado');
-			} else if (!userLocation) {
-				setError('Localização não disponível');
-			} else if (!permissionStatus?.granted) {
-				setError('Permissão de localização negada');
 			}
 			setIsLoading(false);
 			setNearbyUsers([]);
+			return;
+		}
+
+		// Se não tem permissão, mostrar erro de permissão
+		if (!permissionStatus?.granted) {
+			setError('Permissão de localização negada');
+			setIsLoading(false);
+			setNearbyUsers([]);
+			return;
+		}
+
+		// Se tem erro de localização, usar esse erro
+		if (locationError) {
+			setError(locationError);
+			setIsLoading(false);
+			setNearbyUsers([]);
+			return;
+		}
+
+		// Se não tem localização ainda (mas não está carregando e não tem erro)
+		// Se a permissão está concedida, aguardar a localização ser obtida
+		// O hook useLocation deve eventualmente obter a localização ou definir um erro
+		if (!userLocation) {
+			setIsLoading(true);
+			setError(null);
 			return;
 		}
 
@@ -125,7 +154,14 @@ export function useNearbyUsers(): UseNearbyUsersReturn {
 			setError(err.message || 'Erro ao buscar usuários próximos');
 			setIsLoading(false);
 		}
-	}, [firebaseUser?.uid, userLocation?.latitude, userLocation?.longitude, permissionStatus?.granted]);
+	}, [
+		firebaseUser?.uid,
+		userLocation?.latitude,
+		userLocation?.longitude,
+		permissionStatus?.granted,
+		isLocationLoading,
+		locationError,
+	]);
 
 	return {
 		nearbyUsers,

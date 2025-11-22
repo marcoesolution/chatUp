@@ -46,7 +46,8 @@
         {
           "locationAlwaysAndWhenInUsePermission": "Este app precisa da sua localização para mostrar usuários próximos a você."
         }
-      ]
+      ],
+      "expo-font"
     ],
     "extra": {
       "router": {},

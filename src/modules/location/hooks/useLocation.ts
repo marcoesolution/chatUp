@@ -137,6 +137,16 @@ export function useLocation(): UseLocationReturn {
 	}, []);
 
 	/**
+	 * Efeito para obter localização automaticamente quando a permissão é concedida
+	 */
+	useEffect(() => {
+		if (permissionStatus?.granted && !location && !isLoading && !error) {
+			// Permissão foi concedida mas ainda não temos localização, tentar obter
+			updateLocation();
+		}
+	}, [permissionStatus?.granted, location, isLoading, error, updateLocation]);
+
+	/**
 	 * Efeito para atualizar localização quando o app entra em foreground
 	 */
 	useEffect(() => {

@@ -5,53 +5,23 @@ import { getStorage, FirebaseStorage } from "firebase/storage";
 import { getAnalytics, Analytics, isSupported } from "firebase/analytics";
 import { Platform } from "react-native";
 
-// Configuração do Firebase
-// As variáveis de ambiente devem ser configuradas no arquivo .env
+// Configuração do Firebase - valores diretos (hardcoded)
+// As chaves do Firebase são públicas por design, então é seguro incluí-las no código
 const firebaseConfig = {
-	apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
-	authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
-	projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID,
-	storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET,
-	messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-	appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
-	measurementId: process.env.EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID, // Opcional
+	apiKey: "AIzaSyC6-xVbOJvXBbBiIkaWJx-uOdwXp3NEuZA",
+	authDomain: "chatup-ddcf8.firebaseapp.com",
+	projectId: "chatup-ddcf8",
+	storageBucket: "chatup-ddcf8.firebasestorage.app",
+	messagingSenderId: "510679848324",
+	appId: "1:510679848324:web:8fd91100b48ff347aab9d1",
+	measurementId: "G-DTZT3VN40J",
 };
-
-// Validação das variáveis de ambiente
-const requiredEnvVars = [
-	"EXPO_PUBLIC_FIREBASE_API_KEY",
-	"EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN",
-	"EXPO_PUBLIC_FIREBASE_PROJECT_ID",
-	"EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET",
-	"EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID",
-	"EXPO_PUBLIC_FIREBASE_APP_ID",
-];
-
-const missingEnvVars = requiredEnvVars.filter((varName) => !process.env[varName]);
-
-if (missingEnvVars.length > 0) {
-	const errorMessage = `⚠️ Firebase: Variáveis de ambiente faltando: ${missingEnvVars.join(
-		", "
-	)}\n⚠️ Firebase: Certifique-se de configurar as variáveis no EAS Build ou no arquivo .env`;
-	console.error(errorMessage);
-
-	// Em produção, não lançar erro imediatamente - deixar o app tentar inicializar
-	// O erro será capturado durante a inicialização se necessário
-	// Isso evita crash imediato do app
-}
 
 // Inicialização do Firebase App
 let app: FirebaseApp | null = null;
 
 console.log("🔍 Firebase Config: Iniciando inicialização...");
-console.log("🔍 Firebase Config: Variáveis de ambiente:", {
-	hasApiKey: !!process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
-	hasAuthDomain: !!process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
-	hasProjectId: !!process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID,
-	hasStorageBucket: !!process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET,
-	hasMessagingSenderId: !!process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-	hasAppId: !!process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
-});
+console.log("✅ Firebase Config: Usando configuração hardcoded");
 
 if (!getApps().length) {
 	try {
