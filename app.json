@@ -37,7 +37,9 @@
       ],
       "enableProguardInReleaseBuilds": true,
       "enableShrinkResourcesInReleaseBuilds": true,
-      "proguardFiles": ["proguard-rules.pro"]
+      "proguardFiles": [
+        "proguard-rules.pro"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"

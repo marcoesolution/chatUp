@@ -1,6 +1,7 @@
 import React from "react";
 import { useForm, Controller } from "react-hook-form";
 import { KeyboardAvoidingView, Platform, ScrollView } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Image } from "expo-image";
 import styled, { useTheme } from "styled-components/native";
 import { Ionicons } from "@expo/vector-icons";
@@ -114,6 +115,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
 	error,
 }) => {
 	const theme = useTheme();
+	const insets = useSafeAreaInsets();
 	const {
 		control,
 		handleSubmit,
@@ -132,10 +134,17 @@ export const LoginForm: React.FC<LoginFormProps> = ({
 
 	return (
 		<FormContainer
-			behavior={Platform.OS === "ios" ? "padding" : "height"}
-			keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
+			behavior={Platform.OS === "ios" ? "padding" : "padding"}
+			keyboardVerticalOffset={Platform.OS === "ios" ? insets.top : insets.top + 20}
 		>
-			<ScrollContent contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
+			<ScrollContent 
+				contentContainerStyle={{ 
+					flexGrow: 1, 
+					paddingBottom: Platform.OS === "android" ? insets.bottom + 100 : insets.bottom + 40 
+				}} 
+				keyboardShouldPersistTaps="handled"
+				showsVerticalScrollIndicator={false}
+			>
 				<Form>
 					<LogoContainer>
 						<LogoImage source={logoImage} contentFit="contain" cachePolicy="memory-disk" />
