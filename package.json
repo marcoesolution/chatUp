@@ -80,7 +80,7 @@
     "expo-location": "~19.0.7",
     "expo-router": "~6.0.15",
     "expo-status-bar": "~3.0.8",
-    "expo-updates": "^0.28.17",
+    "expo-updates": "~29.0.13",
     "expo-web-browser": "~15.0.9",
     "firebase": "^12.6.0",
     "i18next": "^25.6.3",
