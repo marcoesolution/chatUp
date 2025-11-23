@@ -1,5 +1,6 @@
-import React, { useState, useRef, useEffect } from "react";
-import { KeyboardAvoidingView, Platform, ScrollView, TextInput as RNTextInput } from "react-native";
+import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { KeyboardAvoidingView, Platform, TextInput as RNTextInput, ActivityIndicator } from "react-native";
+import { FlashList, FlashListRef } from "@shopify/flash-list";
 import { useRouter, useLocalSearchParams, useFocusEffect } from "expo-router";
 import { useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -8,14 +9,14 @@ import { Ionicons } from "@expo/vector-icons";
 import { useMessages } from "@/modules/chat/hooks/useMessages";
 import { useAuth } from "@/modules/auth";
 import { mockContacts } from "@/modules/chat";
-import type { CreateMessageData } from "@/modules/chat/types";
+import type { CreateMessageData, Message } from "@/modules/chat/types";
 
 const Container = styled(KeyboardAvoidingView)`
 	flex: 1;
 	background-color: ${(props) => props.theme.colors.background.primary};
 `;
 
-const MessagesContainer = styled(ScrollView)`
+const MessagesListContainer = styled.View`
 	flex: 1;
 	padding: ${(props) => props.theme.spacing.md}px;
 `;
@@ -130,10 +131,12 @@ export default function ChatScreen() {
 		}, [navigation, theme])
 	);
 
-	const { messages, isLoading, error, sendMessage } = useMessages(contactId || "");
+	const { messages, isLoading, error, sendMessage, loadMoreMessages, hasMore, isLoadingMore } = useMessages(
+		contactId || ""
+	);
 	const [messageText, setMessageText] = useState("");
 	const [isSending, setIsSending] = useState(false);
-	const scrollViewRef = useRef<ScrollView>(null);
+	const flatListRef = useRef<FlashListRef<Message>>(null);
 	const inputRef = useRef<RNTextInput>(null);
 
 	// Encontrar informações do contato
@@ -143,18 +146,56 @@ export default function ChatScreen() {
 	useEffect(() => {
 		if (messages.length > 0) {
 			setTimeout(() => {
-				scrollViewRef.current?.scrollToEnd({ animated: true });
+				flatListRef.current?.scrollToEnd({ animated: true });
 			}, 100);
 		}
 	}, [messages.length]);
 
 	// Formatar hora da mensagem
-	const formatTime = (date: Date) => {
+	const formatTime = useCallback((date: Date) => {
 		return new Intl.DateTimeFormat("pt-BR", {
 			hour: "2-digit",
 			minute: "2-digit",
 		}).format(date);
-	};
+	}, []);
+
+	// Renderizar item da lista
+	const renderMessage = useCallback(
+		({ item: message }: { item: Message }) => {
+			const isOwn = message.senderId === firebaseUser?.uid;
+			return (
+				<MessageBubble isOwn={isOwn}>
+					<MessageText isOwn={isOwn}>{message.text}</MessageText>
+					<MessageTime isOwn={isOwn}>{formatTime(message.timestamp)}</MessageTime>
+				</MessageBubble>
+			);
+		},
+		[firebaseUser?.uid, formatTime]
+	);
+
+	// Key extractor para FlashList
+	const keyExtractor = useCallback((item: Message) => item.id, []);
+
+	// FlashList não suporta 'inverted', então mantemos a lista normal
+	// As mensagens já vêm ordenadas do hook (mais antigas primeiro)
+	const reversedMessages = useMemo(() => [...messages].reverse(), [messages]);
+
+	// Carregar mais mensagens ao fazer scroll para o topo
+	const handleLoadMore = useCallback(() => {
+		if (hasMore && !isLoadingMore && !isLoading) {
+			loadMoreMessages();
+		}
+	}, [hasMore, isLoadingMore, isLoading, loadMoreMessages]);
+
+	// Renderizar footer de loading
+	const renderFooter = useCallback(() => {
+		if (!isLoadingMore) return null;
+		return (
+			<LoadingContainer>
+				<ActivityIndicator size="small" color={theme.colors.button.primary} />
+			</LoadingContainer>
+		);
+	}, [isLoadingMore, theme]);
 
 	// Enviar mensagem
 	const handleSendMessage = async () => {
@@ -205,30 +246,28 @@ export default function ChatScreen() {
 			behavior={Platform.OS === "ios" ? "padding" : "height"}
 			keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
 		>
-			<MessagesContainer
-				ref={scrollViewRef}
-				contentContainerStyle={{
-					flexGrow: 1,
-					paddingBottom: insets.bottom > 0 ? insets.bottom : 0,
-				}}
-				keyboardShouldPersistTaps="handled"
-			>
-				{messages.length === 0 ? (
-					<EmptyContainer>
-						<EmptyText>Nenhuma mensagem ainda.{"\n"}Comece a conversar!</EmptyText>
-					</EmptyContainer>
-				) : (
-					messages.map((message) => {
-						const isOwn = message.senderId === firebaseUser?.uid;
-						return (
-							<MessageBubble key={message.id} isOwn={isOwn}>
-								<MessageText isOwn={isOwn}>{message.text}</MessageText>
-								<MessageTime isOwn={isOwn}>{formatTime(message.timestamp)}</MessageTime>
-							</MessageBubble>
-						);
-					})
-				)}
-			</MessagesContainer>
+			{messages.length === 0 && !isLoading ? (
+				<EmptyContainer>
+					<EmptyText>Nenhuma mensagem ainda.{"\n"}Comece a conversar!</EmptyText>
+				</EmptyContainer>
+			) : (
+				<MessagesListContainer>
+					<FlashList
+						ref={flatListRef}
+						data={reversedMessages}
+						renderItem={renderMessage}
+						keyExtractor={keyExtractor}
+						onEndReached={handleLoadMore}
+						onEndReachedThreshold={0.5}
+						ListFooterComponent={renderFooter}
+						contentContainerStyle={{
+							paddingBottom: insets.bottom > 0 ? insets.bottom : 0,
+							flexGrow: 1,
+						}}
+						keyboardShouldPersistTaps="handled"
+					/>
+				</MessagesListContainer>
+			)}
 
 			<InputContainer bottomInset={insets.bottom}>
 				<TextInput

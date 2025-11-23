@@ -1,4 +1,5 @@
 import styled from "styled-components/native";
+import { Image } from "expo-image";
 
 // ============================================================================
 // Estilos para ConversationsScreen (index.tsx)
@@ -158,10 +159,9 @@ const ProfileAvatarContainer = styled.View`
 	overflow: hidden;
 `;
 
-const ProfileAvatarImage = styled.Image`
+const ProfileAvatarImage = styled(Image)`
 	width: 100%;
 	height: 100%;
-	resize-mode: cover;
 `;
 
 const ProfileAvatarText = styled.Text`

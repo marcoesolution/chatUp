@@ -3,8 +3,8 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "@/core/queryClient";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ThemeProvider } from "@/core/theme/ThemeProvider";
-import React from "react";
-import { View, Text, StyleSheet } from "react-native";
+import React, { Suspense } from "react";
+import { View, Text, StyleSheet, ActivityIndicator } from "react-native";
 // Inicializa o Firebase quando o app inicia
 import "@/core/firebase";
 
@@ -63,40 +63,56 @@ const styles = StyleSheet.create({
 		color: "#999",
 		textAlign: "center",
 	},
+	loadingContainer: {
+		flex: 1,
+		justifyContent: "center",
+		alignItems: "center",
+		backgroundColor: "#fff",
+	},
 });
+
+// Loading fallback para lazy loading
+const LoadingFallback = () => (
+	<View style={styles.loadingContainer}>
+		<ActivityIndicator size="large" color="#007AFF" />
+	</View>
+);
 
 function AppContent() {
 	return (
-		<Stack
-			screenOptions={{
-				headerStyle: {
-					backgroundColor: "#007AFF",
-				},
-				headerTintColor: "#fff",
-				headerTitleStyle: {
-					fontWeight: "bold",
-				},
-			}}
-		>
-			<Stack.Screen
-				name="index"
-				options={{
-					headerShown: false,
+		<Suspense fallback={<LoadingFallback />}>
+			<Stack
+				screenOptions={{
+					headerStyle: {
+						backgroundColor: "#007AFF",
+					},
+					headerTintColor: "#fff",
+					headerTitleStyle: {
+						fontWeight: "bold",
+					},
+					// Expo Router já faz lazy loading automático de rotas
 				}}
-			/>
-			<Stack.Screen
-				name="(tabs)"
-				options={{
-					headerShown: false,
-				}}
-			/>
-			<Stack.Screen
-				name="(auth)"
-				options={{
-					headerShown: false,
-				}}
-			/>
-		</Stack>
+			>
+				<Stack.Screen
+					name="index"
+					options={{
+						headerShown: false,
+					}}
+				/>
+				<Stack.Screen
+					name="(tabs)"
+					options={{
+						headerShown: false,
+					}}
+				/>
+				<Stack.Screen
+					name="(auth)"
+					options={{
+						headerShown: false,
+					}}
+				/>
+			</Stack>
+		</Suspense>
 	);
 }
 

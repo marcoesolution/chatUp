@@ -38,12 +38,15 @@
     "clean:build": "rm -rf android ios .expo",
     "fix:gradle": "./fix-gradle-build.sh",
     "build:android:apk:debug": "./capture-build-errors.sh",
-    "build:android:apk:verbose": "EAS_LOCAL_BUILD_SKIP_CLEANUP=1 eas build --platform android --profile production --local --non-interactive"
+    "build:android:apk:verbose": "EAS_LOCAL_BUILD_SKIP_CLEANUP=1 eas build --platform android --profile production --local --non-interactive",
+    "analyze:bundle": "./scripts/analyze-bundle.sh",
+    "optimize:images": "./scripts/optimize-images.sh"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
     "@react-native-async-storage/async-storage": "^2.1.0",
     "@react-native-community/netinfo": "^11.3.1",
+    "@shopify/flash-list": "2.0.2",
     "@tanstack/react-query": "^5.62.0",
     "axios": "^1.7.9",
     "babel-plugin-module-resolver": "^5.0.0",
@@ -53,6 +56,7 @@
     "expo-constants": "~18.0.10",
     "expo-crypto": "~15.0.7",
     "expo-font": "~14.0.9",
+    "expo-image": "~3.0.10",
     "expo-linking": "~8.0.9",
     "expo-location": "~19.0.7",
     "expo-router": "~6.0.15",

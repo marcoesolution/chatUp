@@ -1,5 +1,6 @@
-import React from "react";
-import { FlatList, ActivityIndicator } from "react-native";
+import React, { useCallback } from "react";
+import { ActivityIndicator } from "react-native";
+import { FlashList } from "@shopify/flash-list";
 import { useTheme } from "styled-components/native";
 import { Ionicons } from "@expo/vector-icons";
 import { Button } from "@/shared/components";
@@ -73,9 +74,12 @@ export default function ConversationsScreen() {
 		handleContactPress,
 	} = useConversations();
 
-	const renderContact = ({ item }: { item: Contact }) => (
-		<ContactListItem contact={item} onPress={() => handleContactPress(item.id)} />
+	const renderContact = useCallback(
+		({ item }: { item: Contact }) => <ContactListItem contact={item} onPress={() => handleContactPress(item.id)} />,
+		[handleContactPress]
 	);
+
+	const keyExtractor = useCallback((item: Contact) => item.id, []);
 
 	// Mostrar loading
 	if (isLoading) {
@@ -117,10 +121,10 @@ export default function ConversationsScreen() {
 
 	return (
 		<Container>
-			<FlatList
+			<FlashList
 				data={contacts}
 				renderItem={renderContact}
-				keyExtractor={(item) => item.id}
+				keyExtractor={keyExtractor}
 				contentContainerStyle={contacts.length === 0 ? { flex: 1 } : undefined}
 				ListEmptyComponent={
 					<EmptyContainer>

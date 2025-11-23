@@ -1,6 +1,7 @@
 import React from "react";
 import { useForm, Controller } from "react-hook-form";
-import { KeyboardAvoidingView, Platform, ScrollView, Image } from "react-native";
+import { KeyboardAvoidingView, Platform, ScrollView } from "react-native";
+import { Image } from "expo-image";
 import styled, { useTheme } from "styled-components/native";
 import { Ionicons } from "@expo/vector-icons";
 import { Input, Button, Link } from "@/shared/components";
@@ -39,9 +40,7 @@ const LogoContainer = styled.View`
 	background-color: transparent;
 `;
 
-const LogoImage = styled.Image.attrs({
-	resizeMode: "contain",
-})`
+const LogoImage = styled(Image)`
 	width: 280px;
 	height: 70px;
 	background-color: transparent;
@@ -139,7 +138,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
 			<ScrollContent contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
 				<Form>
 					<LogoContainer>
-						<LogoImage source={logoImage} />
+						<LogoImage source={logoImage} contentFit="contain" cachePolicy="memory-disk" />
 					</LogoContainer>
 
 					{error && <ErrorText>{error}</ErrorText>}

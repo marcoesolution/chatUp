@@ -330,16 +330,45 @@ src/
 
 1. **Imagens**
 
-    - Use `expo-image` para imagens otimizadas
-    - Implemente lazy loading quando apropriado
+    - ✅ **SEMPRE use `expo-image` ao invés de `Image` do React Native**
+    - Use `contentFit` ao invés de `resizeMode`
+    - Configure `cachePolicy="memory-disk"` para cache otimizado
+    - Use `transition` para animações suaves
 
-2. **Listas**
+    ```typescript
+    // ✅ BOM - expo-image otimizado
+    import { Image } from "expo-image";
+
+    <Image source={{ uri: imageUrl }} contentFit="cover" cachePolicy="memory-disk" transition={200} />;
+
+    // ❌ EVITAR - Image do React Native
+    import { Image } from "react-native";
+    ```
+
+2. **Code Splitting e Lazy Loading**
+
+    - Expo Router já faz lazy loading automático de rotas
+    - Use `Suspense` para loading states durante code splitting
+    - Carregue módulos pesados sob demanda
+
+    ```typescript
+    // ✅ BOM - Suspense para lazy loading
+    import { Suspense } from "react";
+    import { ActivityIndicator } from "react-native";
+
+    <Suspense fallback={<ActivityIndicator />}>
+    	<HeavyComponent />
+    </Suspense>;
+    ```
+
+3. **Listas**
 
     - Use `FlatList` para listas longas
     - Implemente `keyExtractor` e `getItemLayout` quando possível
     - Use `removeClippedSubviews` para melhor performance
+    - Use `maxToRenderPerBatch` e `windowSize` para otimização
 
-3. **Memoização**
+4. **Memoização**
 
     ```typescript
     // ✅ BOM - Memoizar cálculos caros
@@ -350,6 +379,13 @@ src/
     	await sendMessage(messageText);
     }, [messageText, sendMessage]);
     ```
+
+5. **Bundle Size**
+
+    - Execute `npm run analyze:bundle` regularmente
+    - Remova dependências não utilizadas
+    - Use tree-shaking efetivamente (já habilitado no TypeScript)
+    - Otimize assets antes de adicionar ao projeto
 
 ### Acessibilidade
 

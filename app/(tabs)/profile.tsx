@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { ActivityIndicator } from "react-native";
 import { useTheme } from "styled-components/native";
 import { useAuth } from "@/modules/auth";
@@ -70,6 +70,7 @@ function formatDate(date: Date | null): string {
 export default function ProfileScreen() {
 	const { userProfile, firebaseUser, isLoading, error, syncPhotoURL } = useAuth();
 	const theme = useTheme();
+	const [imageLoaded, setImageLoaded] = useState(false);
 
 	// Priorizar photoURL do Firebase Auth (mais atualizado) sobre o do Firestore
 	const photoURL = firebaseUser?.photoURL || userProfile?.photoURL;
@@ -77,6 +78,11 @@ export default function ProfileScreen() {
 	const avatarInitial = displayName.charAt(0).toUpperCase();
 	const createdAt = timestampToDate(userProfile?.createdAt);
 	const updatedAt = timestampToDate(userProfile?.updatedAt);
+
+	// Resetar estado de carregamento quando photoURL mudar
+	React.useEffect(() => {
+		setImageLoaded(false);
+	}, [photoURL]);
 
 	// Sincronizar photoURL quando a página carregar se necessário
 	React.useEffect(() => {
@@ -139,17 +145,29 @@ export default function ProfileScreen() {
 					<ProfileHeader>
 						<ProfileAvatarContainer>
 							{photoURL ? (
-								<ProfileAvatarImage
-									source={{ uri: photoURL }}
-									resizeMode="cover"
-									onError={(error: any) => {
-										console.error("❌ Erro ao carregar imagem do avatar:", error.nativeEvent.error);
-										console.log("📸 URL da imagem:", photoURL);
-									}}
-									onLoad={() => {
-										console.log("✅ Imagem do avatar carregada com sucesso:", photoURL);
-									}}
-								/>
+								<>
+									{!imageLoaded && (
+										<ProfileAvatarText style={{ position: "absolute", zIndex: 1 }}>
+											{avatarInitial}
+										</ProfileAvatarText>
+									)}
+									<ProfileAvatarImage
+										source={{ uri: photoURL }}
+										contentFit="cover"
+										transition={200}
+										cachePolicy="memory-disk"
+										onError={(error: any) => {
+											console.error("❌ Erro ao carregar imagem do avatar:", error);
+											console.log("📸 URL da imagem:", photoURL);
+											setImageLoaded(false);
+										}}
+										onLoad={() => {
+											console.log("✅ Imagem do avatar carregada com sucesso:", photoURL);
+											setImageLoaded(true);
+										}}
+										style={{ opacity: imageLoaded ? 1 : 0 }}
+									/>
+								</>
 							) : (
 								<ProfileAvatarText>{avatarInitial}</ProfileAvatarText>
 							)}
