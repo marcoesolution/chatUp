@@ -20,7 +20,8 @@
                 "EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET": "chatup-ddcf8.firebasestorage.app",
                 "EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID": "510679848324",
                 "EXPO_PUBLIC_FIREBASE_APP_ID": "1:510679848324:web:8fd91100b48ff347aab9d1",
-                "EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID": "G-DTZT3VN40J"
+                "EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID": "G-DTZT3VN40J",
+                "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "510679848324-uicijmb0d26ebf3rlo0qil5pjuk9d1ea.apps.googleusercontent.com"
             }
         },
         "production": {
@@ -36,7 +37,8 @@
                 "EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET": "chatup-ddcf8.firebasestorage.app",
                 "EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID": "510679848324",
                 "EXPO_PUBLIC_FIREBASE_APP_ID": "1:510679848324:web:8fd91100b48ff347aab9d1",
-                "EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID": "G-DTZT3VN40J"
+                "EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID": "G-DTZT3VN40J",
+                "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "510679848324-uicijmb0d26ebf3rlo0qil5pjuk9d1ea.apps.googleusercontent.com"
             }
         },
         "production-aab": {
@@ -52,7 +54,8 @@
                 "EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET": "chatup-ddcf8.firebasestorage.app",
                 "EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID": "510679848324",
                 "EXPO_PUBLIC_FIREBASE_APP_ID": "1:510679848324:web:8fd91100b48ff347aab9d1",
-                "EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID": "G-DTZT3VN40J"
+                "EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID": "G-DTZT3VN40J",
+                "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "510679848324-uicijmb0d26ebf3rlo0qil5pjuk9d1ea.apps.googleusercontent.com"
             }
         }
     },

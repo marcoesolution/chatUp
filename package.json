@@ -22,6 +22,7 @@
     "build:android:apk": "eas build --platform android --profile production --local",
     "build:android:apk:cloud": "eas build --platform android --profile production",
     "build:android:apk:preview": "eas build --platform android --profile preview --local",
+    "build:android:preview:cloud": "eas build --platform android --profile preview",
     "build:android:aab": "eas build --platform android --profile production-aab --local",
     "build:android:aab:cloud": "eas build --platform android --profile production-aab",
     "build:ios": "eas build --platform ios --profile production",
