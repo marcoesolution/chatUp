@@ -1,120 +1,27 @@
 import React from "react";
-import { ActivityIndicator, ScrollView } from "react-native";
-import styled, { useTheme } from "styled-components/native";
+import { ActivityIndicator } from "react-native";
+import { useTheme } from "styled-components/native";
 import { useAuth } from "@/modules/auth";
 import { Card } from "@/shared/components";
-
-const Container = styled.ScrollView`
-	flex: 1;
-	background-color: ${(props) => props.theme.colors.background.primary};
-`;
-
-const CenterContainer = styled.View`
-	flex: 1;
-	justify-content: center;
-	align-items: center;
-	min-height: 400px;
-`;
-
-const CardContainer = styled.View`
-	margin: ${(props) => props.theme.spacing.md}px;
-`;
-
-const Header = styled.View`
-	align-items: center;
-	margin-bottom: ${(props) => props.theme.spacing.lg}px;
-`;
-
-const AvatarContainer = styled.View`
-	width: 100px;
-	height: 100px;
-	border-radius: 50px;
-	background-color: ${(props) => props.theme.colors.button.primary};
-	justify-content: center;
-	align-items: center;
-	margin-bottom: ${(props) => props.theme.spacing.md}px;
-	overflow: hidden;
-`;
-
-const AvatarImage = styled.Image`
-	width: 100%;
-	height: 100%;
-	resize-mode: cover;
-`;
-
-const AvatarText = styled.Text`
-	font-size: 40px;
-	font-weight: bold;
-	color: ${(props) => props.theme.colors.text.primary};
-`;
-
-const Name = styled.Text`
-	font-size: 24px;
-	font-weight: bold;
-	color: ${(props) => props.theme.colors.text.primary};
-	margin-bottom: 4px;
-	text-align: center;
-`;
-
-const Email = styled.Text`
-	font-size: 16px;
-	color: ${(props) => props.theme.colors.text.secondary};
-	text-align: center;
-`;
-
-const Section = styled.View`
-	margin-bottom: ${(props) => props.theme.spacing.lg}px;
-	padding-bottom: ${(props) => props.theme.spacing.md}px;
-	border-bottom-width: 1px;
-	border-bottom-color: ${(props) => props.theme.colors.border.secondary};
-`;
-
-const SectionTitle = styled.Text`
-	font-size: 12px;
-	font-weight: 600;
-	color: ${(props) => props.theme.colors.text.tertiary};
-	margin-bottom: 8px;
-	text-transform: uppercase;
-	letter-spacing: 0.5px;
-`;
-
-const SectionContent = styled.Text`
-	font-size: 16px;
-	color: ${(props) => props.theme.colors.text.primary};
-	line-height: 24px;
-`;
-
-const EmptyContent = styled.Text`
-	font-size: 14px;
-	color: ${(props) => props.theme.colors.text.tertiary};
-	font-style: italic;
-`;
-
-const ErrorText = styled.Text`
-	font-size: 16px;
-	color: ${(props) => props.theme.colors.text.error};
-	text-align: center;
-`;
-
-const EmptyText = styled.Text`
-	font-size: 16px;
-	color: ${(props) => props.theme.colors.text.tertiary};
-	text-align: center;
-`;
-
-const StatusBadge = styled.View`
-	padding: 4px 12px;
-	border-radius: 12px;
-	background-color: ${(props) => props.theme.colors.status.success};
-	margin-top: 8px;
-	align-self: flex-start;
-`;
-
-const StatusText = styled.Text`
-	font-size: 12px;
-	font-weight: 600;
-	color: ${(props) => props.theme.colors.text.primary};
-`;
+import {
+	ProfileContainer,
+	ProfileCenterContainer,
+	ProfileCardContainer,
+	ProfileHeader,
+	ProfileAvatarContainer,
+	ProfileAvatarImage,
+	ProfileAvatarText,
+	ProfileName,
+	ProfileEmail,
+	ProfileSection,
+	ProfileSectionTitle,
+	ProfileSectionContent,
+	ProfileEmptyContent,
+	ProfileErrorText,
+	ProfileEmptyText,
+	ProfileStatusBadge,
+	ProfileStatusText,
+} from "./styles";
 
 /**
  * Converte um Timestamp do Firestore para Date
@@ -178,7 +85,9 @@ export default function ProfileScreen() {
 				console.log("🔄 Detectado photoURL no Firebase Auth mas não no Firestore. Sincronizando...");
 				syncPhotoURL();
 			} else if (!firebaseUser.photoURL) {
-				console.warn("⚠️ Firebase Auth não tem photoURL. O usuário pode precisar fazer login com Google novamente.");
+				console.warn(
+					"⚠️ Firebase Auth não tem photoURL. O usuário pode precisar fazer login com Google novamente."
+				);
 			}
 		}
 	}, [firebaseUser?.photoURL, userProfile?.photoURL]);
@@ -197,43 +106,43 @@ export default function ProfileScreen() {
 
 	if (isLoading) {
 		return (
-			<CenterContainer>
+			<ProfileCenterContainer>
 				<ActivityIndicator size="large" color={theme.colors.button.primary} />
-			</CenterContainer>
+			</ProfileCenterContainer>
 		);
 	}
 
 	if (error) {
 		return (
-			<CenterContainer>
-				<ErrorText>Erro ao carregar perfil: {error}</ErrorText>
-			</CenterContainer>
+			<ProfileCenterContainer>
+				<ProfileErrorText>Erro ao carregar perfil: {error}</ProfileErrorText>
+			</ProfileCenterContainer>
 		);
 	}
 
 	if (!userProfile) {
 		return (
-			<CenterContainer>
-				<EmptyText>Perfil não encontrado</EmptyText>
-			</CenterContainer>
+			<ProfileCenterContainer>
+				<ProfileEmptyText>Perfil não encontrado</ProfileEmptyText>
+			</ProfileCenterContainer>
 		);
 	}
 
 	return (
-		<Container contentContainerStyle={{ paddingBottom: 20 }}>
-			<CardContainer>
+		<ProfileContainer>
+			<ProfileCardContainer>
 				<Card
 					style={{
 						backgroundColor: theme.colors.background.card,
 					}}
 				>
-					<Header>
-						<AvatarContainer>
+					<ProfileHeader>
+						<ProfileAvatarContainer>
 							{photoURL ? (
-								<AvatarImage 
-									source={{ uri: photoURL }} 
+								<ProfileAvatarImage
+									source={{ uri: photoURL }}
 									resizeMode="cover"
-									onError={(error) => {
+									onError={(error: any) => {
 										console.error("❌ Erro ao carregar imagem do avatar:", error.nativeEvent.error);
 										console.log("📸 URL da imagem:", photoURL);
 									}}
@@ -242,81 +151,81 @@ export default function ProfileScreen() {
 									}}
 								/>
 							) : (
-								<AvatarText>{avatarInitial}</AvatarText>
+								<ProfileAvatarText>{avatarInitial}</ProfileAvatarText>
 							)}
-						</AvatarContainer>
-						<Name>{displayName}</Name>
-						<Email>{userProfile.email}</Email>
+						</ProfileAvatarContainer>
+						<ProfileName>{displayName}</ProfileName>
+						<ProfileEmail>{userProfile.email}</ProfileEmail>
 						{userProfile.hasProfile && (
-							<StatusBadge>
-								<StatusText>Perfil Completo</StatusText>
-							</StatusBadge>
+							<ProfileStatusBadge>
+								<ProfileStatusText>Perfil Completo</ProfileStatusText>
+							</ProfileStatusBadge>
 						)}
 						{!photoURL && (
-							<EmptyContent style={{ marginTop: 8, textAlign: 'center' }}>
+							<ProfileEmptyContent style={{ marginTop: 8, textAlign: "center" }}>
 								Para ver sua foto do Google, faça logout e entre novamente usando "Entrar com Google"
-							</EmptyContent>
+							</ProfileEmptyContent>
 						)}
-					</Header>
+					</ProfileHeader>
 
-					<Section>
-						<SectionTitle>ID do Usuário</SectionTitle>
-						<SectionContent>{userProfile.id}</SectionContent>
-					</Section>
+					<ProfileSection>
+						<ProfileSectionTitle>ID do Usuário</ProfileSectionTitle>
+						<ProfileSectionContent>{userProfile.id}</ProfileSectionContent>
+					</ProfileSection>
 
-					<Section>
-						<SectionTitle>Email</SectionTitle>
-						<SectionContent>{userProfile.email}</SectionContent>
-					</Section>
+					<ProfileSection>
+						<ProfileSectionTitle>Email</ProfileSectionTitle>
+						<ProfileSectionContent>{userProfile.email}</ProfileSectionContent>
+					</ProfileSection>
 
-					<Section>
-						<SectionTitle>Nome de Exibição</SectionTitle>
-						<SectionContent>{displayName}</SectionContent>
-					</Section>
+					<ProfileSection>
+						<ProfileSectionTitle>Nome de Exibição</ProfileSectionTitle>
+						<ProfileSectionContent>{displayName}</ProfileSectionContent>
+					</ProfileSection>
 
 					{userProfile.phoneNumber && (
-						<Section>
-							<SectionTitle>Telefone</SectionTitle>
-							<SectionContent>{userProfile.phoneNumber}</SectionContent>
-						</Section>
+						<ProfileSection>
+							<ProfileSectionTitle>Telefone</ProfileSectionTitle>
+							<ProfileSectionContent>{userProfile.phoneNumber}</ProfileSectionContent>
+						</ProfileSection>
 					)}
 
 					{userProfile.bio && (
-						<Section>
-							<SectionTitle>Biografia</SectionTitle>
-							<SectionContent>{userProfile.bio}</SectionContent>
-						</Section>
+						<ProfileSection>
+							<ProfileSectionTitle>Biografia</ProfileSectionTitle>
+							<ProfileSectionContent>{userProfile.bio}</ProfileSectionContent>
+						</ProfileSection>
 					)}
 
 					{photoURL && (
-						<Section>
-							<SectionTitle>Foto de Perfil</SectionTitle>
-							<SectionContent>{photoURL}</SectionContent>
-						</Section>
+						<ProfileSection>
+							<ProfileSectionTitle>Foto de Perfil</ProfileSectionTitle>
+							<ProfileSectionContent>{photoURL}</ProfileSectionContent>
+						</ProfileSection>
 					)}
 
-					<Section>
-						<SectionTitle>Status do Perfil</SectionTitle>
-						<SectionContent>
+					<ProfileSection>
+						<ProfileSectionTitle>Status do Perfil</ProfileSectionTitle>
+						<ProfileSectionContent>
 							{userProfile.hasProfile ? "Perfil Completo" : "Perfil Incompleto"}
-						</SectionContent>
-					</Section>
+						</ProfileSectionContent>
+					</ProfileSection>
 
 					{createdAt && (
-						<Section>
-							<SectionTitle>Membro desde</SectionTitle>
-							<SectionContent>{formatDate(createdAt)}</SectionContent>
-						</Section>
+						<ProfileSection>
+							<ProfileSectionTitle>Membro desde</ProfileSectionTitle>
+							<ProfileSectionContent>{formatDate(createdAt)}</ProfileSectionContent>
+						</ProfileSection>
 					)}
 
 					{updatedAt && (
-						<Section>
-							<SectionTitle>Última atualização</SectionTitle>
-							<SectionContent>{formatDate(updatedAt)}</SectionContent>
-						</Section>
+						<ProfileSection>
+							<ProfileSectionTitle>Última atualização</ProfileSectionTitle>
+							<ProfileSectionContent>{formatDate(updatedAt)}</ProfileSectionContent>
+						</ProfileSection>
 					)}
 				</Card>
-			</CardContainer>
-		</Container>
+			</ProfileCardContainer>
+		</ProfileContainer>
 	);
 }
