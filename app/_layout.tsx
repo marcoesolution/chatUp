@@ -4,6 +4,7 @@ import { queryClient } from "@/core/queryClient";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ThemeProvider } from "@/core/theme/ThemeProvider";
 import { I18nProvider } from "@/core/i18n/I18nProvider";
+import { UpdateDialog } from "@/shared/components";
 import React, { Suspense } from "react";
 import { View, Text, StyleSheet, ActivityIndicator } from "react-native";
 // Inicializa o Firebase quando o app inicia
@@ -132,6 +133,7 @@ export default function RootLayout() {
 					<ThemeProvider>
 						<QueryClientProvider client={queryClient}>
 							<AppContent />
+							<UpdateDialog />
 						</QueryClientProvider>
 					</ThemeProvider>
 				</I18nProvider>

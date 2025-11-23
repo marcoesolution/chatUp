@@ -71,7 +71,7 @@ export const en = {
 		notFound: "Profile not found",
 		errorLoading: "Error loading profile",
 		user: "User",
-		googlePhotoHint: "To see your Google photo, log out and sign in again using \"Sign in with Google\"",
+		googlePhotoHint: 'To see your Google photo, log out and sign in again using "Sign in with Google"',
 	},
 
 	// Conversations
@@ -122,5 +122,17 @@ export const en = {
 		unknownError: "Unknown error",
 		checkLogs: "Check logs for more details",
 	},
-};
 
+	// OTA Updates
+	updates: {
+		availableTitle: "Update available",
+		availableMessage: "A new version of the app is available. Would you like to update now?",
+		updateNow: "Update now",
+		later: "Later",
+		downloading: "Downloading update...",
+		downloadErrorTitle: "Error downloading update",
+		downloadErrorMessage: "Could not download the update. Please try again later.",
+		reloadErrorTitle: "Error updating",
+		reloadErrorMessage: "Could not apply the update. The app will restart.",
+	},
+};

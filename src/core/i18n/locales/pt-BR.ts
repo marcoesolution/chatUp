@@ -71,7 +71,7 @@ export const ptBR = {
 		notFound: "Perfil não encontrado",
 		errorLoading: "Erro ao carregar perfil",
 		user: "Usuário",
-		googlePhotoHint: "Para ver sua foto do Google, faça logout e entre novamente usando \"Entrar com Google\"",
+		googlePhotoHint: 'Para ver sua foto do Google, faça logout e entre novamente usando "Entrar com Google"',
 	},
 
 	// Conversas
@@ -122,5 +122,17 @@ export const ptBR = {
 		unknownError: "Erro desconhecido",
 		checkLogs: "Verifique os logs para mais detalhes",
 	},
-};
 
+	// Atualizações OTA
+	updates: {
+		availableTitle: "Atualização disponível",
+		availableMessage: "Uma nova versão do app está disponível. Deseja atualizar agora?",
+		updateNow: "Atualizar agora",
+		later: "Depois",
+		downloading: "Baixando atualização...",
+		downloadErrorTitle: "Erro ao baixar atualização",
+		downloadErrorMessage: "Não foi possível baixar a atualização. Tente novamente mais tarde.",
+		reloadErrorTitle: "Erro ao atualizar",
+		reloadErrorMessage: "Não foi possível aplicar a atualização. O app será reiniciado.",
+	},
+};
