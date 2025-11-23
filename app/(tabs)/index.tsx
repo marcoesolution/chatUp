@@ -4,7 +4,7 @@ import { useTheme } from "styled-components/native";
 import { Ionicons } from "@expo/vector-icons";
 import { Button } from "@/shared/components";
 import { useTranslation } from "@/core/i18n";
-import { useConversations } from "./hooks";
+import { useConversations } from "./_hooks";
 import type { Contact } from "@/modules/chat/types";
 import {
 	Container,
@@ -23,7 +23,7 @@ import {
 	ErrorIcon,
 	ErrorButtonContainer,
 	LoadingContainer,
-} from "./styles";
+} from "./_styles";
 
 interface ContactListItemProps {
 	contact: Contact;
