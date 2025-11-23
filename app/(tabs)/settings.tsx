@@ -3,6 +3,7 @@ import { ActivityIndicator, Alert, ScrollView } from "react-native";
 import { useTheme } from "styled-components/native";
 import { Ionicons } from "@expo/vector-icons";
 import Constants from "expo-constants";
+import * as Updates from "expo-updates";
 import styled from "styled-components/native";
 import { Card } from "@/shared/components";
 import { useTranslation } from "@/core/i18n";
@@ -119,17 +120,17 @@ export default function SettingsScreen() {
 		}
 	};
 
-	// Obter versão do app
+	// Obter informações de versão
 	const appVersion = Constants.expoConfig?.version || "1.0.0";
-	// Obter versão do runtime EAS
-	// runtimeVersion pode ser uma string ou objeto com policy, então convertemos para string
-	const runtimeVersionValue = Constants.expoConfig?.runtimeVersion;
+	const versionCode = Constants.expoConfig?.android?.versionCode || 1;
+
+	// Obter runtime version do expo-updates (mais confiável que Constants)
+	// Em desenvolvimento, Updates pode não estar disponível
 	const runtimeVersion =
-		typeof runtimeVersionValue === "string"
-			? runtimeVersionValue
-			: typeof runtimeVersionValue === "object" && runtimeVersionValue !== null
-			? String(runtimeVersionValue)
-			: "N/A";
+		Updates.isEnabled && Updates.runtimeVersion ? Updates.runtimeVersion : __DEV__ ? "Development" : "N/A";
+
+	// Obter channel do expo-updates
+	const channel = Updates.isEnabled && Updates.channel ? Updates.channel : __DEV__ ? "Development" : "N/A";
 
 	return (
 		<Container>
@@ -168,8 +169,16 @@ export default function SettingsScreen() {
 							<VersionValue>{appVersion}</VersionValue>
 						</VersionRow>
 						<VersionRow>
+							<VersionLabel>{t("settings.versionCode")}</VersionLabel>
+							<VersionValue>{versionCode}</VersionValue>
+						</VersionRow>
+						<VersionRow>
 							<VersionLabel>{t("settings.runtimeVersion")}</VersionLabel>
 							<VersionValue>{runtimeVersion}</VersionValue>
+						</VersionRow>
+						<VersionRow>
+							<VersionLabel>{t("settings.channel")}</VersionLabel>
+							<VersionValue>{channel}</VersionValue>
 						</VersionRow>
 					</VersionInfo>
 				</Section>

@@ -36,6 +36,7 @@ module.exports = {
 				backgroundColor: "#ffffff",
 			},
 			package: "com.chatup.app",
+			versionCode: 1,
 			edgeToEdgeEnabled: true,
 			predictiveBackGestureEnabled: false,
 			permissions: [
