@@ -16,6 +16,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/core/firebase';
 import { useAuth } from '@/modules/auth';
+import { decryptMessage } from '@/core/security';
 import type { Contact } from '../types';
 import type { NearbyUser } from '@/modules/location/types';
 
@@ -85,7 +86,7 @@ export function useContacts(nearbyUsers: NearbyUser[]): {
 			// Escutar última mensagem
 			const unsubscribeLastMessage = onSnapshot(
 				lastMessageQuery,
-				(snapshot: QuerySnapshot<DocumentData>) => {
+				async (snapshot: QuerySnapshot<DocumentData>) => {
 					const contact = contactsMap.get(nearbyUser.id);
 					if (!contact) return;
 
@@ -119,7 +120,24 @@ export function useContacts(nearbyUsers: NearbyUser[]): {
 							}
 						}
 
-						contact.lastMessage = messageData.text || '';
+						// Descriptografar mensagem se estiver criptografada
+						let messageText = messageData.text || '';
+						if (messageText.startsWith('ENC:')) {
+							try {
+								const decryptedText = await decryptMessage(messageText, chatId, currentUserId);
+								// Mostrar apenas uma prévia (primeiros 50 caracteres)
+								messageText = decryptedText.length > 50 ? decryptedText.substring(0, 50) + '...' : decryptedText;
+							} catch (error) {
+								console.error('❌ Erro ao descriptografar última mensagem:', error);
+								// Em caso de erro, mostrar mensagem genérica
+								messageText = 'Mensagem criptografada';
+							}
+						} else if (messageText.length > 50) {
+							// Truncar mensagem não criptografada também se for muito longa
+							messageText = messageText.substring(0, 50) + '...';
+						}
+
+						contact.lastMessage = messageText;
 						contact.lastMessageTime = lastMessageTime;
 					} else {
 						contact.lastMessage = undefined;

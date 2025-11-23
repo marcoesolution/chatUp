@@ -49,3 +49,34 @@ export function isValidEmail(email: string): boolean {
   return emailRegex.test(email);
 }
 
+/**
+ * Formata um nome completo para exibir apenas o primeiro nome e a inicial do último sobrenome
+ * Exemplos:
+ * - "Marco Aurelio Guimaraes" → "Marco G"
+ * - "João Silva" → "João S"
+ * - "Maria" → "Maria" (se só tiver um nome)
+ * 
+ * @param fullName Nome completo a ser formatado
+ * @returns Nome formatado com primeiro nome + inicial do último sobrenome
+ */
+export function formatShortName(fullName: string): string {
+  if (!fullName || typeof fullName !== 'string') {
+    return '';
+  }
+
+  // Remove espaços extras e divide em partes
+  const parts = fullName.trim().split(/\s+/).filter(part => part.length > 0);
+
+  // Se só tiver um nome, retorna ele mesmo
+  if (parts.length === 1) {
+    return parts[0];
+  }
+
+  // Se tiver mais de um nome, pega o primeiro e a inicial do último
+  const firstName = parts[0];
+  const lastSurname = parts[parts.length - 1];
+  const lastInitial = lastSurname.charAt(0).toUpperCase();
+
+  return `${firstName} ${lastInitial}`;
+}
+
