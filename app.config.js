@@ -64,6 +64,15 @@ module.exports = {
 			],
 			"expo-font",
 		],
+		updates: {
+			enabled: true,
+			checkAutomatically: "ON_LOAD",
+			fallbackToCacheTimeout: 0,
+			url: "https://u.expo.dev/d662ef19-e2a8-4cf3-b18a-564a4faa4a3d",
+		},
+		runtimeVersion: {
+			policy: "appVersion",
+		},
 		extra: {
 			router: {},
 			eas: {
