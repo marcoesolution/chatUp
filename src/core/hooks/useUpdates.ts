@@ -81,7 +81,9 @@ export function useUpdates() {
 			console.error("❌ Erro ao baixar atualização:", error);
 			Alert.alert(
 				t("updates.downloadErrorTitle") || "Erro ao baixar atualização",
-				error.message || t("updates.downloadErrorMessage") || "Não foi possível baixar a atualização. Tente novamente mais tarde."
+				error.message ||
+					t("updates.downloadErrorMessage") ||
+					"Não foi possível baixar a atualização. Tente novamente mais tarde."
 			);
 		} finally {
 			setIsDownloading(false);
@@ -123,7 +125,9 @@ export function useUpdates() {
 			console.error("❌ Erro ao aplicar atualização:", error);
 			Alert.alert(
 				t("updates.reloadErrorTitle") || "Erro ao atualizar",
-				error.message || t("updates.reloadErrorMessage") || "Não foi possível aplicar a atualização. O app será reiniciado."
+				error.message ||
+					t("updates.reloadErrorMessage") ||
+					"Não foi possível aplicar a atualização. O app será reiniciado."
 			);
 			// Tentar recarregar mesmo assim
 			await Updates.reloadAsync();
@@ -150,4 +154,3 @@ export function useUpdates() {
 		applyUpdate,
 	};
 }
-

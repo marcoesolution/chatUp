@@ -117,4 +117,3 @@ export const UpdateDialog: React.FC = () => {
 		</Modal>
 	);
 };
-

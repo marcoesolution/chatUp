@@ -43,8 +43,7 @@ const LanguageOption = styled.TouchableOpacity<{ isSelected: boolean }>`
 	justify-content: space-between;
 	padding: ${(props) => props.theme.spacing.md}px;
 	margin-bottom: ${(props) => props.theme.spacing.sm}px;
-	background-color: ${(props) =>
-		props.isSelected ? props.theme.colors.background.input : "transparent"};
+	background-color: ${(props) => (props.isSelected ? props.theme.colors.background.input : "transparent")};
 	border-radius: ${(props) => props.theme.borderRadius.md}px;
 	border-width: 1px;
 	border-color: ${(props) =>
@@ -121,9 +120,16 @@ export default function SettingsScreen() {
 	};
 
 	// Obter versão do app
-	const appVersion = Constants.expoConfig?.version || Constants.manifest?.version || "1.0.0";
+	const appVersion = Constants.expoConfig?.version || "1.0.0";
 	// Obter versão do runtime EAS
-	const runtimeVersion = Constants.expoConfig?.runtimeVersion || Constants.expoConfig?.sdkVersion || Constants.manifest?.sdkVersion || "N/A";
+	// runtimeVersion pode ser uma string ou objeto com policy, então convertemos para string
+	const runtimeVersionValue = Constants.expoConfig?.runtimeVersion;
+	const runtimeVersion =
+		typeof runtimeVersionValue === "string"
+			? runtimeVersionValue
+			: typeof runtimeVersionValue === "object" && runtimeVersionValue !== null
+			? String(runtimeVersionValue)
+			: "N/A";
 
 	return (
 		<Container>
@@ -171,4 +177,3 @@ export default function SettingsScreen() {
 		</Container>
 	);
 }
-
