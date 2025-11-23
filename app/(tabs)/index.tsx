@@ -1,6 +1,5 @@
 import React, { useCallback } from "react";
-import { ActivityIndicator } from "react-native";
-import { FlashList } from "@shopify/flash-list";
+import { ActivityIndicator, FlatList } from "react-native";
 import { useTheme } from "styled-components/native";
 import { Ionicons } from "@expo/vector-icons";
 import { Button } from "@/shared/components";
@@ -31,12 +30,15 @@ interface ContactListItemProps {
 }
 
 function ContactListItem({ contact, onPress }: ContactListItemProps) {
+	// Proteção contra crash se contact.name for null/undefined
 	const initials = contact.name
-		.split(" ")
-		.map((n) => n[0])
-		.join("")
-		.toUpperCase()
-		.slice(0, 2);
+		? contact.name
+				.split(" ")
+				.map((n) => n[0])
+				.join("")
+				.toUpperCase()
+				.slice(0, 2)
+		: "??";
 
 	const handlePress = () => {
 		console.log("ContactListItem: onPress chamado para contato:", contact.id);
@@ -121,7 +123,7 @@ export default function ConversationsScreen() {
 
 	return (
 		<Container>
-			<FlashList
+			<FlatList
 				data={contacts}
 				renderItem={renderContact}
 				keyExtractor={keyExtractor}

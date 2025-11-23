@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
-import { KeyboardAvoidingView, Platform, TextInput as RNTextInput, ActivityIndicator } from "react-native";
-import { FlashList, FlashListRef } from "@shopify/flash-list";
+import { KeyboardAvoidingView, Platform, TextInput as RNTextInput, ActivityIndicator, FlatList } from "react-native";
 import { useRouter, useLocalSearchParams, useFocusEffect } from "expo-router";
 import { useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -136,7 +135,7 @@ export default function ChatScreen() {
 	);
 	const [messageText, setMessageText] = useState("");
 	const [isSending, setIsSending] = useState(false);
-	const flatListRef = useRef<FlashListRef<Message>>(null);
+	const flatListRef = useRef<FlatList<Message>>(null);
 	const inputRef = useRef<RNTextInput>(null);
 
 	// Encontrar informações do contato
@@ -173,11 +172,10 @@ export default function ChatScreen() {
 		[firebaseUser?.uid, formatTime]
 	);
 
-	// Key extractor para FlashList
+	// Key extractor para FlatList
 	const keyExtractor = useCallback((item: Message) => item.id, []);
 
-	// FlashList não suporta 'inverted', então mantemos a lista normal
-	// As mensagens já vêm ordenadas do hook (mais antigas primeiro)
+	// Lista invertida (mensagens mais recentes no final)
 	const reversedMessages = useMemo(() => [...messages].reverse(), [messages]);
 
 	// Carregar mais mensagens ao fazer scroll para o topo
@@ -252,11 +250,12 @@ export default function ChatScreen() {
 				</EmptyContainer>
 			) : (
 				<MessagesListContainer>
-					<FlashList
+					<FlatList
 						ref={flatListRef}
 						data={reversedMessages}
 						renderItem={renderMessage}
 						keyExtractor={keyExtractor}
+						inverted
 						onEndReached={handleLoadMore}
 						onEndReachedThreshold={0.5}
 						ListFooterComponent={renderFooter}
@@ -265,6 +264,15 @@ export default function ChatScreen() {
 							flexGrow: 1,
 						}}
 						keyboardShouldPersistTaps="handled"
+						removeClippedSubviews={true}
+						maxToRenderPerBatch={10}
+						windowSize={10}
+						initialNumToRender={20}
+						getItemLayout={(data, index) => ({
+							length: 80, // Altura estimada de cada mensagem
+							offset: 80 * index,
+							index,
+						})}
 					/>
 				</MessagesListContainer>
 			)}
