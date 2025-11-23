@@ -68,3 +68,4 @@ Se precisar de melhor performance no futuro:
 ✅ **Proteções adicionadas** - Null checks implementados
 ✅ **Pronto para rebuild** - Código compilando sem erros
 
+

@@ -164,3 +164,4 @@ Depois, use:
 expo-emulator
 ```
 
+

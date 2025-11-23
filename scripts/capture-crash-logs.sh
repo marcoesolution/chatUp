@@ -30,3 +30,4 @@ adb -s $DEVICE_ID logcat \
   | grep -i -E "chatup|firebase|error|exception|fatal|crash|reactnative|$PACKAGE_NAME" \
   | tee "$LOG_FILE"
 
+

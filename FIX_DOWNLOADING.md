@@ -165,3 +165,4 @@ npm run start:tunnel
 
 O modo tunnel é mais lento, mas é a solução mais confiável para problemas de rede.
 
+

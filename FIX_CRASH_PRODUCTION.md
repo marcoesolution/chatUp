@@ -103,3 +103,4 @@ Se o problema persistir:
 - `app.config.js` (adicionado proguardFiles)
 - `app/_layout.tsx` (melhorado ErrorBoundary)
 
+

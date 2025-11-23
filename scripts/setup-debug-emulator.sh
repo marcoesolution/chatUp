@@ -86,3 +86,4 @@ echo ""
 echo -e "${GREEN}4. O console do navegador mostrará os logs do React Native${NC}"
 echo ""
 
+

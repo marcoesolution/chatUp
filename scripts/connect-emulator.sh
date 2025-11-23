@@ -46,3 +46,4 @@ adb -s "$EMULATOR_ID" shell am start -a android.intent.action.VIEW -d "exp://loc
 echo ""
 echo -e "${GREEN}✅ Concluído!${NC}"
 
+

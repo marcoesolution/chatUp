@@ -167,3 +167,4 @@ Para debug no navegador, use:
 - Build de preview: `npm run build:android:apk:preview`
 - Ou desenvolvimento: `npm run build:android:dev`
 
+

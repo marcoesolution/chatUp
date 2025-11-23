@@ -13,3 +13,4 @@ echo ""
 adb -s $DEVICE_ID logcat -c
 adb -s $DEVICE_ID logcat *:E AndroidRuntime:E ReactNativeJS:E | grep -i -E "chatup|firebase|error|exception|fatal|crash"
 
+

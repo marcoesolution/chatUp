@@ -138,3 +138,4 @@ adb -s RXCTA06V4GB logcat \
 3. Verifique se há erros relacionados ao ProGuard
 4. Verifique se há erros do Firebase ou React Native
 
+

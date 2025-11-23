@@ -92,3 +92,4 @@ echo -e "${YELLOW}4. Para ver logs do emulador:${NC}"
 echo -e "   ${GREEN}adb -s ${EMULATOR_ID} logcat | grep -i expo${NC}"
 echo ""
 
+
