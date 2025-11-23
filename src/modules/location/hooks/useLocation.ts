@@ -7,6 +7,15 @@ import { AppState, AppStateStatus, Linking, Platform, Alert, PermissionsAndroid 
 import * as Location from "expo-location";
 import type { Location as LocationType, LocationPermissionStatus } from "../types";
 
+// Mock de localização para desenvolvimento
+// Só funciona quando __DEV__ === true (modo desenvolvimento)
+// Em produção, o comportamento normal será mantido
+const MOCK_LOCATION: LocationType = {
+	latitude: -17.803677,
+	longitude: -50.920879,
+	updatedAt: new Date(),
+};
+
 interface UseLocationReturn {
 	location: LocationType | null;
 	isLoading: boolean;
@@ -109,8 +118,21 @@ export function useLocation(): UseLocationReturn {
 
 	/**
 	 * Verifica o status atual da permissão usando múltiplas fontes
+	 * Em modo dev (__DEV__), retorna granted automaticamente para permitir uso do mock
 	 */
 	const checkPermission = useCallback(async () => {
+		// Em modo desenvolvimento, retornar granted automaticamente para permitir mock
+		if (__DEV__) {
+			console.log("🔧 useLocation: Modo DEV ativo - usando mock de localização");
+			const permission: LocationPermissionStatus = {
+				granted: true,
+				canAskAgain: false,
+				status: "granted",
+			};
+			setPermissionStatus(permission);
+			return true;
+		}
+
 		try {
 			console.log("🔍 useLocation: Verificando permissão de localização...");
 
@@ -190,8 +212,34 @@ export function useLocation(): UseLocationReturn {
 
 	/**
 	 * Atualiza a localização atual do usuário
+	 * Em modo dev (__DEV__), retorna coordenadas mockadas imediatamente
 	 */
 	const updateLocation = useCallback(async () => {
+		// Em modo desenvolvimento, usar mock de localização
+		if (__DEV__) {
+			console.log("🔧 useLocation: Modo DEV - usando coordenadas mockadas", {
+				latitude: MOCK_LOCATION.latitude,
+				longitude: MOCK_LOCATION.longitude,
+			});
+			setIsLoading(true);
+			setError(null);
+
+			// Simular delay mínimo para parecer realista
+			await new Promise((resolve) => setTimeout(resolve, 100));
+
+			const mockLocation: LocationType = {
+				...MOCK_LOCATION,
+				updatedAt: new Date(),
+			};
+
+			setLocation(mockLocation);
+			setError(null);
+			setIsLoading(false);
+			console.log("✅ useLocation: Mock de localização aplicado com sucesso");
+			return;
+		}
+
+		// Comportamento normal em produção
 		try {
 			const hasPermission = await checkPermission();
 

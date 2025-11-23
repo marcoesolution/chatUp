@@ -20,7 +20,13 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
 	}
 
 	componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-		console.error("❌ Erro capturado pelo ErrorBoundary:", error, errorInfo);
+		console.error("❌ Erro capturado pelo ErrorBoundary:", error);
+		console.error("❌ Stack trace:", error.stack);
+		console.error("❌ Component stack:", errorInfo.componentStack);
+		// Em produção, você pode enviar isso para um serviço de crash reporting
+		if (__DEV__) {
+			console.error("❌ Error info completo:", errorInfo);
+		}
 	}
 
 	render() {

@@ -36,7 +36,8 @@
         "android.permission.ACCESS_FINE_LOCATION"
       ],
       "enableProguardInReleaseBuilds": true,
-      "enableShrinkResourcesInReleaseBuilds": true
+      "enableShrinkResourcesInReleaseBuilds": true,
+      "proguardFiles": ["proguard-rules.pro"]
     },
     "web": {
       "favicon": "./assets/favicon.png"
