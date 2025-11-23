@@ -12,6 +12,7 @@ import {
 import { doc, getDoc, setDoc, serverTimestamp, Timestamp } from "firebase/firestore";
 import * as AuthSession from "expo-auth-session";
 import * as WebBrowser from "expo-web-browser";
+import * as Crypto from "expo-crypto";
 import { Platform } from "react-native";
 import { auth, db } from "@/core/firebase";
 import { clearAllKeys } from "@/core/security";
@@ -286,48 +287,76 @@ export function useFirebaseAuth() {
 
 			console.log("🔑 Web Client ID configurado:", webClientId.substring(0, 20) + "...");
 
-			// Configurar redirect URI usando o proxy do Expo
-			// O slug do projeto está em app.json (atualmente "chatUp")
-			// O formato do proxy do Expo é: https://auth.expo.io/@anonymous/[slug]
-			// IMPORTANTE: O slug deve corresponder EXATAMENTE ao app.json
-			// O Expo usa o slug em minúsculas no proxy: "chatup"
-			const redirectUri = `https://auth.expo.io/@anonymous/chatup`;
+			// Gerar redirect URI usando o proxy do Expo
+			// O proxy do Expo é necessário para OAuth funcionar corretamente
+			// O formato é: https://auth.expo.io/@anonymous/[slug]
+			// O slug vem do app.json/app.config.js (atualmente "chatUp")
+			// O Expo converte o slug para minúsculas no proxy: "chatup"
+			let redirectUri = AuthSession.makeRedirectUri({
+				useProxy: true,
+			});
+
+			// Se o URI gerado for local (exp://), forçar o uso do proxy do Expo
+			// Isso é necessário porque em desenvolvimento local, o makeRedirectUri
+			// pode retornar um URI local que não funciona com OAuth do Google
+			if (redirectUri.startsWith("exp://") || redirectUri.startsWith("http://") || redirectUri.startsWith("https://192.168.")) {
+				// Usar o slug do app.json (convertido para minúsculas)
+				// O slug está em app.json como "chatUp", mas o proxy usa "chatup"
+				const slug = "chatup"; // Slug em minúsculas conforme usado pelo Expo
+				redirectUri = `https://auth.expo.io/@anonymous/${slug}`;
+				console.log("⚠️ URI local detectado, usando proxy do Expo:", redirectUri);
+			}
 
 			console.log("🔐 Iniciando login com Google...");
 			console.log("📋 Redirect URI:", redirectUri);
 			console.log("📋 ⚠️ IMPORTANTE: Este URI EXATO deve estar no Google Cloud Console!");
 			console.log("📋 Vá em: Google Cloud Console > APIs e Serviços > Credenciais");
-			console.log("📋 Encontre seu OAuth Client ID e adicione este URI:");
+			console.log("📋 Encontre seu OAuth Client ID (Web) e adicione este URI:");
 			console.log("📋", redirectUri);
 
-			// Criar URL de autorização manualmente
-			// Usar WebBrowser.openAuthSessionAsync que deve usar o navegador do sistema
-			const scopes = ["openid", "profile", "email"].join(" ");
-			const state = Math.random().toString(36).substring(7);
-			const nonce = Math.random().toString(36).substring(7);
+			// Gerar nonce seguro para OAuth ID Token
+			// O nonce é obrigatório quando usamos response_type=id_token
+			// Ele garante que o token recebido seja o mesmo que foi solicitado
+			// O Google espera um nonce aleatório (não necessariamente um hash)
+			// Vamos gerar um nonce único usando crypto para garantir segurança
+			const randomBytes = await Crypto.getRandomBytesAsync(32);
+			const nonce = Array.from(randomBytes)
+				.map((b) => b.toString(16).padStart(2, "0"))
+				.join("");
 
-			const authUrl =
-				`https://accounts.google.com/o/oauth2/v2/auth?` +
-				`client_id=${encodeURIComponent(webClientId)}&` +
-				`redirect_uri=${encodeURIComponent(redirectUri)}&` +
-				`response_type=id_token&` +
-				`scope=${encodeURIComponent(scopes)}&` +
-				`state=${state}&` +
-				`nonce=${nonce}`;
+			console.log("🔐 Nonce gerado para segurança OAuth");
 
-			console.log("🔗 URL de autorização criada");
-			console.log("📋 Redirect URI:", redirectUri);
-			console.log("⚠️ Se aparecer erro 403, o Google pode estar bloqueando WebView");
-			console.log("⚠️ Tente usar o app em um dispositivo físico ou emulador Android/iOS");
+			// Criar requisição de autenticação usando AuthRequest
+			// Isso garante que todos os parâmetros OAuth sejam configurados corretamente
+			const request = new AuthSession.AuthRequest({
+				clientId: webClientId,
+				scopes: ["openid", "profile", "email"],
+				responseType: AuthSession.ResponseType.IdToken,
+				redirectUri,
+				usePKCE: false, // Google OAuth não requer PKCE para ID token
+				nonce, // Nonce obrigatório para response_type=id_token
+				extraParams: {
+					nonce, // Garantir que o nonce seja incluído na URL
+				},
+			});
 
-			// Abrir no navegador do sistema
-			// No Android/iOS, isso deve usar Custom Tabs/ASWebAuthenticationSession
+			// Configurar discovery para Google OAuth
+			const discovery = {
+				authorizationEndpoint: "https://accounts.google.com/o/oauth2/v2/auth",
+			};
+
+			console.log("🔗 Iniciando autenticação OAuth...");
+
+			// Abrir no navegador do sistema usando AuthSession
+			// No Android/iOS, isso usa Custom Tabs/ASWebAuthenticationSession
 			// que são considerados navegadores seguros pelo Google
-			const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUri);
+			const result = await request.promptAsync(discovery, {
+				useProxy: true,
+			});
 
 			console.log("📥 Resultado do OAuth:", result.type);
-			if (result.type === "success" && result.url) {
-				console.log("✅ URL de retorno recebida:", result.url.substring(0, 200));
+			if (result.type === "success" && result.params) {
+				console.log("✅ Resposta recebida do Google");
 			}
 
 			if (result.type !== "success") {
@@ -339,6 +368,12 @@ export function useFirebaseAuth() {
 					errorMsg = "Autenticação com Google cancelada. Você pode tentar novamente quando quiser.";
 					shouldThrow = false; // Não lançar erro para cancelamento, apenas informar
 					console.log("ℹ️", errorMsg);
+				} else if (result.type === "error") {
+					errorMsg = result.error?.message || "Erro na autenticação com Google";
+					console.error("❌", errorMsg);
+					if (result.error?.code === "redirect_uri_mismatch") {
+						errorMsg = `Erro de configuração: O redirect URI não está registrado no Google Cloud Console. Adicione: ${redirectUri}`;
+					}
 				} else {
 					errorMsg = `Erro na autenticação: ${result.type}`;
 					console.error("❌", errorMsg);
@@ -356,25 +391,13 @@ export function useFirebaseAuth() {
 				}
 			}
 
-			// Extrair o ID token da URL de retorno
-			let idToken: string | null = null;
-
-			if (result.type === "success" && result.url) {
-				const url = new URL(result.url);
-				// O token pode vir como fragmento (#id_token=...) ou como query param (?id_token=...)
-				idToken = url.hash.split("id_token=")[1]?.split("&")[0] || url.searchParams.get("id_token");
-
-				// Também tentar extrair do fragmento completo caso o formato seja diferente
-				if (!idToken && url.hash) {
-					const hashParams = new URLSearchParams(url.hash.substring(1));
-					idToken = hashParams.get("id_token");
-				}
-			}
+			// Extrair o ID token da resposta
+			const idToken = result.params?.id_token as string | null;
 
 			console.log("🔑 Token recebido:", idToken ? "Sim" : "Não");
 
 			if (!idToken) {
-				console.error("❌ Token não encontrado na URL de retorno:", result.url?.substring(0, 200));
+				console.error("❌ Token não encontrado na resposta");
 				const errorMsg = "Token do Google não recebido. Tente novamente.";
 				setError(errorMsg);
 				setIsLoading(false);
