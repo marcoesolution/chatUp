@@ -34,7 +34,27 @@ export function useUpdates() {
 
 		setIsChecking(true);
 		try {
+			// Log informações do update atual
+			const updateId = Updates.updateId;
+			const runtimeVersion = Updates.runtimeVersion;
+			const channel = Updates.channel;
+			console.log("🔍 Verificando atualizações...", {
+				updateId,
+				runtimeVersion,
+				channel,
+				isEnabled: Updates.isEnabled,
+			});
+
 			const update = await Updates.checkForUpdateAsync();
+			console.log("📦 Resultado da verificação:", {
+				isAvailable: update.isAvailable,
+				manifest: update.manifest
+					? {
+							id: update.manifest.id,
+					  }
+					: null,
+			});
+
 			setUpdateInfo({
 				isAvailable: update.isAvailable,
 				isDownloaded: false,
@@ -42,7 +62,7 @@ export function useUpdates() {
 			});
 
 			if (update.isAvailable) {
-				console.log("✅ Atualização disponível!");
+				console.log("✅ Atualização disponível! Baixando...");
 				// Baixar automaticamente
 				await downloadUpdate();
 			} else {
@@ -50,6 +70,11 @@ export function useUpdates() {
 			}
 		} catch (error: any) {
 			console.error("❌ Erro ao verificar atualizações:", error);
+			console.error("❌ Detalhes do erro:", {
+				message: error.message,
+				code: error.code,
+				stack: error.stack,
+			});
 		} finally {
 			setIsChecking(false);
 		}
@@ -59,23 +84,23 @@ export function useUpdates() {
 	 * Baixar atualização disponível
 	 */
 	const downloadUpdate = async () => {
-		if (!updateInfo.isAvailable || isDownloading) {
+		if (isDownloading) {
 			return;
 		}
 
 		setIsDownloading(true);
 		try {
 			const result = await Updates.fetchUpdateAsync();
-			setUpdateInfo({
-				isAvailable: true,
+			setUpdateInfo((prev) => ({
+				...prev,
 				isDownloaded: result.isNew,
 				manifest: result.manifest,
-			});
+			}));
 
 			if (result.isNew) {
-				console.log("✅ Atualização baixada com sucesso!");
-				// Mostrar diálogo para aplicar atualização
-				showUpdateDialog();
+				console.log("✅ Atualização baixada com sucesso! O diálogo será exibido automaticamente.");
+			} else {
+				console.log("ℹ️ Nenhuma atualização nova encontrada.");
 			}
 		} catch (error: any) {
 			console.error("❌ Erro ao baixar atualização:", error);
@@ -88,26 +113,6 @@ export function useUpdates() {
 		} finally {
 			setIsDownloading(false);
 		}
-	};
-
-	/**
-	 * Mostrar diálogo para aplicar atualização
-	 */
-	const showUpdateDialog = () => {
-		Alert.alert(
-			t("updates.availableTitle") || "Atualização disponível",
-			t("updates.availableMessage") || "Uma nova versão do app está disponível. Deseja atualizar agora?",
-			[
-				{
-					text: t("updates.later") || "Depois",
-					style: "cancel",
-				},
-				{
-					text: t("updates.updateNow") || "Atualizar agora",
-					onPress: applyUpdate,
-				},
-			]
-		);
 	};
 
 	/**

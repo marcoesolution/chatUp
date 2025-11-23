@@ -44,9 +44,9 @@ module.exports = {
 				"android.permission.ACCESS_COARSE_LOCATION",
 				"android.permission.ACCESS_FINE_LOCATION",
 			],
-			// Otimizações de build
-			enableProguardInReleaseBuilds: true,
-			enableShrinkResourcesInReleaseBuilds: true,
+			// Otimizações de build - desabilitadas temporariamente para debug
+			enableProguardInReleaseBuilds: false,
+			enableShrinkResourcesInReleaseBuilds: false,
 		},
 		web: {
 			favicon: "./assets/favicon.png",

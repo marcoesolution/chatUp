@@ -1,6 +1,7 @@
 {
     "cli": {
-        "version": ">= 5.2.0"
+        "version": ">= 5.2.0",
+        "appVersionSource": "remote"
     },
     "build": {
         "development": {
@@ -9,9 +10,9 @@
         },
         "preview": {
             "distribution": "internal",
+            "channel": "preview",
             "android": {
-                "buildType": "apk",
-                "gradleCommand": ":app:assembleRelease"
+                "buildType": "apk"
             },
             "env": {
                 "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyC6-xVbOJvXBbBiIkaWJx-uOdwXp3NEuZA",
@@ -25,9 +26,9 @@
             }
         },
         "production": {
+            "channel": "production",
             "android": {
-                "buildType": "apk",
-                "gradleCommand": ":app:assembleRelease"
+                "buildType": "apk"
             },
             "env": {
                 "NODE_ENV": "production",
@@ -43,8 +44,7 @@
         },
         "production-aab": {
             "android": {
-                "buildType": "app-bundle",
-                "gradleCommand": ":app:bundleRelease"
+                "buildType": "app-bundle"
             },
             "env": {
                 "NODE_ENV": "production",
