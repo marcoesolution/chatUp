@@ -1,0 +1,483 @@
+# Regras de Código para ChatUp
+
+## Contexto do Projeto
+
+Este é um aplicativo React Native com Expo Router para chat em tempo real com criptografia end-to-end.
+
+### Stack Tecnológico
+
+-   **Framework**: Expo ~54.0.0 com React Native 0.81.5
+-   **React**: 19.1.0
+-   **TypeScript**: ~5.9.2 (strict mode habilitado)
+-   **Roteamento**: Expo Router ~6.0.15 (file-based routing)
+-   **Estilização**: styled-components ^6.1.19
+-   **Estado Servidor**: @tanstack/react-query ^5.62.0
+-   **Backend**: Firebase 12.6.0 (Firestore, Auth, Storage)
+-   **Formulários**: react-hook-form ^7.66.1
+-   **Criptografia**: expo-crypto ~15.0.7 (implementação customizada E2E)
+
+### Arquitetura do Projeto
+
+```
+app/                    # Rotas do Expo Router (file-based routing)
+  (auth)/              # Rotas de autenticação
+  (tabs)/              # Rotas com tab navigation
+src/
+  api/                 # Cliente HTTP (Axios)
+  core/                # Configurações centrais
+    firebase/          # Configuração Firebase
+    hooks/             # Hooks compartilhados
+    queryClient.ts     # Configuração React Query
+    security/          # Criptografia E2E
+    theme/             # Sistema de temas
+  modules/             # Módulos de funcionalidade
+    auth/              # Autenticação
+    chat/              # Chat e mensagens
+    location/          # Geolocalização
+    profile/           # Perfil do usuário
+  services/            # Serviços compartilhados
+  shared/              # Componentes e utilitários compartilhados
+  tests/               # Configuração de testes
+```
+
+## Regras Gerais de Código
+
+### TypeScript
+
+1. **Sempre use TypeScript strict mode**
+
+    - Não use `any` - prefira `unknown` e type guards
+    - Defina tipos explícitos para props, estados e retornos de função
+    - Use interfaces para objetos, types para unions/intersections
+
+2. **Tipos e Interfaces**
+
+    ```typescript
+    // ✅ BOM
+    interface UserProfile {
+    	id: string;
+    	email: string;
+    	displayName: string;
+    }
+
+    type Status = "loading" | "success" | "error";
+
+    // ❌ EVITAR
+    const user: any = {};
+    function process(data) {}
+    ```
+
+3. **Path Aliases**
+
+    - Use `@/` para importar de `src/`
+    - Use `~/` para importar da raiz do projeto
+
+    ```typescript
+    // ✅ BOM
+    import { useAuth } from "@/modules/auth";
+    import { Button } from "@/shared/components";
+
+    // ❌ EVITAR
+    import { useAuth } from "../../../modules/auth";
+    ```
+
+### React e React Native
+
+1. **Componentes Funcionais**
+
+    - Sempre use componentes funcionais com hooks
+    - Use `React.FC` ou tipagem explícita de props
+
+    ```typescript
+    // ✅ BOM
+    interface ButtonProps {
+    	title: string;
+    	onPress: () => void;
+    }
+
+    export const Button: React.FC<ButtonProps> = ({ title, onPress }) => {
+    	// ...
+    };
+    ```
+
+2. **Hooks**
+
+    - Use hooks customizados para lógica reutilizável
+    - Coloque hooks customizados em `src/modules/{module}/hooks/`
+    - Sempre inclua todas as dependências nos arrays de dependência
+    - Use `useCallback` e `useMemo` quando apropriado para otimização
+
+3. **Estado e Efeitos**
+
+    ```typescript
+    // ✅ BOM - Estado local simples
+    const [message, setMessage] = useState<string>("");
+
+    // ✅ BOM - Estado servidor com React Query
+    const { data, isLoading, error } = useQuery({
+    	queryKey: ["messages", contactId],
+    	queryFn: () => fetchMessages(contactId),
+    });
+
+    // ✅ BOM - Efeitos com cleanup
+    useEffect(() => {
+    	const unsubscribe = onSnapshot(query, callback);
+    	return () => unsubscribe();
+    }, [dependencies]);
+    ```
+
+4. **Performance**
+    - Use `React.memo` para componentes que re-renderizam frequentemente
+    - Use `useCallback` para funções passadas como props
+    - Evite criar objetos/arrays inline em props (use `useMemo`)
+
+### Expo Router (File-based Routing)
+
+1. **Estrutura de Rotas**
+
+    - Rotas em `app/` seguem a estrutura de arquivos
+    - Use `(auth)` e `(tabs)` para grupos de rotas
+    - Parâmetros dinâmicos: `[contactId].tsx`
+
+2. **Navegação**
+
+    ```typescript
+    // ✅ BOM
+    import { useRouter, useLocalSearchParams } from "expo-router";
+
+    const router = useRouter();
+    const { contactId } = useLocalSearchParams<{ contactId: string }>();
+
+    router.push("/(tabs)");
+    router.replace("/(auth)/login");
+    ```
+
+3. **Layouts**
+    - Use `_layout.tsx` para layouts compartilhados
+    - Configure headers e opções de navegação nos layouts
+
+### Styled Components
+
+1. **Criação de Componentes Estilizados**
+
+    ```typescript
+    // ✅ BOM - Tipado com props
+    const Container = styled.View<{ isLoading: boolean }>`
+    	flex: 1;
+    	background-color: ${(props) => props.theme.colors.background.primary};
+    	opacity: ${(props) => (props.isLoading ? 0.5 : 1)};
+    `;
+
+    // ✅ BOM - Usar tema
+    const Text = styled.Text`
+    	font-size: ${(props) => props.theme.typography.fontSize.base}px;
+    	color: ${(props) => props.theme.colors.text.primary};
+    `;
+    ```
+
+2. **Tema**
+
+    - Sempre use `useTheme()` para acessar o tema
+    - Não use valores hardcoded de cores - sempre do tema
+    - Use valores do tema para spacing, borderRadius, etc.
+
+3. **Performance**
+    - Evite criar styled components dentro de componentes funcionais
+    - Defina styled components no nível do módulo
+
+### Firebase
+
+1. **Firestore**
+
+    ```typescript
+    // ✅ BOM - Queries tipadas
+    import { collection, query, where, orderBy } from "firebase/firestore";
+    import { db } from "@/core/firebase";
+
+    const messagesQuery = query(
+    	collection(db, "messages"),
+    	where("chatId", "==", chatId),
+    	orderBy("timestamp", "desc"),
+    	limit(50)
+    );
+    ```
+
+2. **Real-time Listeners**
+
+    - Sempre faça cleanup de listeners no `useEffect`
+    - Use `onSnapshot` para dados em tempo real
+    - Trate erros de permissão e índices faltando
+
+3. **Segurança**
+    - Mensagens devem ser criptografadas antes de salvar no Firestore
+    - Use `encryptMessage` e `decryptMessage` de `@/core/security`
+    - Nunca armazene dados sensíveis sem criptografia
+
+### React Query (TanStack Query)
+
+1. **Queries**
+
+    ```typescript
+    // ✅ BOM
+    const { data, isLoading, error } = useQuery({
+    	queryKey: ["messages", contactId],
+    	queryFn: () => fetchMessages(contactId),
+    	staleTime: 1000 * 60 * 5, // 5 minutos
+    	enabled: !!contactId, // Só executa se contactId existir
+    });
+    ```
+
+2. **Mutations**
+
+    ```typescript
+    // ✅ BOM
+    const mutation = useMutation({
+    	mutationFn: (data: CreateMessageData) => sendMessage(data),
+    	onSuccess: () => {
+    		queryClient.invalidateQueries({ queryKey: ["messages"] });
+    	},
+    });
+    ```
+
+3. **Query Keys**
+    - Use arrays consistentes para query keys
+    - Inclua todos os parâmetros relevantes
+    - Use `queryClient.invalidateQueries` após mutations
+
+### Criptografia e Segurança
+
+1. **Mensagens**
+
+    - SEMPRE criptografe mensagens antes de enviar ao Firestore
+    - Use `encryptMessage(plaintext, chatId, userId)` antes de `addDoc`
+    - Use `decryptMessage(encryptedText, chatId, userId)` ao receber
+    - Nunca armazene texto plano de mensagens
+
+2. **Chaves**
+
+    - Chaves são derivadas do `chatId` (mesma chave para ambos usuários)
+    - Chaves são armazenadas localmente via AsyncStorage
+    - Limpe chaves no logout usando `clearAllKeys()`
+
+3. **Validação**
+    - Valide todas as entradas do usuário
+    - Sanitize dados antes de processar
+    - Trate erros de criptografia graciosamente
+
+### Tratamento de Erros
+
+1. **Error Boundaries**
+
+    - Use ErrorBoundary no nível raiz (`app/_layout.tsx`)
+    - Capture erros de renderização e inicialização
+
+2. **Tratamento de Erros em Hooks**
+
+    ```typescript
+    // ✅ BOM
+    try {
+    	await sendMessage(data);
+    } catch (err) {
+    	console.error("Erro ao enviar mensagem:", err);
+    	// Mostrar erro para o usuário (Toast, Alert, etc.)
+    	// Não apenas console.error
+    }
+    ```
+
+3. **Mensagens de Erro**
+    - Converta códigos de erro do Firebase para mensagens amigáveis
+    - Use a função `getFirebaseErrorMessage` como referência
+    - Sempre mostre feedback visual ao usuário
+
+### Formulários (React Hook Form)
+
+1. **Uso Básico**
+
+    ```typescript
+    // ✅ BOM
+    const {
+    	control,
+    	handleSubmit,
+    	formState: { errors },
+    } = useForm<FormData>({
+    	defaultValues: { email: "", password: "" },
+    });
+
+    const onSubmit = async (data: FormData) => {
+    	// ...
+    };
+    ```
+
+2. **Validação**
+    - Use validação do react-hook-form
+    - Defina schemas de validação consistentes
+    - Mostre erros de validação próximos aos campos
+
+### Testes
+
+1. **Estrutura**
+
+    - Testes em `src/tests/`
+    - Use `@testing-library/react-native` para testes de componentes
+    - Use `jest` para testes unitários
+
+2. **Cobertura**
+    - Teste hooks customizados
+    - Teste funções de criptografia
+    - Teste lógica de negócio
+
+### Performance e Otimização
+
+1. **Imagens**
+
+    - Use `expo-image` para imagens otimizadas
+    - Implemente lazy loading quando apropriado
+
+2. **Listas**
+
+    - Use `FlatList` para listas longas
+    - Implemente `keyExtractor` e `getItemLayout` quando possível
+    - Use `removeClippedSubviews` para melhor performance
+
+3. **Memoização**
+
+    ```typescript
+    // ✅ BOM - Memoizar cálculos caros
+    const sortedMessages = useMemo(() => messages.sort((a, b) => a.timestamp - b.timestamp), [messages]);
+
+    // ✅ BOM - Memoizar callbacks
+    const handleSend = useCallback(async () => {
+    	await sendMessage(messageText);
+    }, [messageText, sendMessage]);
+    ```
+
+### Acessibilidade
+
+1. **Labels e Hints**
+
+    - Use `accessibilityLabel` em componentes interativos
+    - Forneça `accessibilityHint` quando necessário
+    - Teste com leitores de tela
+
+2. **Contraste**
+    - Garanta contraste adequado de cores (WCAG AA mínimo)
+    - Use valores do tema que já consideram acessibilidade
+
+### Logging e Debug
+
+1. **Console Logs**
+
+    - Use emojis para categorizar logs (🔍 debug, ✅ success, ❌ error, ⚠️ warning)
+    - Remova logs de debug antes de produção
+    - Use estruturas de log consistentes:
+        ```typescript
+        console.log("🔍 [MODULE] Ação realizada", {
+        	param1: value1,
+        	param2: value2,
+        });
+        ```
+
+2. **Error Logging**
+    - Sempre inclua contexto em erros
+    - Use `console.error` para erros, não `console.log`
+    - Considere integrar serviço de error tracking (Sentry, etc.)
+
+### Convenções de Nomenclatura
+
+1. **Arquivos e Diretórios**
+
+    - Componentes: PascalCase (`Button.tsx`, `ChatScreen.tsx`)
+    - Hooks: camelCase com prefixo `use` (`useAuth.ts`, `useMessages.ts`)
+    - Utilitários: camelCase (`formatTime.ts`, `geolocation.ts`)
+    - Tipos: PascalCase em arquivos `types/index.ts`
+
+2. **Variáveis e Funções**
+
+    - camelCase para variáveis e funções
+    - PascalCase para componentes e tipos
+    - UPPER_CASE para constantes
+
+3. **Props e Estados**
+    - Props: PascalCase para tipos, camelCase para nomes
+    - Estados: camelCase com prefixo apropriado (`isLoading`, `hasError`)
+
+### Imports
+
+1. **Ordem de Imports**
+
+    ```typescript
+    // 1. React e React Native
+    import React, { useState, useEffect } from "react";
+    import { View, Text } from "react-native";
+
+    // 2. Bibliotecas de terceiros
+    import { useRouter } from "expo-router";
+    import styled from "styled-components/native";
+
+    // 3. Imports do projeto (usando aliases)
+    import { useAuth } from "@/modules/auth";
+    import { Button } from "@/shared/components";
+
+    // 4. Tipos
+    import type { Message } from "@/modules/chat/types";
+    ```
+
+2. **Agrupamento**
+    - Agrupe imports por categoria
+    - Use linha em branco entre grupos
+    - Use `type` para imports de tipos apenas
+
+### Comentários e Documentação
+
+1. **JSDoc para Funções Complexas**
+
+    ```typescript
+    /**
+     * Criptografa uma mensagem usando chave derivada do chatId
+     * @param plaintext - Texto da mensagem a ser criptografado
+     * @param chatId - ID único do chat
+     * @param userId - ID do usuário atual
+     * @returns Mensagem criptografada com prefixo ENC:
+     */
+    export async function encryptMessage(plaintext: string, chatId: string, userId: string): Promise<string> {
+    	// ...
+    }
+    ```
+
+2. **Comentários Inline**
+    - Use comentários para explicar "por quê", não "o quê"
+    - Evite comentários óbvios
+    - Documente decisões arquiteturais importantes
+
+### Git e Versionamento
+
+1. **Commits**
+
+    - Use mensagens descritivas
+    - Agrupe mudanças relacionadas
+    - Não commite arquivos de build ou node_modules
+
+2. **Branches**
+    - Use `developer` como branch principal de desenvolvimento
+    - Crie branches feature para novas funcionalidades
+
+## Checklist Antes de Commitar
+
+-   [ ] Código compila sem erros TypeScript
+-   [ ] Não há warnings do linter
+-   [ ] Mensagens são criptografadas antes de salvar
+-   [ ] Erros são tratados e mostrados ao usuário
+-   [ ] Imports estão organizados corretamente
+-   [ ] Tipos estão definidos explicitamente
+-   [ ] Logs de debug foram removidos (ou marcados para remoção)
+-   [ ] Performance foi considerada (memoização quando necessário)
+-   [ ] Acessibilidade foi verificada
+-   [ ] Código segue as convenções de nomenclatura
+
+## Recursos e Referências
+
+-   Expo Router Docs: https://docs.expo.dev/router/introduction/
+-   React Query Docs: https://tanstack.com/query/latest
+-   Firebase Docs: https://firebase.google.com/docs
+-   Styled Components: https://styled-components.com/docs
+-   React Native Performance: https://reactnative.dev/docs/performance
