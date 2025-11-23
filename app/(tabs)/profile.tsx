@@ -3,6 +3,7 @@ import { ActivityIndicator } from "react-native";
 import { useTheme } from "styled-components/native";
 import { useAuth } from "@/modules/auth";
 import { Card } from "@/shared/components";
+import { useTranslation } from "@/core/i18n";
 import {
 	ProfileContainer,
 	ProfileCenterContainer,
@@ -55,10 +56,10 @@ function timestampToDate(timestamp: any): Date | null {
 /**
  * Formata uma data para exibição
  */
-function formatDate(date: Date | null): string {
-	if (!date) return "Não disponível";
+function formatDate(date: Date | null, locale: string): string {
+	if (!date) return "";
 
-	return date.toLocaleDateString("pt-BR", {
+	return date.toLocaleDateString(locale === "pt-BR" ? "pt-BR" : locale === "es" ? "es-ES" : "en-US", {
 		day: "2-digit",
 		month: "long",
 		year: "numeric",
@@ -70,11 +71,12 @@ function formatDate(date: Date | null): string {
 export default function ProfileScreen() {
 	const { userProfile, firebaseUser, isLoading, error, syncPhotoURL } = useAuth();
 	const theme = useTheme();
+	const { t, currentLanguage } = useTranslation();
 	const [imageLoaded, setImageLoaded] = useState(false);
 
 	// Priorizar photoURL do Firebase Auth (mais atualizado) sobre o do Firestore
 	const photoURL = firebaseUser?.photoURL || userProfile?.photoURL;
-	const displayName = userProfile?.displayName || firebaseUser?.displayName || "Usuário";
+	const displayName = userProfile?.displayName || firebaseUser?.displayName || t("profile.user");
 	const avatarInitial = displayName.charAt(0).toUpperCase();
 	const createdAt = timestampToDate(userProfile?.createdAt);
 	const updatedAt = timestampToDate(userProfile?.updatedAt);
@@ -121,7 +123,7 @@ export default function ProfileScreen() {
 	if (error) {
 		return (
 			<ProfileCenterContainer>
-				<ProfileErrorText>Erro ao carregar perfil: {error}</ProfileErrorText>
+				<ProfileErrorText>{t("profile.errorLoading")}: {error}</ProfileErrorText>
 			</ProfileCenterContainer>
 		);
 	}
@@ -129,7 +131,7 @@ export default function ProfileScreen() {
 	if (!userProfile) {
 		return (
 			<ProfileCenterContainer>
-				<ProfileEmptyText>Perfil não encontrado</ProfileEmptyText>
+				<ProfileEmptyText>{t("profile.notFound")}</ProfileEmptyText>
 			</ProfileCenterContainer>
 		);
 	}
@@ -176,70 +178,70 @@ export default function ProfileScreen() {
 						<ProfileEmail>{userProfile.email}</ProfileEmail>
 						{userProfile.hasProfile && (
 							<ProfileStatusBadge>
-								<ProfileStatusText>Perfil Completo</ProfileStatusText>
+								<ProfileStatusText>{t("profile.profileComplete")}</ProfileStatusText>
 							</ProfileStatusBadge>
 						)}
 						{!photoURL && (
 							<ProfileEmptyContent style={{ marginTop: 8, textAlign: "center" }}>
-								Para ver sua foto do Google, faça logout e entre novamente usando "Entrar com Google"
+								{t("profile.googlePhotoHint")}
 							</ProfileEmptyContent>
 						)}
 					</ProfileHeader>
 
 					<ProfileSection>
-						<ProfileSectionTitle>ID do Usuário</ProfileSectionTitle>
+						<ProfileSectionTitle>{t("profile.userId")}</ProfileSectionTitle>
 						<ProfileSectionContent>{userProfile.id}</ProfileSectionContent>
 					</ProfileSection>
 
 					<ProfileSection>
-						<ProfileSectionTitle>Email</ProfileSectionTitle>
+						<ProfileSectionTitle>{t("profile.email")}</ProfileSectionTitle>
 						<ProfileSectionContent>{userProfile.email}</ProfileSectionContent>
 					</ProfileSection>
 
 					<ProfileSection>
-						<ProfileSectionTitle>Nome de Exibição</ProfileSectionTitle>
+						<ProfileSectionTitle>{t("profile.displayName")}</ProfileSectionTitle>
 						<ProfileSectionContent>{displayName}</ProfileSectionContent>
 					</ProfileSection>
 
 					{userProfile.phoneNumber && (
 						<ProfileSection>
-							<ProfileSectionTitle>Telefone</ProfileSectionTitle>
+							<ProfileSectionTitle>{t("profile.phoneNumber")}</ProfileSectionTitle>
 							<ProfileSectionContent>{userProfile.phoneNumber}</ProfileSectionContent>
 						</ProfileSection>
 					)}
 
 					{userProfile.bio && (
 						<ProfileSection>
-							<ProfileSectionTitle>Biografia</ProfileSectionTitle>
+							<ProfileSectionTitle>{t("profile.bio")}</ProfileSectionTitle>
 							<ProfileSectionContent>{userProfile.bio}</ProfileSectionContent>
 						</ProfileSection>
 					)}
 
 					{photoURL && (
 						<ProfileSection>
-							<ProfileSectionTitle>Foto de Perfil</ProfileSectionTitle>
+							<ProfileSectionTitle>{t("profile.photoURL")}</ProfileSectionTitle>
 							<ProfileSectionContent>{photoURL}</ProfileSectionContent>
 						</ProfileSection>
 					)}
 
 					<ProfileSection>
-						<ProfileSectionTitle>Status do Perfil</ProfileSectionTitle>
+						<ProfileSectionTitle>{t("profile.profileStatus")}</ProfileSectionTitle>
 						<ProfileSectionContent>
-							{userProfile.hasProfile ? "Perfil Completo" : "Perfil Incompleto"}
+							{userProfile.hasProfile ? t("profile.profileComplete") : t("profile.profileIncomplete")}
 						</ProfileSectionContent>
 					</ProfileSection>
 
 					{createdAt && (
 						<ProfileSection>
-							<ProfileSectionTitle>Membro desde</ProfileSectionTitle>
-							<ProfileSectionContent>{formatDate(createdAt)}</ProfileSectionContent>
+							<ProfileSectionTitle>{t("profile.memberSince")}</ProfileSectionTitle>
+							<ProfileSectionContent>{formatDate(createdAt, currentLanguage) || t("profile.notAvailable")}</ProfileSectionContent>
 						</ProfileSection>
 					)}
 
 					{updatedAt && (
 						<ProfileSection>
-							<ProfileSectionTitle>Última atualização</ProfileSectionTitle>
-							<ProfileSectionContent>{formatDate(updatedAt)}</ProfileSectionContent>
+							<ProfileSectionTitle>{t("profile.lastUpdate")}</ProfileSectionTitle>
+							<ProfileSectionContent>{formatDate(updatedAt, currentLanguage) || t("profile.notAvailable")}</ProfileSectionContent>
 						</ProfileSection>
 					)}
 				</Card>

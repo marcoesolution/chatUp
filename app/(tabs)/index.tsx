@@ -3,6 +3,7 @@ import { ActivityIndicator, FlatList } from "react-native";
 import { useTheme } from "styled-components/native";
 import { Ionicons } from "@expo/vector-icons";
 import { Button } from "@/shared/components";
+import { useTranslation } from "@/core/i18n";
 import { useConversations } from "./hooks";
 import type { Contact } from "@/modules/chat/types";
 import {
@@ -67,6 +68,7 @@ function ContactListItem({ contact, onPress }: ContactListItemProps) {
 
 export default function ConversationsScreen() {
 	const theme = useTheme();
+	const { t } = useTranslation();
 	const {
 		contacts,
 		isLoading,
@@ -89,7 +91,7 @@ export default function ConversationsScreen() {
 			<Container>
 				<LoadingContainer>
 					<ActivityIndicator size="large" color={theme.colors.button.primary} />
-					<EmptyText style={{ marginTop: theme.spacing.md }}>Buscando usuários próximos...</EmptyText>
+					<EmptyText style={{ marginTop: theme.spacing.md }}>{t("conversations.searching")}</EmptyText>
 				</LoadingContainer>
 			</Container>
 		);
@@ -108,12 +110,12 @@ export default function ConversationsScreen() {
 					<ErrorText>{nearbyError}</ErrorText>
 					<EmptyText>
 						{isLocationPermissionError
-							? "Para ver usuários próximos, é necessário permitir o acesso à localização."
-							: "Verifique se a localização está habilitada e tente novamente."}
+							? t("conversations.locationPermissionError")
+							: t("conversations.locationError")}
 					</EmptyText>
 					{isLocationPermissionError && (
 						<ErrorButtonContainer>
-							<Button title="Abrir Configurações" onPress={openSettings} variant="primary" />
+							<Button title={t("conversations.openSettings")} onPress={openSettings} variant="primary" />
 						</ErrorButtonContainer>
 					)}
 				</EmptyContainer>
@@ -130,9 +132,9 @@ export default function ConversationsScreen() {
 				contentContainerStyle={contacts.length === 0 ? { flex: 1 } : undefined}
 				ListEmptyComponent={
 					<EmptyContainer>
-						<EmptyText>Nenhum usuário próximo encontrado</EmptyText>
+						<EmptyText>{t("conversations.noUsersFound")}</EmptyText>
 						<EmptyText style={{ marginTop: theme.spacing.sm, fontSize: 14 }}>
-							Usuários dentro de 2km aparecerão aqui automaticamente
+							{t("conversations.usersWithin2km")}
 						</EmptyText>
 					</EmptyContainer>
 				}

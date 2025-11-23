@@ -4,6 +4,7 @@ import { KeyboardAvoidingView, Platform, ScrollView } from "react-native";
 import styled, { useTheme } from "styled-components/native";
 import { Ionicons } from "@expo/vector-icons";
 import { Input, Button, Link } from "@/shared/components";
+import { useTranslation } from "@/core/i18n";
 import type { RegisterData } from "../types";
 
 interface SignUpFormProps {
@@ -51,7 +52,7 @@ const ButtonContainer = styled.View`
 `;
 
 const ErrorText = styled.Text`
-	color: ${(props) => props.theme.colors.error};
+	color: ${(props) => props.theme.colors.text.error};
 	font-size: ${(props) => props.theme.typography.fontSize.sm}px;
 	font-family: ${(props) => props.theme.typography.fontFamily.primary};
 	margin-bottom: ${(props) => props.theme.spacing.md}px;
@@ -73,6 +74,7 @@ const FooterText = styled.Text`
 
 export const SignUpForm: React.FC<SignUpFormProps> = ({ onSubmit, onGoToLogin, isLoading = false, error }) => {
 	const theme = useTheme();
+	const { t } = useTranslation();
 	const {
 		control,
 		handleSubmit,
@@ -96,24 +98,24 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSubmit, onGoToLogin, i
 		>
 			<ScrollContent contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
 				<Form>
-					<Title>Create Account</Title>
-					<Subtitle>Sign up to start chatting</Subtitle>
+					<Title>{t("auth.createAccount")}</Title>
+					<Subtitle>{t("auth.signUpSubtitle")}</Subtitle>
 
 					{error && <ErrorText>{error}</ErrorText>}
 
 					<Controller
 						control={control}
 						rules={{
-							required: "Nome é obrigatório",
+							required: t("auth.nameRequired"),
 							minLength: {
 								value: 2,
-								message: "Nome deve ter no mínimo 2 caracteres",
+								message: t("auth.nameMinLength"),
 							},
 						}}
 						render={({ field: { onChange, onBlur, value } }) => (
 							<Input
-								label="Name"
-								placeholder="Enter your name"
+								label={t("auth.name")}
+								placeholder={t("auth.namePlaceholder")}
 								icon={<Ionicons name="person" size={20} color={theme.colors.icon.secondary} />}
 								autoCapitalize="words"
 								autoCorrect={false}
@@ -129,16 +131,16 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSubmit, onGoToLogin, i
 					<Controller
 						control={control}
 						rules={{
-							required: "Email é obrigatório",
+							required: t("auth.emailRequired"),
 							pattern: {
 								value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
-								message: "Email inválido",
+								message: t("auth.emailInvalid"),
 							},
 						}}
 						render={({ field: { onChange, onBlur, value } }) => (
 							<Input
-								label="Email"
-								placeholder="Enter your email"
+								label={t("auth.email")}
+								placeholder={t("auth.emailPlaceholder")}
 								icon={<Ionicons name="mail" size={20} color={theme.colors.icon.secondary} />}
 								keyboardType="email-address"
 								autoCapitalize="none"
@@ -155,16 +157,16 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSubmit, onGoToLogin, i
 					<Controller
 						control={control}
 						rules={{
-							required: "Senha é obrigatória",
+							required: t("auth.passwordRequired"),
 							minLength: {
 								value: 6,
-								message: "Senha deve ter no mínimo 6 caracteres",
+								message: t("auth.passwordMinLength"),
 							},
 						}}
 						render={({ field: { onChange, onBlur, value } }) => (
 							<Input
-								label="Password"
-								placeholder="Enter your password"
+								label={t("auth.password")}
+								placeholder={t("auth.passwordPlaceholder")}
 								icon={<Ionicons name="lock-closed" size={20} color={theme.colors.icon.secondary} />}
 								secureTextEntry
 								showPasswordToggle
@@ -181,7 +183,7 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSubmit, onGoToLogin, i
 
 					<ButtonContainer>
 						<Button
-							title="Sign Up"
+							title={t("auth.signUp")}
 							onPress={handleSubmit(handleFormSubmit)}
 							variant="primary"
 							loading={isLoading}
@@ -189,9 +191,9 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSubmit, onGoToLogin, i
 					</ButtonContainer>
 
 					<FooterContainer>
-						<FooterText>Already have an account? </FooterText>
+						<FooterText>{t("auth.alreadyHaveAccount")}</FooterText>
 						<Link onPress={onGoToLogin} variant="primary">
-							Log In
+							{t("auth.login")}
 						</Link>
 					</FooterContainer>
 				</Form>
@@ -199,4 +201,3 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSubmit, onGoToLogin, i
 		</FormContainer>
 	);
 };
-

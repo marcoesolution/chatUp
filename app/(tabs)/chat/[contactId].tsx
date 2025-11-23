@@ -7,6 +7,7 @@ import styled, { useTheme } from "styled-components/native";
 import { Ionicons } from "@expo/vector-icons";
 import { useMessages } from "@/modules/chat/hooks/useMessages";
 import { useAuth } from "@/modules/auth";
+import { useTranslation } from "@/core/i18n";
 import { mockContacts } from "@/modules/chat";
 import type { CreateMessageData, Message } from "@/modules/chat/types";
 
@@ -107,6 +108,7 @@ export default function ChatScreen() {
 	const navigation = useNavigation();
 	const { contactId } = useLocalSearchParams<{ contactId: string }>();
 	const theme = useTheme();
+	const { t } = useTranslation();
 	const { firebaseUser } = useAuth();
 	const insets = useSafeAreaInsets();
 
@@ -221,7 +223,7 @@ export default function ChatScreen() {
 		return (
 			<Container>
 				<EmptyContainer>
-					<EmptyText>Contato não encontrado</EmptyText>
+					<EmptyText>{t("chat.contactNotFound")}</EmptyText>
 				</EmptyContainer>
 			</Container>
 		);
@@ -231,7 +233,7 @@ export default function ChatScreen() {
 		return (
 			<Container>
 				<LoadingContainer>
-					<LoadingText>Carregando mensagens...</LoadingText>
+					<LoadingText>{t("chat.loadingMessages")}</LoadingText>
 				</LoadingContainer>
 			</Container>
 		);
@@ -246,7 +248,7 @@ export default function ChatScreen() {
 		>
 			{messages.length === 0 && !isLoading ? (
 				<EmptyContainer>
-					<EmptyText>Nenhuma mensagem ainda.{"\n"}Comece a conversar!</EmptyText>
+					<EmptyText>{t("chat.noMessages")}</EmptyText>
 				</EmptyContainer>
 			) : (
 				<MessagesListContainer>
@@ -282,7 +284,7 @@ export default function ChatScreen() {
 					ref={inputRef as any}
 					value={messageText}
 					onChangeText={setMessageText}
-					placeholder="Digite uma mensagem..."
+					placeholder={t("chat.messagePlaceholder")}
 					multiline
 					maxLength={1000}
 					editable={!isSending}

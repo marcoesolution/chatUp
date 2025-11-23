@@ -3,6 +3,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "@/core/queryClient";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ThemeProvider } from "@/core/theme/ThemeProvider";
+import { I18nProvider } from "@/core/i18n/I18nProvider";
 import React, { Suspense } from "react";
 import { View, Text, StyleSheet, ActivityIndicator } from "react-native";
 // Inicializa o Firebase quando o app inicia
@@ -31,6 +32,7 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
 
 	render() {
 		if (this.state.hasError) {
+			// Usar textos hardcoded aqui pois o i18n pode não estar inicializado ainda
 			return (
 				<View style={styles.errorContainer}>
 					<Text style={styles.errorTitle}>Erro ao carregar o app</Text>
@@ -126,11 +128,13 @@ export default function RootLayout() {
 	return (
 		<ErrorBoundary>
 			<SafeAreaProvider>
-				<ThemeProvider>
-					<QueryClientProvider client={queryClient}>
-						<AppContent />
-					</QueryClientProvider>
-				</ThemeProvider>
+				<I18nProvider>
+					<ThemeProvider>
+						<QueryClientProvider client={queryClient}>
+							<AppContent />
+						</QueryClientProvider>
+					</ThemeProvider>
+				</I18nProvider>
 			</SafeAreaProvider>
 		</ErrorBoundary>
 	);

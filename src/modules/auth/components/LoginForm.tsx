@@ -6,6 +6,7 @@ import { Image } from "expo-image";
 import styled, { useTheme } from "styled-components/native";
 import { Ionicons } from "@expo/vector-icons";
 import { Input, Button, Link } from "@/shared/components";
+import { useTranslation } from "@/core/i18n";
 import type { LoginCredentials } from "../types";
 
 const logoImage = require("../../../../assets/logo-chatup.png");
@@ -115,6 +116,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
 	error,
 }) => {
 	const theme = useTheme();
+	const { t } = useTranslation();
 	const insets = useSafeAreaInsets();
 	const {
 		control,
@@ -155,16 +157,16 @@ export const LoginForm: React.FC<LoginFormProps> = ({
 					<Controller
 						control={control}
 						rules={{
-							required: "Email é obrigatório",
+							required: t("auth.emailRequired"),
 							pattern: {
 								value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
-								message: "Email inválido",
+								message: t("auth.emailInvalid"),
 							},
 						}}
 						render={({ field: { onChange, onBlur, value } }) => (
 							<Input
-								label="Email"
-								placeholder="Enter your email"
+								label={t("auth.email")}
+								placeholder={t("auth.emailPlaceholder")}
 								icon={<Ionicons name="mail" size={20} color={theme.colors.icon.secondary} />}
 								keyboardType="email-address"
 								autoCapitalize="none"
@@ -181,16 +183,16 @@ export const LoginForm: React.FC<LoginFormProps> = ({
 					<Controller
 						control={control}
 						rules={{
-							required: "Senha é obrigatória",
+							required: t("auth.passwordRequired"),
 							minLength: {
 								value: 6,
-								message: "Senha deve ter no mínimo 6 caracteres",
+								message: t("auth.passwordMinLength"),
 							},
 						}}
 						render={({ field: { onChange, onBlur, value } }) => (
 							<Input
-								label="Password"
-								placeholder="Enter your password"
+								label={t("auth.password")}
+								placeholder={t("auth.passwordPlaceholder")}
 								icon={<Ionicons name="lock-closed" size={20} color={theme.colors.icon.secondary} />}
 								secureTextEntry
 								showPasswordToggle
@@ -207,7 +209,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
 
 					<ButtonContainer>
 						<Button
-							title="Log In"
+							title={t("auth.login")}
 							onPress={handleSubmit(handleFormSubmit)}
 							variant="primary"
 							loading={isLoading}
@@ -216,7 +218,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
 
 					<ForgotPasswordContainer>
 						<Link onPress={onForgotPassword} variant="primary">
-							Forgot Password?
+							{t("auth.forgotPassword")}
 						</Link>
 					</ForgotPasswordContainer>
 
@@ -228,13 +230,13 @@ export const LoginForm: React.FC<LoginFormProps> = ({
 						<SocialIconContainer>
 							<Ionicons name="logo-google" size={20} color={theme.colors.icon.primary} />
 						</SocialIconContainer>
-						<SocialButtonText>Continue with Google</SocialButtonText>
+						<SocialButtonText>{t("auth.continueWithGoogle")}</SocialButtonText>
 					</SocialButton>
 
 					<FooterContainer>
-						<FooterText>Don't have an account? </FooterText>
+						<FooterText>{t("auth.dontHaveAccount")}</FooterText>
 						<Link onPress={onSignUp || (() => console.log("Sign up pressed"))} variant="primary">
-							Sign Up
+							{t("auth.signUp")}
 						</Link>
 					</FooterContainer>
 				</Form>

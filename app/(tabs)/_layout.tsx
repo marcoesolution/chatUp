@@ -1,9 +1,11 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from 'styled-components/native';
+import { useTranslation } from '@/core/i18n';
 
 export default function TabsLayout() {
   const theme = useTheme();
+  const { t } = useTranslation();
   
   return (
     <Tabs
@@ -24,7 +26,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Conversas',
+          title: t('navigation.conversations'),
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="chatbubbles" size={size} color={color} />
           ),
@@ -33,16 +35,25 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'Perfil',
+          title: t('navigation.profile'),
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="person" size={size} color={color} />
           ),
         }}
       />
       <Tabs.Screen
+        name="settings"
+        options={{
+          title: t('navigation.settings'),
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="settings" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="logout"
         options={{
-          title: 'Sair',
+          title: t('navigation.logout'),
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="log-out" size={size} color={color} />
           ),

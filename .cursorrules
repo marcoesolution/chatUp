@@ -15,6 +15,7 @@ Este é um aplicativo React Native com Expo Router para chat em tempo real com c
 -   **Backend**: Firebase 12.6.0 (Firestore, Auth, Storage)
 -   **Formulários**: react-hook-form ^7.66.1
 -   **Criptografia**: expo-crypto ~15.0.7 (implementação customizada E2E)
+-   **Internacionalização**: expo-localization ^17.0.7, i18next ^25.6.3, react-i18next ^16.3.5
 
 ### Arquitetura do Projeto
 
@@ -27,6 +28,10 @@ src/
   core/                # Configurações centrais
     firebase/          # Configuração Firebase
     hooks/             # Hooks compartilhados
+    i18n/              # Internacionalização (i18n)
+      locales/         # Arquivos de tradução (pt-BR, en, es)
+      hooks/           # Hooks de tradução
+      I18nProvider.tsx # Provider de i18n
     queryClient.ts     # Configuração React Query
     security/          # Criptografia E2E
     theme/             # Sistema de temas
@@ -313,6 +318,173 @@ src/
     - Defina schemas de validação consistentes
     - Mostre erros de validação próximos aos campos
 
+### Internacionalização (i18n)
+
+1. **Pacotes e Configuração**
+
+    - **expo-localization**: Detecta idioma do sistema (Android/iOS)
+    - **i18next**: Biblioteca core de internacionalização
+    - **react-i18next**: Integração com React
+    - Configuração em `src/core/i18n/index.ts`
+    - Provider em `src/core/i18n/I18nProvider.tsx`
+
+2. **Estrutura de Traduções**
+
+    - Arquivos de tradução em `src/core/i18n/locales/`
+    - Idiomas suportados: `pt-BR.ts`, `en.ts`, `es.ts`
+    - Estrutura hierárquica de chaves (ex: `auth.login`, `profile.title`)
+    - Sempre mantenha todas as traduções sincronizadas entre idiomas
+
+    ```typescript
+    // ✅ BOM - Estrutura de tradução
+    export const ptBR = {
+    	auth: {
+    		login: "Entrar",
+    		email: "Email",
+    		emailRequired: "Email é obrigatório",
+    	},
+    	profile: {
+    		title: "Perfil",
+    		userId: "ID do Usuário",
+    	},
+    };
+    ```
+
+3. **Uso do Hook useTranslation**
+
+    ```typescript
+    // ✅ BOM - Importar e usar
+    import { useTranslation } from "@/core/i18n";
+
+    export default function MyComponent() {
+    	const { t, currentLanguage, changeLanguage } = useTranslation();
+
+    	return (
+    		<View>
+    			<Text>{t("auth.login")}</Text>
+    			<Text>{t("profile.title")}</Text>
+    			<Text>Idioma atual: {currentLanguage}</Text>
+    		</View>
+    	);
+    }
+    ```
+
+4. **Regras de Tradução**
+
+    - **NUNCA use textos hardcoded** - sempre use `t("chave")`
+    - Use chaves descritivas e hierárquicas (ex: `auth.emailRequired` ao invés de `emailError`)
+    - Mantenha consistência na estrutura entre todos os idiomas
+    - Use interpolação para valores dinâmicos quando necessário
+
+    ```typescript
+    // ✅ BOM - Usar tradução
+    const { t } = useTranslation();
+    <Text>{t("auth.login")}</Text>
+
+    // ❌ EVITAR - Texto hardcoded
+    <Text>Entrar</Text>
+    ```
+
+5. **Adicionar Novas Traduções**
+
+    - Adicione a chave em TODOS os arquivos de idioma (`pt-BR.ts`, `en.ts`, `es.ts`)
+    - Mantenha a mesma estrutura hierárquica
+    - Use nomes descritivos e consistentes
+
+    ```typescript
+    // ✅ BOM - Adicionar em todos os idiomas
+    // pt-BR.ts
+    export const ptBR = {
+    	settings: {
+    		newFeature: "Nova Funcionalidade",
+    	},
+    };
+
+    // en.ts
+    export const en = {
+    	settings: {
+    		newFeature: "New Feature",
+    	},
+    };
+
+    // es.ts
+    export const es = {
+    	settings: {
+    		newFeature: "Nueva Funcionalidad",
+    	},
+    };
+    ```
+
+6. **Detecção Automática de Idioma**
+
+    - O sistema detecta automaticamente o idioma do dispositivo
+    - Usa `expo-localization` para obter locale do sistema
+    - Mapeia códigos de idioma para nossos códigos suportados:
+        - `pt` → `pt-BR`
+        - `es` → `es`
+        - Outros → `en` (fallback)
+
+7. **Persistência de Idioma**
+
+    - Idioma selecionado é salvo em AsyncStorage (`@chatup:language`)
+    - Use `saveLanguage(languageCode)` para alterar idioma manualmente
+    - Idioma é carregado na inicialização do app
+
+    ```typescript
+    // ✅ BOM - Alterar idioma
+    import { saveLanguage } from "@/core/i18n";
+    import { useTranslation } from "@/core/i18n";
+
+    const { changeLanguage } = useTranslation();
+    await changeLanguage("pt-BR"); // ou use saveLanguage diretamente
+    ```
+
+8. **Validação de Formulários com Traduções**
+
+    ```typescript
+    // ✅ BOM - Mensagens de validação traduzidas
+    const { t } = useTranslation();
+
+    <Controller
+    	control={control}
+    	rules={{
+    		required: t("auth.emailRequired"),
+    		pattern: {
+    			value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
+    			message: t("auth.emailInvalid"),
+    		},
+    	}}
+    	// ...
+    />;
+    ```
+
+9. **Formatação de Datas e Números**
+
+    - Use `toLocaleDateString` e `toLocaleString` com o locale atual
+    - Obtenha o locale do `currentLanguage` do hook
+
+    ```typescript
+    // ✅ BOM - Formatação localizada
+    const { currentLanguage } = useTranslation();
+    const locale = currentLanguage === "pt-BR" ? "pt-BR" : currentLanguage === "es" ? "es-ES" : "en-US";
+    const formattedDate = date.toLocaleDateString(locale);
+    ```
+
+10. **Provider de i18n**
+
+    - `I18nProvider` deve estar no nível raiz (`app/_layout.tsx`)
+    - Deve estar antes do `ThemeProvider` para evitar dependências circulares
+    - Mostra loading durante inicialização assíncrona
+
+    ```typescript
+    // ✅ BOM - Ordem de providers
+    <I18nProvider>
+    	<ThemeProvider>
+    		<QueryClientProvider>{/* App content */}</QueryClientProvider>
+    	</ThemeProvider>
+    </I18nProvider>
+    ```
+
 ### Testes
 
 1. **Estrutura**
@@ -534,6 +706,9 @@ src/
 -   [ ] Performance foi considerada (memoização quando necessário)
 -   [ ] Acessibilidade foi verificada
 -   [ ] Código segue as convenções de nomenclatura
+-   [ ] **Todos os textos estão traduzidos** (não há textos hardcoded)
+-   [ ] **Traduções foram adicionadas em todos os idiomas** (pt-BR, en, es)
+-   [ ] **Chaves de tradução seguem estrutura hierárquica consistente**
 
 ## Recursos e Referências
 
@@ -542,3 +717,6 @@ src/
 -   Firebase Docs: https://firebase.google.com/docs
 -   Styled Components: https://styled-components.com/docs
 -   React Native Performance: https://reactnative.dev/docs/performance
+-   i18next Docs: https://www.i18next.com/
+-   react-i18next Docs: https://react.i18next.com/
+-   expo-localization Docs: https://docs.expo.dev/versions/latest/sdk/localization/

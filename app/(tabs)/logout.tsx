@@ -3,6 +3,7 @@ import { View, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import styled, { useTheme } from 'styled-components/native';
 import { useAuth } from '@/modules/auth';
+import { useTranslation } from '@/core/i18n';
 
 const Container = styled.View`
 	flex: 1;
@@ -21,6 +22,7 @@ export default function LogoutScreen() {
 	const router = useRouter();
 	const { logout } = useAuth();
 	const theme = useTheme();
+	const { t } = useTranslation();
 
 	useEffect(() => {
 		const performLogout = async () => {
@@ -40,7 +42,7 @@ export default function LogoutScreen() {
 	return (
 		<Container>
 			<ActivityIndicator size="large" color={theme.colors.button.primary} />
-			<LoadingText>Saindo...</LoadingText>
+			<LoadingText>{t("auth.loggingOut")}</LoadingText>
 		</Container>
 	);
 }

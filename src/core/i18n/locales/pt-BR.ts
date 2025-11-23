@@ -1,0 +1,126 @@
+export const ptBR = {
+	// Navegação
+	navigation: {
+		conversations: "Conversas",
+		profile: "Perfil",
+		logout: "Sair",
+		chat: "Chat",
+		settings: "Configurações",
+	},
+
+	// Autenticação
+	auth: {
+		login: "Entrar",
+		signUp: "Cadastrar",
+		logout: "Sair",
+		email: "Email",
+		password: "Senha",
+		emailPlaceholder: "Digite seu email",
+		passwordPlaceholder: "Digite sua senha",
+		emailRequired: "Email é obrigatório",
+		emailInvalid: "Email inválido",
+		passwordRequired: "Senha é obrigatória",
+		passwordMinLength: "Senha deve ter no mínimo 6 caracteres",
+		forgotPassword: "Esqueceu a senha?",
+		continueWithGoogle: "Continuar com Google",
+		continueWithFacebook: "Continuar com Facebook",
+		dontHaveAccount: "Não tem uma conta? ",
+		alreadyHaveAccount: "Já tem uma conta? ",
+		createProfile: "Criar Perfil",
+		createAccount: "Criar Conta",
+		signUpSubtitle: "Cadastre-se para começar a conversar",
+		completeProfile: "Complete Seu Perfil",
+		completeProfileSubtitle: "Adicione algumas informações sobre você",
+		canUpdateLater: "Você pode atualizar essas informações depois",
+		name: "Nome",
+		namePlaceholder: "Digite seu nome",
+		nameRequired: "Nome é obrigatório",
+		nameMinLength: "Nome deve ter no mínimo 2 caracteres",
+		displayName: "Nome de Exibição",
+		displayNamePlaceholder: "Digite seu nome completo",
+		displayNameRequired: "Nome é obrigatório",
+		bio: "Biografia",
+		bioPlaceholder: "Conte um pouco sobre você",
+		bioMaxLength: "Bio deve ter no máximo 200 caracteres",
+		phoneNumber: "Telefone",
+		phoneNumberPlaceholder: "Digite seu telefone",
+		phoneOptional: "Telefone (Opcional)",
+		bioOptional: "Bio (Opcional)",
+		photoURL: "Foto de Perfil",
+		saving: "Salvando...",
+		error: "Erro ao autenticar",
+		loggingOut: "Saindo...",
+		completeProfileButton: "Completar Perfil",
+	},
+
+	// Perfil
+	profile: {
+		title: "Perfil",
+		userId: "ID do Usuário",
+		email: "Email",
+		displayName: "Nome de Exibição",
+		phoneNumber: "Telefone",
+		bio: "Biografia",
+		photoURL: "Foto de Perfil",
+		profileStatus: "Status do Perfil",
+		profileComplete: "Perfil Completo",
+		profileIncomplete: "Perfil Incompleto",
+		memberSince: "Membro desde",
+		lastUpdate: "Última atualização",
+		notAvailable: "Não disponível",
+		notFound: "Perfil não encontrado",
+		errorLoading: "Erro ao carregar perfil",
+		user: "Usuário",
+		googlePhotoHint: "Para ver sua foto do Google, faça logout e entre novamente usando \"Entrar com Google\"",
+	},
+
+	// Conversas
+	conversations: {
+		title: "Conversas",
+		searching: "Buscando usuários próximos...",
+		noUsersFound: "Nenhum usuário próximo encontrado",
+		usersWithin2km: "Usuários dentro de 2km aparecerão aqui automaticamente",
+		locationPermissionError: "Para ver usuários próximos, é necessário permitir o acesso à localização.",
+		locationError: "Verifique se a localização está habilitada e tente novamente.",
+		openSettings: "Abrir Configurações",
+	},
+
+	// Chat
+	chat: {
+		title: "Chat",
+		contactNotFound: "Contato não encontrado",
+		loadingMessages: "Carregando mensagens...",
+		noMessages: "Nenhuma mensagem ainda.\nComece a conversar!",
+		messagePlaceholder: "Digite uma mensagem...",
+		sending: "Enviando...",
+	},
+
+	// Configurações
+	settings: {
+		title: "Configurações",
+		language: "Idioma",
+		languageDescription: "Escolha o idioma do aplicativo",
+		appVersion: "Versão do Aplicativo",
+		runtimeVersion: "Versão do Runtime",
+		selectLanguage: "Selecionar Idioma",
+		portuguese: "Português (Brasil)",
+		english: "English",
+		spanish: "Español",
+	},
+
+	// Erros gerais
+	errors: {
+		generic: "Ocorreu um erro",
+		network: "Erro de conexão",
+		unknown: "Erro desconhecido",
+		loadingError: "Erro ao carregar",
+	},
+
+	// Mensagens de sistema
+	system: {
+		errorLoadingApp: "Erro ao carregar o app",
+		unknownError: "Erro desconhecido",
+		checkLogs: "Verifique os logs para mais detalhes",
+	},
+};
+

@@ -4,6 +4,7 @@ import { KeyboardAvoidingView, Platform, ScrollView } from "react-native";
 import styled, { useTheme } from "styled-components/native";
 import { Ionicons } from "@expo/vector-icons";
 import { Input, Button } from "@/shared/components";
+import { useTranslation } from "@/core/i18n";
 import type { CreateProfileData } from "../types";
 
 interface CreateProfileFormProps {
@@ -52,7 +53,7 @@ const ButtonContainer = styled.View`
 `;
 
 const ErrorText = styled.Text`
-	color: ${(props) => props.theme.colors.error};
+	color: ${(props) => props.theme.colors.text.error};
 	font-size: ${(props) => props.theme.typography.fontSize.sm}px;
 	font-family: ${(props) => props.theme.typography.fontFamily.primary};
 	margin-bottom: ${(props) => props.theme.spacing.md}px;
@@ -76,6 +77,7 @@ export const CreateProfileForm: React.FC<CreateProfileFormProps> = ({
 	initialName = "",
 }) => {
 	const theme = useTheme();
+	const { t } = useTranslation();
 	const {
 		control,
 		handleSubmit,
@@ -111,26 +113,26 @@ export const CreateProfileForm: React.FC<CreateProfileFormProps> = ({
 		>
 			<ScrollContent contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
 				<Form>
-					<Title>Complete Your Profile</Title>
-					<Subtitle>Add some information about yourself</Subtitle>
+					<Title>{t("auth.completeProfile")}</Title>
+					<Subtitle>{t("auth.completeProfileSubtitle")}</Subtitle>
 
 					{error && <ErrorText>{error}</ErrorText>}
 
-					<InfoText>Você pode atualizar essas informações depois</InfoText>
+					<InfoText>{t("auth.canUpdateLater")}</InfoText>
 
 					<Controller
 						control={control}
 						rules={{
-							required: "Nome é obrigatório",
+							required: t("auth.displayNameRequired"),
 							minLength: {
 								value: 2,
-								message: "Nome deve ter no mínimo 2 caracteres",
+								message: t("auth.nameMinLength"),
 							},
 						}}
 						render={({ field: { onChange, onBlur, value } }) => (
 							<Input
-								label="Name"
-								placeholder="Enter your full name"
+								label={t("auth.displayName")}
+								placeholder={t("auth.displayNamePlaceholder")}
 								icon={<Ionicons name="person" size={20} color={theme.colors.icon.secondary} />}
 								autoCapitalize="words"
 								autoCorrect={false}
@@ -146,16 +148,16 @@ export const CreateProfileForm: React.FC<CreateProfileFormProps> = ({
 					<Controller
 						control={control}
 						rules={{
-							required: "Email é obrigatório",
+							required: t("auth.emailRequired"),
 							pattern: {
 								value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
-								message: "Email inválido",
+								message: t("auth.emailInvalid"),
 							},
 						}}
 						render={({ field: { onChange, onBlur, value } }) => (
 							<Input
-								label="Email"
-								placeholder="Enter your email"
+								label={t("auth.email")}
+								placeholder={t("auth.emailPlaceholder")}
 								keyboardType="email-address"
 								autoCapitalize="none"
 								autoCorrect={false}
@@ -174,8 +176,8 @@ export const CreateProfileForm: React.FC<CreateProfileFormProps> = ({
 						rules={{}}
 						render={({ field: { onChange, onBlur, value } }) => (
 							<Input
-								label="Phone (Optional)"
-								placeholder="Enter your phone number"
+								label={t("auth.phoneOptional")}
+								placeholder={t("auth.phoneNumberPlaceholder")}
 								icon={<Ionicons name="call" size={20} color={theme.colors.icon.secondary} />}
 								keyboardType="phone-pad"
 								autoCapitalize="none"
@@ -194,13 +196,13 @@ export const CreateProfileForm: React.FC<CreateProfileFormProps> = ({
 						rules={{
 							maxLength: {
 								value: 200,
-								message: "Bio deve ter no máximo 200 caracteres",
+								message: t("auth.bioMaxLength"),
 							},
 						}}
 						render={({ field: { onChange, onBlur, value } }) => (
 							<Input
-								label="Bio (Optional)"
-								placeholder="Tell us about yourself"
+								label={t("auth.bioOptional")}
+								placeholder={t("auth.bioPlaceholder")}
 								icon={<Ionicons name="document-text" size={20} color={theme.colors.icon.secondary} />}
 								multiline
 								numberOfLines={4}
@@ -217,7 +219,7 @@ export const CreateProfileForm: React.FC<CreateProfileFormProps> = ({
 
 					<ButtonContainer>
 						<Button
-							title="Complete Profile"
+							title={t("auth.completeProfileButton")}
 							onPress={handleSubmit(handleFormSubmit)}
 							variant="primary"
 							loading={isLoading}
@@ -228,4 +230,3 @@ export const CreateProfileForm: React.FC<CreateProfileFormProps> = ({
 		</FormContainer>
 	);
 };
-
