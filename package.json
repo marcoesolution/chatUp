@@ -55,10 +55,10 @@
     "build:android:apk:verbose": "EAS_LOCAL_BUILD_SKIP_CLEANUP=1 eas build --platform android --profile production --local --non-interactive",
     "analyze:bundle": "./scripts/analyze-bundle.sh",
     "optimize:images": "./scripts/optimize-images.sh",
-    "update:preview": "eas update --branch preview --message \"Atualização automática\"",
-    "update:production": "eas update --branch production --message \"Atualização automática\"",
-    "update:preview:interactive": "eas update --branch preview",
-    "update:production:interactive": "eas update --branch production"
+    "update:preview": "eas update --branch preview --message \"Atualização automática\" --platform android",
+    "update:production": "eas update --branch production --message \"Atualização automática\" --platform android",
+    "update:preview:interactive": "eas update --branch preview --platform android",
+    "update:production:interactive": "eas update --branch production --platform android"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",

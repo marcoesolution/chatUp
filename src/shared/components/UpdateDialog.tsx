@@ -93,7 +93,7 @@ export const UpdateDialog: React.FC = () => {
 					</Message>
 					{isDownloading && (
 						<LoadingContainer>
-							<ActivityIndicator size="small" color={theme.colors.primary.main} />
+							<ActivityIndicator size="small" color={theme.colors.button.primary} />
 							<LoadingText>{t("updates.downloading") || "Baixando atualização..."}</LoadingText>
 						</LoadingContainer>
 					)}

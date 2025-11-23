@@ -12,6 +12,7 @@ import {
 import { doc, getDoc, setDoc, serverTimestamp, Timestamp } from "firebase/firestore";
 import * as AuthSession from "expo-auth-session";
 import * as WebBrowser from "expo-web-browser";
+import * as Linking from "expo-linking";
 import * as Crypto from "expo-crypto";
 import { Platform } from "react-native";
 import { auth, db } from "@/core/firebase";
@@ -288,27 +289,25 @@ export function useFirebaseAuth() {
 			console.log("🔑 Web Client ID configurado:", webClientId.substring(0, 20) + "...");
 
 			// Gerar redirect URI usando o proxy do Expo
-			// O proxy do Expo é necessário para OAuth funcionar corretamente
+			// O Google OAuth só aceita URIs http:// ou https://
+			// O proxy do Expo fornece um URI https:// que funciona com OAuth
 			// O formato é: https://auth.expo.io/@anonymous/[slug]
-			// O slug vem do app.json/app.config.js (atualmente "chatUp")
-			// O Expo converte o slug para minúsculas no proxy: "chatup"
 			let redirectUri = AuthSession.makeRedirectUri({
 				useProxy: true,
 			});
 
-			// Se o URI gerado for local (exp://), forçar o uso do proxy do Expo
-			// Isso é necessário porque em desenvolvimento local, o makeRedirectUri
-			// pode retornar um URI local que não funciona com OAuth do Google
-			if (redirectUri.startsWith("exp://") || redirectUri.startsWith("http://") || redirectUri.startsWith("https://192.168.")) {
+			// Se o URI gerado não for do proxy do Expo, forçar o uso do proxy
+			// Isso garante que sempre usemos um URI https:// válido
+			if (!redirectUri.startsWith("https://auth.expo.io")) {
 				// Usar o slug do app.json (convertido para minúsculas)
 				// O slug está em app.json como "chatUp", mas o proxy usa "chatup"
 				const slug = "chatup"; // Slug em minúsculas conforme usado pelo Expo
 				redirectUri = `https://auth.expo.io/@anonymous/${slug}`;
-				console.log("⚠️ URI local detectado, usando proxy do Expo:", redirectUri);
+				console.log("⚠️ URI não é do proxy, forçando uso do proxy do Expo:", redirectUri);
 			}
 
 			console.log("🔐 Iniciando login com Google...");
-			console.log("📋 Redirect URI:", redirectUri);
+			console.log("📋 Redirect URI (proxy do Expo):", redirectUri);
 			console.log("📋 ⚠️ IMPORTANTE: Este URI EXATO deve estar no Google Cloud Console!");
 			console.log("📋 Vá em: Google Cloud Console > APIs e Serviços > Credenciais");
 			console.log("📋 Encontre seu OAuth Client ID (Web) e adicione este URI:");
@@ -347,16 +346,32 @@ export function useFirebaseAuth() {
 
 			console.log("🔗 Iniciando autenticação OAuth...");
 
+			// Garantir que o WebBrowser está configurado corretamente antes de iniciar
+			// Isso é necessário para que o deep linking funcione corretamente
+			WebBrowser.maybeCompleteAuthSession();
+
 			// Abrir no navegador do sistema usando AuthSession
 			// No Android/iOS, isso usa Custom Tabs/ASWebAuthenticationSession
 			// que são considerados navegadores seguros pelo Google
+			// Usar proxy do Expo para garantir URI https:// válido
+			console.log("🔗 Iniciando promptAsync com proxy do Expo");
+			
 			const result = await request.promptAsync(discovery, {
-				useProxy: true,
+				useProxy: true, // Usar proxy do Expo para URI https:// válido
 			});
 
 			console.log("📥 Resultado do OAuth:", result.type);
+			console.log("📥 Resultado completo:", JSON.stringify(result, null, 2));
 			if (result.type === "success" && result.params) {
 				console.log("✅ Resposta recebida do Google");
+				console.log("📋 Parâmetros recebidos:", Object.keys(result.params));
+				console.log("📋 URL de retorno:", result.url?.substring(0, 200));
+			} else if (result.type === "error") {
+				console.error("❌ Erro no resultado:", result.error);
+				console.error("❌ Código do erro:", result.error?.code);
+				console.error("❌ Mensagem do erro:", result.error?.message);
+			} else {
+				console.log("⚠️ Tipo de resultado inesperado:", result.type);
 			}
 
 			if (result.type !== "success") {
