@@ -10,7 +10,8 @@
         "preview": {
             "distribution": "internal",
             "android": {
-                "buildType": "apk"
+                "buildType": "apk",
+                "gradleCommand": ":app:assembleRelease"
             },
             "env": {
                 "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyC6-xVbOJvXBbBiIkaWJx-uOdwXp3NEuZA",
@@ -24,7 +25,8 @@
         },
         "production": {
             "android": {
-                "buildType": "apk"
+                "buildType": "apk",
+                "gradleCommand": ":app:assembleRelease"
             },
             "env": {
                 "NODE_ENV": "production",
@@ -39,7 +41,8 @@
         },
         "production-aab": {
             "android": {
-                "buildType": "app-bundle"
+                "buildType": "app-bundle",
+                "gradleCommand": ":app:bundleRelease"
             },
             "env": {
                 "NODE_ENV": "production",

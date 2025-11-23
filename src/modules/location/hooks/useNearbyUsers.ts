@@ -2,26 +2,19 @@
  * Hook para buscar usuários próximos (raio de 2km)
  */
 
-import { useState, useEffect } from 'react';
-import {
-	collection,
-	query,
-	where,
-	onSnapshot,
-	QuerySnapshot,
-	DocumentData,
-} from 'firebase/firestore';
-import { db } from '@/core/firebase';
-import { useAuth } from '@/modules/auth';
-import { useLocation } from './useLocation';
+import { useState, useEffect } from "react";
+import { collection, query, where, onSnapshot, QuerySnapshot, DocumentData } from "firebase/firestore";
+import { db } from "@/core/firebase";
+import { useAuth } from "@/modules/auth";
+import { useLocation } from "./useLocation";
 import {
 	calculateLocationDistance,
 	isWithinRadius,
 	NEARBY_RADIUS_METERS,
 	calculateBoundingBox,
-} from '../utils/geolocation';
-import type { NearbyUser, Location } from '../types';
-import type { UserProfile } from '@/modules/auth/types';
+} from "../utils/geolocation";
+import type { NearbyUser, Location } from "../types";
+import type { UserProfile } from "@/modules/auth/types";
 
 interface UseNearbyUsersReturn {
 	nearbyUsers: NearbyUser[];
@@ -35,7 +28,12 @@ interface UseNearbyUsersReturn {
  */
 export function useNearbyUsers(): UseNearbyUsersReturn {
 	const { firebaseUser, userProfile } = useAuth();
-	const { location: userLocation, permissionStatus, isLoading: isLocationLoading, error: locationError } = useLocation();
+	const {
+		location: userLocation,
+		permissionStatus,
+		isLoading: isLocationLoading,
+		error: locationError,
+	} = useLocation();
 	const [nearbyUsers, setNearbyUsers] = useState<NearbyUser[]>([]);
 	const [isLoading, setIsLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
@@ -51,19 +49,38 @@ export function useNearbyUsers(): UseNearbyUsersReturn {
 		// Verificar condições básicas
 		if (!firebaseUser || !db) {
 			if (!firebaseUser) {
-				setError('Usuário não autenticado');
+				setError("Usuário não autenticado");
 			}
 			setIsLoading(false);
 			setNearbyUsers([]);
 			return;
 		}
 
-		// Se não tem permissão, mostrar erro de permissão
+		// Se não tem permissão, aguardar um pouco antes de mostrar erro
+		// Pode ser que a permissão ainda esteja sendo verificada
 		if (!permissionStatus?.granted) {
-			setError('Permissão de localização negada');
-			setIsLoading(false);
-			setNearbyUsers([]);
-			return;
+			console.log("⚠️ useNearbyUsers: permissionStatus não está granted. Status:", permissionStatus);
+			console.log("⚠️ useNearbyUsers: Aguardando verificação de permissão...");
+
+			// Aguardar um pouco e verificar novamente
+			const checkAgain = setTimeout(() => {
+				// Verificar novamente se ainda não tem permissão
+				if (!permissionStatus?.granted) {
+					console.log("❌ useNearbyUsers: Permissão realmente negada após verificação");
+					setError("Permissão de localização negada");
+					setIsLoading(false);
+					setNearbyUsers([]);
+				} else {
+					console.log("✅ useNearbyUsers: Permissão concedida após aguardar!");
+				}
+			}, 2000); // Aguardar 2 segundos antes de mostrar erro
+
+			setIsLoading(true);
+			setError(null);
+
+			return () => {
+				clearTimeout(checkAgain);
+			};
 		}
 
 		// Se tem erro de localização, usar esse erro
@@ -90,10 +107,7 @@ export function useNearbyUsers(): UseNearbyUsersReturn {
 			// Firestore não suporta queries geográficas nativas nem múltiplas condições de range
 			// Vamos buscar todos os usuários com localização habilitada e filtrar no cliente
 			// Para melhor performance, podemos limitar a busca inicial
-			const usersQuery = query(
-				collection(db, 'users'),
-				where('isLocationEnabled', '==', true)
-			);
+			const usersQuery = query(collection(db, "users"), where("isLocationEnabled", "==", true));
 
 			// Escutar mudanças em tempo real
 			const unsubscribe = onSnapshot(
@@ -124,7 +138,7 @@ export function useNearbyUsers(): UseNearbyUsersReturn {
 
 							nearby.push({
 								id: docSnapshot.id,
-								name: userData.displayName || 'Usuário',
+								name: userData.displayName || "Usuário",
 								avatar: userData.photoURL,
 								location: userData.location,
 								distance: Math.round(distance), // Arredondar para metros
@@ -140,8 +154,8 @@ export function useNearbyUsers(): UseNearbyUsersReturn {
 					setError(null);
 				},
 				(err) => {
-					console.error('❌ Erro ao buscar usuários próximos:', err);
-					setError('Erro ao buscar usuários próximos');
+					console.error("❌ Erro ao buscar usuários próximos:", err);
+					setError("Erro ao buscar usuários próximos");
 					setIsLoading(false);
 				}
 			);
@@ -150,8 +164,8 @@ export function useNearbyUsers(): UseNearbyUsersReturn {
 				unsubscribe();
 			};
 		} catch (err: any) {
-			console.error('❌ Erro ao configurar query de usuários próximos:', err);
-			setError(err.message || 'Erro ao buscar usuários próximos');
+			console.error("❌ Erro ao configurar query de usuários próximos:", err);
+			setError(err.message || "Erro ao buscar usuários próximos");
 			setIsLoading(false);
 		}
 	}, [
@@ -159,6 +173,7 @@ export function useNearbyUsers(): UseNearbyUsersReturn {
 		userLocation?.latitude,
 		userLocation?.longitude,
 		permissionStatus?.granted,
+		permissionStatus?.status, // Adicionar status para detectar mudanças na permissão
 		isLocationLoading,
 		locationError,
 	]);
@@ -169,4 +184,3 @@ export function useNearbyUsers(): UseNearbyUsersReturn {
 		error,
 	};
 }
-

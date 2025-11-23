@@ -63,3 +63,4 @@ echo ""
 echo -e "${BLUE}Ou para build e instalação automática:${NC}"
 echo -e "${GREEN}   npm run build:install:android${NC}"
 
+

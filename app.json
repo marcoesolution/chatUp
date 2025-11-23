@@ -34,7 +34,9 @@
         "ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION"
-      ]
+      ],
+      "enableProguardInReleaseBuilds": true,
+      "enableShrinkResourcesInReleaseBuilds": true
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -44,7 +46,8 @@
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "Este app precisa da sua localização para mostrar usuários próximos a você."
+          "locationAlwaysAndWhenInUsePermission": "Este app precisa da sua localização para mostrar usuários próximos a você.",
+          "locationWhenInUsePermission": "Este app precisa da sua localização para mostrar usuários próximos a você."
         }
       ],
       "expo-font"

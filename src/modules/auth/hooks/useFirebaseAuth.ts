@@ -29,7 +29,7 @@ export function useFirebaseAuth() {
 	const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
 	const [isLoading, setIsLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
-	
+
 	// Hook de localização para atualizar posição do usuário
 	const { location: userLocation, permissionStatus } = useLocation();
 	const lastLocationUpdateRef = useRef<{ lat: number; lon: number } | null>(null);
@@ -52,17 +52,25 @@ export function useFirebaseAuth() {
 				// Buscar perfil do usuário no Firestore
 				try {
 					let profile = await getUserProfile(firebaseUser.uid);
-					
+
 					// Se o usuário tem photoURL no Firebase Auth mas não no Firestore, atualizar
 					// Isso garante que a foto do Google sempre seja sincronizada
-					if (firebaseUser.photoURL && (!profile || !profile.photoURL || profile.photoURL !== firebaseUser.photoURL)) {
+					if (
+						firebaseUser.photoURL &&
+						(!profile || !profile.photoURL || profile.photoURL !== firebaseUser.photoURL)
+					) {
+						if (!db) {
+							console.error("❌ Firestore não está inicializado. Não é possível sincronizar photoURL.");
+							return;
+						}
+
 						console.log("🔄 Sincronizando photoURL do Google com Firestore...");
 						console.log("📸 PhotoURL do Firebase Auth:", firebaseUser.photoURL);
 						const updateData: any = {
 							photoURL: firebaseUser.photoURL,
 							updatedAt: serverTimestamp(),
 						};
-						
+
 						// Se não tiver perfil, criar um básico
 						if (!profile) {
 							updateData.email = firebaseUser.email || "";
@@ -73,12 +81,12 @@ export function useFirebaseAuth() {
 						} else {
 							console.log("🔄 Atualizando perfil existente com photoURL do Google");
 						}
-						
+
 						await setDoc(doc(db, "users", firebaseUser.uid), updateData, { merge: true });
 						profile = await getUserProfile(firebaseUser.uid);
 						console.log("✅ PhotoURL sincronizado. Valor salvo:", profile?.photoURL);
 					}
-					
+
 					setUserProfile(profile);
 				} catch (err: any) {
 					console.error("Erro ao buscar perfil:", err);
@@ -129,17 +137,19 @@ export function useFirebaseAuth() {
 		try {
 			const userCredential = await signInWithEmailAndPassword(auth, email, password);
 			console.log("✅ Login com email/senha bem-sucedido:", userCredential.user.email);
-			
+
 			// Buscar perfil do usuário no Firestore
 			let profile = await getUserProfile(userCredential.user.uid);
-			
+
 			// Se o usuário não tem photoURL no Firebase Auth (login com email/senha não fornece),
 			// mas tem no Firestore, manter o que está salvo
 			// Se não tem em nenhum lugar, não há foto disponível
 			if (!userCredential.user.photoURL && profile && !profile.photoURL) {
-				console.warn("⚠️ Login com email/senha não fornece photoURL. Para ter a foto do Google, faça login com Google.");
+				console.warn(
+					"⚠️ Login com email/senha não fornece photoURL. Para ter a foto do Google, faça login com Google."
+				);
 			}
-			
+
 			// O onAuthStateChanged vai atualizar o estado automaticamente
 			// Mas buscamos o perfil aqui também para garantir
 			setUserProfile(profile);
@@ -211,7 +221,7 @@ export function useFirebaseAuth() {
 		try {
 			// Buscar o usuário atual do Firebase Auth para preservar o photoURL
 			const currentUser = auth.currentUser;
-			
+
 			const profileDoc: any = {
 				...profileData,
 				hasProfile: true,
@@ -295,8 +305,9 @@ export function useFirebaseAuth() {
 			const scopes = ["openid", "profile", "email"].join(" ");
 			const state = Math.random().toString(36).substring(7);
 			const nonce = Math.random().toString(36).substring(7);
-			
-			const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
+
+			const authUrl =
+				`https://accounts.google.com/o/oauth2/v2/auth?` +
 				`client_id=${encodeURIComponent(webClientId)}&` +
 				`redirect_uri=${encodeURIComponent(redirectUri)}&` +
 				`response_type=id_token&` +
@@ -347,26 +358,23 @@ export function useFirebaseAuth() {
 
 			// Extrair o ID token da URL de retorno
 			let idToken: string | null = null;
-			
+
 			if (result.type === "success" && result.url) {
 				const url = new URL(result.url);
 				// O token pode vir como fragmento (#id_token=...) ou como query param (?id_token=...)
-				idToken = url.hash.split("id_token=")[1]?.split("&")[0] || 
-				          url.searchParams.get("id_token");
-			}
+				idToken = url.hash.split("id_token=")[1]?.split("&")[0] || url.searchParams.get("id_token");
 
-			// Fallback: tentar obter do resultado diretamente
-			if (!idToken) {
-				idToken =
-					result.params?.id_token ||
-					result.params?.idToken ||
-					result.authentication?.idToken;
+				// Também tentar extrair do fragmento completo caso o formato seja diferente
+				if (!idToken && url.hash) {
+					const hashParams = new URLSearchParams(url.hash.substring(1));
+					idToken = hashParams.get("id_token");
+				}
 			}
 
 			console.log("🔑 Token recebido:", idToken ? "Sim" : "Não");
 
 			if (!idToken) {
-				console.error("❌ Token não encontrado. Result params:", result.params);
+				console.error("❌ Token não encontrado na URL de retorno:", result.url?.substring(0, 200));
 				const errorMsg = "Token do Google não recebido. Tente novamente.";
 				setError(errorMsg);
 				setIsLoading(false);
@@ -439,8 +447,7 @@ export function useFirebaseAuth() {
 				code: err.code,
 				stack: err.stack,
 			});
-			const errorMessage =
-				err.message || getFirebaseErrorMessage(err.code) || "Erro ao fazer login com Google";
+			const errorMessage = err.message || getFirebaseErrorMessage(err.code) || "Erro ao fazer login com Google";
 			setError(errorMessage);
 			setIsLoading(false);
 			// Relançar o erro para que o componente possa tratá-lo
@@ -541,16 +548,17 @@ export function useFirebaseAuth() {
 				location: {
 					latitude: userLocation.latitude,
 					longitude: userLocation.longitude,
-					updatedAt: userLocation.updatedAt instanceof Date 
-						? Timestamp.fromDate(userLocation.updatedAt)
-						: userLocation.updatedAt,
+					updatedAt:
+						userLocation.updatedAt instanceof Date
+							? Timestamp.fromDate(userLocation.updatedAt)
+							: userLocation.updatedAt,
 				},
 				isLocationEnabled: true,
 				updatedAt: serverTimestamp(),
 			};
 
 			await setDoc(doc(db, "users", user.uid), locationData, { merge: true });
-			
+
 			// Atualizar referência da última localização
 			lastLocationUpdateRef.current = {
 				lat: userLocation.latitude,
@@ -620,4 +628,3 @@ function getFirebaseErrorMessage(code: string): string {
 
 	return errorMessages[code] || "Ocorreu um erro. Tente novamente";
 }
-

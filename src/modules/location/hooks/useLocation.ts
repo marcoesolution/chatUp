@@ -3,7 +3,7 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
-import { AppState, AppStateStatus, Linking, Platform, Alert } from "react-native";
+import { AppState, AppStateStatus, Linking, Platform, Alert, PermissionsAndroid } from "react-native";
 import * as Location from "expo-location";
 import type { Location as LocationType, LocationPermissionStatus } from "../types";
 
@@ -32,7 +32,55 @@ export function useLocation(): UseLocationReturn {
 	 */
 	const requestPermission = useCallback(async (): Promise<boolean> => {
 		try {
-			const { status, canAskAgain } = await Location.requestForegroundPermissionsAsync();
+			console.log("🔍 useLocation: Solicitando permissão de localização...");
+
+			let status: string = "undetermined";
+			let canAskAgain: boolean = true;
+
+			// No Android, tentar também via PermissionsAndroid
+			if (Platform.OS === "android") {
+				try {
+					const androidResult = await PermissionsAndroid.request(
+						PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+						{
+							title: "Permissão de Localização",
+							message: "Este app precisa da sua localização para mostrar usuários próximos a você.",
+							buttonNeutral: "Perguntar depois",
+							buttonNegative: "Cancelar",
+							buttonPositive: "OK",
+						}
+					);
+
+					console.log("🔍 useLocation: PermissionsAndroid retornou:", androidResult);
+
+					if (androidResult === PermissionsAndroid.RESULTS.GRANTED) {
+						status = "granted";
+						canAskAgain = false;
+					} else if (androidResult === PermissionsAndroid.RESULTS.DENIED) {
+						status = "denied";
+					}
+				} catch (androidErr) {
+					console.warn("⚠️ useLocation: Erro ao solicitar via PermissionsAndroid:", androidErr);
+				}
+			}
+
+			// Tentar também via expo-location
+			try {
+				const expoPermission = await Location.requestForegroundPermissionsAsync();
+				console.log("🔍 useLocation: Expo-location retornou:", expoPermission);
+
+				// Se expo-location retornar granted, usar esse resultado
+				if (expoPermission.status === "granted") {
+					status = "granted";
+					canAskAgain = expoPermission.canAskAgain;
+				} else if (status === "undetermined") {
+					// Se ainda não temos um status, usar o do expo-location
+					status = expoPermission.status;
+					canAskAgain = expoPermission.canAskAgain;
+				}
+			} catch (expoErr) {
+				console.warn("⚠️ useLocation: Erro ao solicitar via expo-location:", expoErr);
+			}
 
 			const permission: LocationPermissionStatus = {
 				granted: status === "granted",
@@ -43,13 +91,16 @@ export function useLocation(): UseLocationReturn {
 			setPermissionStatus(permission);
 
 			if (status !== "granted") {
+				console.log("❌ useLocation: Permissão não concedida. Status:", status);
 				setError("Permissão de localização negada. O app precisa da localização para funcionar.");
 				return false;
 			}
 
+			console.log("✅ useLocation: Permissão concedida!");
 			setError(null);
 			return true;
 		} catch (err: any) {
+			console.error("❌ useLocation: Erro ao solicitar permissão:", err);
 			const errorMessage = err.message || "Erro ao solicitar permissão de localização";
 			setError(errorMessage);
 			return false;
@@ -57,11 +108,64 @@ export function useLocation(): UseLocationReturn {
 	}, []);
 
 	/**
-	 * Verifica o status atual da permissão
+	 * Verifica o status atual da permissão usando múltiplas fontes
 	 */
 	const checkPermission = useCallback(async () => {
 		try {
-			const { status, canAskAgain } = await Location.getForegroundPermissionsAsync();
+			console.log("🔍 useLocation: Verificando permissão de localização...");
+
+			// Tentar verificar via expo-location primeiro
+			let status: string = "undetermined";
+			let canAskAgain: boolean = true;
+
+			try {
+				const expoPermission = await Location.getForegroundPermissionsAsync();
+				status = expoPermission.status;
+				canAskAgain = expoPermission.canAskAgain;
+				console.log("🔍 useLocation: Expo-location retornou:", { status, canAskAgain });
+			} catch (expoErr) {
+				console.warn("⚠️ useLocation: Erro ao verificar via expo-location:", expoErr);
+			}
+
+			// No Android, SEMPRE verificar também via PermissionsAndroid
+			// O expo-location às vezes não detecta corretamente permissões já concedidas
+			if (Platform.OS === "android") {
+				try {
+					const androidFine = await PermissionsAndroid.check(
+						PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION
+					);
+					const androidCoarse = await PermissionsAndroid.check(
+						PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION
+					);
+					console.log("🔍 useLocation: PermissionsAndroid retornou:", {
+						fine: androidFine,
+						coarse: androidCoarse,
+						expoStatus: status,
+					});
+
+					// Se PermissionsAndroid diz que tem permissão, confiar nele
+					// Isso resolve o problema do expo-location não detectar permissões já concedidas
+					if (androidFine || androidCoarse) {
+						if (status !== "granted") {
+							console.log(
+								"✅ useLocation: PermissionsAndroid detectou permissão, mas expo-location retornou:",
+								status
+							);
+							console.log("✅ useLocation: Usando resultado do PermissionsAndroid (permissão concedida)");
+						}
+						status = "granted";
+						canAskAgain = false;
+					} else if (status === "granted") {
+						// Se expo-location diz granted mas Android não, confiar no expo-location
+						console.log("✅ useLocation: Expo-location detectou permissão");
+					}
+				} catch (androidErr) {
+					console.warn("⚠️ useLocation: Erro ao verificar via PermissionsAndroid:", androidErr);
+					// Se der erro, confiar no resultado do expo-location
+				}
+			}
+
+			console.log("🔍 useLocation: Status final da permissão:", { status, canAskAgain });
 
 			const permission: LocationPermissionStatus = {
 				granted: status === "granted",
@@ -70,9 +174,16 @@ export function useLocation(): UseLocationReturn {
 			};
 
 			setPermissionStatus(permission);
+
+			if (status === "granted") {
+				console.log("✅ useLocation: Permissão concedida");
+			} else {
+				console.log("⚠️ useLocation: Permissão não concedida. Status:", status);
+			}
+
 			return status === "granted";
 		} catch (err: any) {
-			console.error("Erro ao verificar permissão:", err);
+			console.error("❌ useLocation: Erro ao verificar permissão:", err);
 			return false;
 		}
 	}, []);
@@ -127,13 +238,28 @@ export function useLocation(): UseLocationReturn {
 	 * Efeito para verificar permissão e obter localização inicial
 	 */
 	useEffect(() => {
-		checkPermission().then((hasPermission) => {
+		let mounted = true;
+
+		const initLocation = async () => {
+			console.log("🔍 useLocation: Inicializando verificação de permissão...");
+			const hasPermission = await checkPermission();
+
+			if (!mounted) return;
+
 			if (hasPermission) {
-				updateLocation();
+				console.log("✅ useLocation: Permissão encontrada, obtendo localização...");
+				await updateLocation();
 			} else {
+				console.log("⚠️ useLocation: Permissão não encontrada, aguardando...");
 				setIsLoading(false);
 			}
-		});
+		};
+
+		initLocation();
+
+		return () => {
+			mounted = false;
+		};
 	}, []);
 
 	/**
@@ -150,37 +276,56 @@ export function useLocation(): UseLocationReturn {
 	 * Efeito para atualizar localização quando o app entra em foreground
 	 */
 	useEffect(() => {
-		const subscription = AppState.addEventListener("change", (nextAppState: AppStateStatus) => {
-			if (nextAppState === "active" && permissionStatus?.granted) {
-				// App entrou em foreground, atualizar localização
-				updateLocation();
+		const subscription = AppState.addEventListener("change", async (nextAppState: AppStateStatus) => {
+			if (nextAppState === "active") {
+				console.log("🔍 useLocation: App entrou em foreground, verificando permissão novamente...");
+				// Verificar permissão novamente quando app volta ao foreground
+				// Isso garante que se o usuário concedeu permissão nas configurações, será detectado
+				const hasPermission = await checkPermission();
+
+				if (hasPermission) {
+					console.log("✅ useLocation: Permissão confirmada, atualizando localização...");
+					await updateLocation();
+				} else {
+					console.log("⚠️ useLocation: Permissão ainda não concedida");
+				}
 			}
 		});
 
 		return () => {
 			subscription.remove();
 		};
-	}, [permissionStatus, updateLocation]);
+	}, [checkPermission, updateLocation]);
 
 	/**
-	 * Efeito para atualizar localização periodicamente enquanto o app está ativo
+	 * Efeito para verificar permissão periodicamente e atualizar localização
 	 */
 	useEffect(() => {
-		if (!permissionStatus?.granted) {
-			return;
-		}
-
-		// Atualizar localização a cada 30 segundos quando app está ativo
-		const interval = setInterval(() => {
+		// Verificar permissão periodicamente (a cada 5 segundos) quando app está ativo
+		// Isso garante que se o usuário conceder permissão nas configurações, será detectado
+		const checkInterval = setInterval(async () => {
 			if (AppState.currentState === "active") {
+				const hasPermission = await checkPermission();
+				if (hasPermission && !permissionStatus?.granted) {
+					console.log("✅ useLocation: Permissão detectada após verificação periódica!");
+					// Permissão foi concedida, atualizar localização
+					await updateLocation();
+				}
+			}
+		}, 5000); // Verificar a cada 5 segundos
+
+		// Atualizar localização a cada 30 segundos quando app está ativo e tem permissão
+		const locationInterval = setInterval(() => {
+			if (AppState.currentState === "active" && permissionStatus?.granted) {
 				updateLocation();
 			}
 		}, 30000); // 30 segundos
 
 		return () => {
-			clearInterval(interval);
+			clearInterval(checkInterval);
+			clearInterval(locationInterval);
 		};
-	}, [permissionStatus, updateLocation]);
+	}, [permissionStatus, checkPermission, updateLocation]);
 
 	/**
 	 * Abre as configurações do app para o usuário habilitar a permissão de localização
