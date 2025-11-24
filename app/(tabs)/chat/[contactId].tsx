@@ -9,6 +9,7 @@ import { useMessages } from "@/modules/chat/hooks/useMessages";
 import { useAuth } from "@/modules/auth";
 import { useTranslation } from "@/core/i18n";
 import { mockContacts } from "@/modules/chat";
+import { MessageStatus } from "@/shared/components/MessageStatus";
 import type { CreateMessageData, Message } from "@/modules/chat/types";
 
 const Container = styled(KeyboardAvoidingView)`
@@ -37,10 +38,17 @@ const MessageText = styled.Text<{ isOwn: boolean }>`
 	line-height: 20px;
 `;
 
+const MessageFooter = styled.View<{ isOwn: boolean }>`
+	flex-direction: row;
+	align-items: center;
+	justify-content: ${(props) => (props.isOwn ? "flex-end" : "flex-start")};
+	margin-top: 4px;
+	gap: 4px;
+`;
+
 const MessageTime = styled.Text<{ isOwn: boolean }>`
 	font-size: 11px;
 	color: ${(props) => (props.isOwn ? props.theme.colors.text.secondary : props.theme.colors.text.tertiary)};
-	margin-top: 4px;
 	opacity: 0.7;
 `;
 
@@ -112,13 +120,23 @@ export default function ChatScreen() {
 	const { firebaseUser } = useAuth();
 	const insets = useSafeAreaInsets();
 
-	// Esconder tab bar quando a tela de chat estiver em foco
+	const { messages, isLoading, error, sendMessage, loadMoreMessages, hasMore, isLoadingMore, markAsViewed } =
+		useMessages(contactId || "");
+
+	// Esconder tab bar e marcar mensagens como visualizadas quando a tela de chat estiver em foco
 	useFocusEffect(
 		React.useCallback(() => {
 			// Esconder tab bar
 			navigation.getParent()?.setOptions({
 				tabBarStyle: { display: "none" },
 			});
+
+			// Marcar mensagens como visualizadas quando a tela recebe foco
+			if (contactId) {
+				setTimeout(() => {
+					markAsViewed();
+				}, 300);
+			}
 
 			// Mostrar tab bar quando sair da tela
 			return () => {
@@ -129,11 +147,7 @@ export default function ChatScreen() {
 					},
 				});
 			};
-		}, [navigation, theme])
-	);
-
-	const { messages, isLoading, error, sendMessage, loadMoreMessages, hasMore, isLoadingMore } = useMessages(
-		contactId || ""
+		}, [navigation, theme, contactId, markAsViewed])
 	);
 	const [messageText, setMessageText] = useState("");
 	const [isSending, setIsSending] = useState(false);
@@ -164,10 +178,15 @@ export default function ChatScreen() {
 	const renderMessage = useCallback(
 		({ item: message }: { item: Message }) => {
 			const isOwn = message.senderId === firebaseUser?.uid;
+			const isViewed = message.viewedAt !== null && message.viewedAt !== undefined;
+
 			return (
 				<MessageBubble isOwn={isOwn}>
 					<MessageText isOwn={isOwn}>{message.text}</MessageText>
-					<MessageTime isOwn={isOwn}>{formatTime(message.timestamp)}</MessageTime>
+					<MessageFooter isOwn={isOwn}>
+						<MessageTime isOwn={isOwn}>{formatTime(message.timestamp)}</MessageTime>
+						{isOwn && <MessageStatus isRead={message.read} isViewed={isViewed} />}
+					</MessageFooter>
 				</MessageBubble>
 			);
 		},

@@ -126,6 +126,16 @@ export function useMessages(contactId: string) {
 						// Se falhar, usar o texto original (pode ser mensagem antiga não criptografada)
 					}
 
+					// Converter viewedAt de Timestamp para Date se existir
+					let viewedAt: Date | null = null;
+					if (data.viewedAt) {
+						if (data.viewedAt.toDate) {
+							viewedAt = data.viewedAt.toDate();
+						} else if (data.viewedAt instanceof Date) {
+							viewedAt = data.viewedAt;
+						}
+					}
+
 					messagesData.push({
 						id: docSnapshot.id,
 						chatId: data.chatId,
@@ -134,6 +144,7 @@ export function useMessages(contactId: string) {
 						text: decryptedText,
 						timestamp: data.timestamp?.toDate() || new Date(),
 						read: data.read || false,
+						viewedAt: viewedAt || null,
 						createdAt: data.createdAt,
 						updatedAt: data.updatedAt,
 					});
@@ -215,6 +226,61 @@ export function useMessages(contactId: string) {
 		return () => unsubscribe();
 	}, [firebaseUser, contactId]);
 
+	// Função para marcar mensagens como visualizadas (chamada quando tela recebe foco)
+	const markAsViewed = async () => {
+		if (!firebaseUser || !contactId || !db) {
+			return;
+		}
+
+		const currentUserId = firebaseUser.uid;
+		const chatId = generateChatId(currentUserId, contactId);
+		const firestoreDb = db;
+
+		try {
+			// Buscar mensagens lidas mas não visualizadas do usuário atual neste chat
+			const viewedQuery = query(
+				collection(firestoreDb, "messages"),
+				where("chatId", "==", chatId),
+				where("receiverId", "==", currentUserId),
+				where("read", "==", true)
+			);
+
+			const viewedSnapshot = await getDocs(viewedQuery);
+
+			if (viewedSnapshot.empty) {
+				return;
+			}
+
+			// Filtrar apenas mensagens que ainda não foram visualizadas (viewedAt === null ou não existe)
+			const unviewedMessages = viewedSnapshot.docs.filter((docSnapshot) => {
+				const data = docSnapshot.data();
+				return !data.viewedAt;
+			});
+
+			if (unviewedMessages.length === 0) {
+				return;
+			}
+
+			// Atualizar todas as mensagens lidas mas não visualizadas
+			const updatePromises = unviewedMessages.map((docSnapshot) =>
+				updateDoc(doc(firestoreDb, "messages", docSnapshot.id), {
+					viewedAt: serverTimestamp(),
+					updatedAt: serverTimestamp(),
+				})
+			);
+
+			await Promise.all(updatePromises);
+			console.log(`👁️ ${unviewedMessages.length} mensagem(ns) marcada(s) como visualizada(s)`);
+		} catch (err: any) {
+			// Se o erro for de índice faltando, apenas logar (não é crítico)
+			if (err.code === "failed-precondition") {
+				console.warn("⚠️ Índice composto necessário para marcar como visualizada. Não é crítico.");
+			} else {
+				console.error("Erro ao marcar mensagens como visualizadas:", err);
+			}
+		}
+	};
+
 	/**
 	 * Enviar uma nova mensagem (com criptografia automática)
 	 */
@@ -266,6 +332,7 @@ export function useMessages(contactId: string) {
 				text: encryptedText, // Armazenar mensagem criptografada
 				timestamp: serverTimestamp(),
 				read: false,
+				viewedAt: null, // Nova mensagem ainda não foi visualizada
 				createdAt: serverTimestamp(),
 				updatedAt: serverTimestamp(),
 			};
@@ -364,6 +431,16 @@ export function useMessages(contactId: string) {
 					// Se falhar, usar texto original
 				}
 
+				// Converter viewedAt de Timestamp para Date se existir
+				let viewedAt: Date | null = null;
+				if (data.viewedAt) {
+					if (data.viewedAt.toDate) {
+						viewedAt = data.viewedAt.toDate();
+					} else if (data.viewedAt instanceof Date) {
+						viewedAt = data.viewedAt;
+					}
+				}
+
 				olderMessages.push({
 					id: docSnapshot.id,
 					chatId: data.chatId,
@@ -372,6 +449,7 @@ export function useMessages(contactId: string) {
 					text: decryptedText,
 					timestamp: data.timestamp?.toDate() || new Date(),
 					read: data.read || false,
+					viewedAt: viewedAt || null,
 					createdAt: data.createdAt,
 					updatedAt: data.updatedAt,
 				});
@@ -402,5 +480,6 @@ export function useMessages(contactId: string) {
 		loadMoreMessages,
 		hasMore,
 		isLoadingMore,
+		markAsViewed,
 	};
 }
