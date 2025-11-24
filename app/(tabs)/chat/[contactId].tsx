@@ -251,7 +251,15 @@ export default function ChatScreen() {
 	const keyExtractor = useCallback((item: Message) => item.id, []);
 
 	// Lista com mensagens mais recentes no topo (inverter ordem)
-	const sortedMessages = useMemo(() => [...messages].reverse(), [messages]);
+	const sortedMessages = useMemo(() => {
+		const reversed = [...messages].reverse();
+		console.log("🔍 [CHAT] Mensagens ordenadas:", {
+			total: messages.length,
+			sorted: reversed.length,
+			firstMessage: reversed[0]?.text?.substring(0, 30) || "nenhuma",
+		});
+		return reversed;
+	}, [messages]);
 
 	// Carregar mais mensagens antigas ao fazer scroll para o final da lista
 	const handleLoadMore = useCallback(() => {
@@ -272,26 +280,41 @@ export default function ChatScreen() {
 
 	// Enviar mensagem
 	const handleSendMessage = async () => {
-		if (!messageText.trim() || !contactId || isSending) return;
+		if (!messageText.trim() || !contactId || isSending) {
+			console.log("⚠️ [CHAT] Envio bloqueado:", {
+				hasText: !!messageText.trim(),
+				hasContactId: !!contactId,
+				isSending,
+			});
+			return;
+		}
+
+		const textToSend = messageText.trim();
+		console.log("📤 [CHAT] Enviando mensagem:", {
+			text: textToSend.substring(0, 50),
+			contactId,
+		});
 
 		setIsSending(true);
 		try {
 			const messageData: CreateMessageData = {
-				text: messageText.trim(),
+				text: textToSend,
 				receiverId: contactId,
 			};
 
 			await sendMessage(messageData);
+			console.log("✅ [CHAT] Mensagem enviada com sucesso");
 			setMessageText("");
 			// Rolar para o topo após enviar mensagem
 			setTimeout(() => {
-				if (messages.length > 0) {
+				if (sortedMessages.length > 0) {
 					flatListRef.current?.scrollToIndex({ index: 0, animated: true, viewPosition: 0 });
 				}
 			}, 100);
 			inputRef.current?.blur();
 		} catch (err: any) {
-			console.error("Erro ao enviar mensagem:", err);
+			console.error("❌ [CHAT] Erro ao enviar mensagem:", err);
+			// Manter o texto para o usuário tentar novamente
 			// TODO: Mostrar erro para o usuário
 		} finally {
 			setIsSending(false);
@@ -320,47 +343,64 @@ export default function ChatScreen() {
 
 	// Header será configurado no _layout.tsx
 
+	// Debug: Log do estado atual
+	useEffect(() => {
+		console.log("🔍 [CHAT] Estado da tela atualizado:", {
+			messagesCount: messages.length,
+			sortedCount: sortedMessages.length,
+			isLoading,
+			hasContactId: !!contactId,
+			firstMessage: sortedMessages[0]?.text?.substring(0, 30) || "nenhuma",
+		});
+	}, [messages.length, sortedMessages.length, isLoading, contactId]);
+
 	// No Android, usar wrapper customizado; no iOS, usar KeyboardAvoidingView
 	if (Platform.OS === "android") {
 		return (
 			<ContainerWrapper>
-				{messages.length === 0 && !isLoading ? (
-					<EmptyContainer>
-						<EmptyText>{t("chat.noMessages")}</EmptyText>
-					</EmptyContainer>
-				) : (
-					<MessagesListContainer>
-						<FlatList
-							ref={flatListRef}
-							data={sortedMessages}
-							renderItem={renderMessage}
-							keyExtractor={keyExtractor}
-							onEndReached={handleLoadMore}
-							onEndReachedThreshold={0.5}
-							ListFooterComponent={renderFooter}
-							contentContainerStyle={{
-								paddingTop: insets.top > 0 ? insets.top : 0,
-								paddingBottom: insets.bottom > 0 ? insets.bottom : 0,
-							}}
-							keyboardShouldPersistTaps="handled"
-							removeClippedSubviews={true}
-							maxToRenderPerBatch={10}
-							windowSize={10}
-							initialNumToRender={20}
-							getItemLayout={(data, index) => ({
-								length: 80, // Altura estimada de cada mensagem
-								offset: 80 * index,
-								index,
-							})}
-							onScrollToIndexFailed={(info) => {
-								// Fallback se scrollToIndex falhar
-								setTimeout(() => {
-									flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
-								}, 100);
-							}}
-						/>
-					</MessagesListContainer>
-				)}
+				<MessagesListContainer>
+					<FlatList
+						ref={flatListRef}
+						data={sortedMessages}
+						renderItem={renderMessage}
+						keyExtractor={keyExtractor}
+						onEndReached={handleLoadMore}
+						onEndReachedThreshold={0.5}
+						ListFooterComponent={renderFooter}
+						contentContainerStyle={{
+							paddingTop: insets.top > 0 ? insets.top : 0,
+							paddingBottom: insets.bottom > 0 ? insets.bottom : 0,
+							flexGrow: sortedMessages.length === 0 ? 1 : 0,
+						}}
+						keyboardShouldPersistTaps="handled"
+						removeClippedSubviews={true}
+						maxToRenderPerBatch={10}
+						windowSize={10}
+						initialNumToRender={20}
+						getItemLayout={
+							sortedMessages.length > 0
+								? (data, index) => ({
+										length: 80, // Altura estimada de cada mensagem
+										offset: 80 * index,
+										index,
+								  })
+								: undefined
+						}
+						onScrollToIndexFailed={(info) => {
+							// Fallback se scrollToIndex falhar
+							setTimeout(() => {
+								flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+							}, 100);
+						}}
+						ListEmptyComponent={
+							!isLoading ? (
+								<EmptyContainer>
+									<EmptyText>{t("chat.noMessages")}</EmptyText>
+								</EmptyContainer>
+							) : null
+						}
+					/>
+				</MessagesListContainer>
 
 				<InputContainer bottomInset={insets.bottom} keyboardHeight={keyboardHeight}>
 					<TextInput
@@ -395,43 +435,45 @@ export default function ChatScreen() {
 	// iOS usa KeyboardAvoidingView
 	return (
 		<Container behavior="padding" keyboardVerticalOffset={insets.top + 100}>
-			{messages.length === 0 && !isLoading ? (
-				<EmptyContainer>
-					<EmptyText>{t("chat.noMessages")}</EmptyText>
-				</EmptyContainer>
-			) : (
-				<MessagesListContainer>
-					<FlatList
-						ref={flatListRef}
-						data={sortedMessages}
-						renderItem={renderMessage}
-						keyExtractor={keyExtractor}
-						onEndReached={handleLoadMore}
-						onEndReachedThreshold={0.5}
-						ListFooterComponent={renderFooter}
-						contentContainerStyle={{
-							paddingTop: insets.top > 0 ? insets.top : 0,
-							paddingBottom: insets.bottom > 0 ? insets.bottom : 0,
-						}}
-						keyboardShouldPersistTaps="handled"
-						removeClippedSubviews={true}
-						maxToRenderPerBatch={10}
-						windowSize={10}
-						initialNumToRender={20}
-						getItemLayout={(data, index) => ({
-							length: 80, // Altura estimada de cada mensagem
-							offset: 80 * index,
-							index,
-						})}
-						onScrollToIndexFailed={(info) => {
-							// Fallback se scrollToIndex falhar
-							setTimeout(() => {
-								flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
-							}, 100);
-						}}
-					/>
-				</MessagesListContainer>
-			)}
+			<MessagesListContainer>
+				<FlatList
+					ref={flatListRef}
+					data={sortedMessages}
+					renderItem={renderMessage}
+					keyExtractor={keyExtractor}
+					onEndReached={handleLoadMore}
+					onEndReachedThreshold={0.5}
+					ListFooterComponent={renderFooter}
+					contentContainerStyle={{
+						paddingTop: insets.top > 0 ? insets.top : 0,
+						paddingBottom: insets.bottom > 0 ? insets.bottom : 0,
+						flexGrow: sortedMessages.length === 0 ? 1 : 0,
+					}}
+					keyboardShouldPersistTaps="handled"
+					removeClippedSubviews={true}
+					maxToRenderPerBatch={10}
+					windowSize={10}
+					initialNumToRender={20}
+					getItemLayout={(data, index) => ({
+						length: 80, // Altura estimada de cada mensagem
+						offset: 80 * index,
+						index,
+					})}
+					onScrollToIndexFailed={(info) => {
+						// Fallback se scrollToIndex falhar
+						setTimeout(() => {
+							flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+						}, 100);
+					}}
+					ListEmptyComponent={
+						!isLoading ? (
+							<EmptyContainer>
+								<EmptyText>{t("chat.noMessages")}</EmptyText>
+							</EmptyContainer>
+						) : null
+					}
+				/>
+			</MessagesListContainer>
 
 			<InputContainer bottomInset={insets.bottom} keyboardHeight={0}>
 				<TextInput
