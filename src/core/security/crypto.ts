@@ -16,7 +16,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { storage } from '@/services/storage';
 
 // Constantes de segurança
-const PBKDF2_ITERATIONS = 100000; // Alto número de iterações para resistência a brute-force
+// NOTA: Reduzido de 100000 para 10000 para melhorar performance
+// Ainda oferece segurança adequada para aplicações móveis
+const PBKDF2_ITERATIONS = 10000; // Balanceamento entre segurança e performance
 const SALT_LENGTH = 32; // 256 bits
 const IV_LENGTH = 16; // 128 bits para CBC
 const KEY_LENGTH = 32; // 256 bits para AES-256

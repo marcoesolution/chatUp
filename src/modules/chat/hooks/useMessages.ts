@@ -257,10 +257,11 @@ export function useMessages(contactId: string) {
 			let encryptedText: string;
 
 			try {
+				// Timeout reduzido para 10 segundos (após otimização do PBKDF2)
 				encryptedText = await Promise.race([
 					encryptMessage(plaintext, chatId, currentUserId),
 					new Promise<string>((_, reject) =>
-						setTimeout(() => reject(new Error("Timeout: Criptografia demorou mais de 30 segundos")), 30000)
+						setTimeout(() => reject(new Error("Timeout: Criptografia demorou mais de 10 segundos")), 10000)
 					),
 				]);
 			} catch (encryptError) {
