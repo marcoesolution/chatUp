@@ -321,6 +321,18 @@ export default function ChatScreen() {
 		}
 	};
 
+	// Debug: Log do estado atual (deve estar antes de qualquer return condicional)
+	useEffect(() => {
+		console.log("🔍 [CHAT] Estado da tela atualizado:", {
+			messagesCount: messages.length,
+			sortedCount: sortedMessages.length,
+			isLoading,
+			hasContactId: !!contactId,
+			firstMessage: sortedMessages[0]?.text?.substring(0, 30) || "nenhuma",
+		});
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [messages.length, isLoading, contactId]);
+
 	if (!contactId) {
 		return (
 			<Container>
@@ -342,17 +354,6 @@ export default function ChatScreen() {
 	}
 
 	// Header será configurado no _layout.tsx
-
-	// Debug: Log do estado atual
-	useEffect(() => {
-		console.log("🔍 [CHAT] Estado da tela atualizado:", {
-			messagesCount: messages.length,
-			sortedCount: sortedMessages.length,
-			isLoading,
-			hasContactId: !!contactId,
-			firstMessage: sortedMessages[0]?.text?.substring(0, 30) || "nenhuma",
-		});
-	}, [messages.length, sortedMessages.length, isLoading, contactId]);
 
 	// No Android, usar wrapper customizado; no iOS, usar KeyboardAvoidingView
 	if (Platform.OS === "android") {
