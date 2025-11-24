@@ -268,15 +268,6 @@ async function encryptAES(
 	// Gerar tag de autenticação (HMAC do ciphertext)
 	const tag = await hmacSha256(key, ciphertext.buffer);
 	
-	console.log('🔐 [AES-ENCRYPT] Operação de criptografia concluída', {
-		algorithm: 'XOR-with-HMAC-key',
-		plaintextBytes: plaintextBytes.length,
-		ciphertextBytes: ciphertext.length,
-		tagBytes: tag.byteLength,
-		ivBytes: iv.byteLength,
-		keyBytes: key.byteLength,
-	});
-	
 	return {
 		ciphertext: arrayBufferToBase64(ciphertext.buffer),
 		tag: arrayBufferToBase64(tag),
@@ -295,11 +286,6 @@ async function decryptAES(
 	const ciphertextBuffer = base64ToArrayBuffer(ciphertext);
 	const tagBuffer = base64ToArrayBuffer(tag);
 	
-	console.log('🔍 [AES-DECRYPT] Verificando autenticidade da mensagem', {
-		ciphertextBytes: ciphertextBuffer.byteLength,
-		tagBytes: tagBuffer.byteLength,
-	});
-	
 	// Verificar tag de autenticação primeiro
 	const computedTag = await hmacSha256(key, ciphertextBuffer);
 	const computedTagBytes = new Uint8Array(computedTag);
@@ -309,14 +295,8 @@ async function decryptAES(
 	const tagValid = constantTimeEquals(computedTagBytes, providedTagBytes);
 	
 	if (!tagValid) {
-		console.error('❌ [AES-DECRYPT] Verificação de tag HMAC falhou', {
-			computedTagPreview: arrayBufferToBase64(computedTag).substring(0, 16) + '...',
-			providedTagPreview: tag.substring(0, 16) + '...',
-		});
 		throw new Error('Autenticação falhou: tag inválida - mensagem pode ter sido alterada');
 	}
-	
-	console.log('✅ [AES-DECRYPT] Tag HMAC verificada com sucesso - mensagem autêntica');
 	
 	// Descriptografar
 	const encryptionKey = await hmacSha256(key, iv);
@@ -326,12 +306,6 @@ async function decryptAES(
 	for (let i = 0; i < plaintext.length; i++) {
 		plaintext[i] = new Uint8Array(ciphertextBuffer)[i] ^ encryptionKeyBytes[i % encryptionKeyBytes.length];
 	}
-	
-	console.log('✅ [AES-DECRYPT] Descriptografia concluída', {
-		algorithm: 'XOR-with-HMAC-key',
-		ciphertextBytes: ciphertextBuffer.byteLength,
-		decryptedBytes: plaintext.length,
-	});
 	
 	return arrayBufferToString(plaintext.buffer);
 }
@@ -395,22 +369,10 @@ async function getOrCreateChatKey(chatId: string, userId: string): Promise<Array
 	const storedKey = await storage.getItem<string>(storageKey);
 	if (storedKey) {
 		const key = base64ToArrayBuffer(storedKey);
-		const keyHashHex = await sha256(arrayBufferToBase64(key));
-		console.log('🔑 [CRYPTO] Chave recuperada do armazenamento', {
-			chatId: chatId.substring(0, 8) + '...',
-			userId: userId.substring(0, 8) + '...',
-			keyHash: `0x${keyHashHex.substring(0, 16)}`,
-			keyLength: key.byteLength,
-		});
 		return key;
 	}
 	
 	// Gerar nova chave compartilhada
-	console.log('🔐 [CRYPTO] Gerando nova chave para o chat', {
-		chatId: chatId.substring(0, 8) + '...',
-		userId: userId.substring(0, 8) + '...',
-	});
-	
 	// A chave é derivada apenas do chatId para garantir que ambos os usuários
 	// gerem a mesma chave quando acessarem o chat
 	const chatHash = await generateChatHash(chatId);
@@ -423,21 +385,7 @@ async function getOrCreateChatKey(chatId: string, userId: string): Promise<Array
 	// Usar chatHash como password para PBKDF2
 	// Isso garante que ambos os usuários gerem a mesma chave
 	const password = chatHash;
-	
-	const startTime = Date.now();
 	const key = await pbkdf2(password, salt, PBKDF2_ITERATIONS, KEY_LENGTH);
-	const derivationTime = Date.now() - startTime;
-	
-	const keyHashHex = await sha256(arrayBufferToBase64(key));
-	
-	console.log('✅ [CRYPTO] Chave gerada com sucesso', {
-		chatId: chatId.substring(0, 8) + '...',
-		keyHash: `0x${keyHashHex.substring(0, 16)}`,
-		keyLength: key.byteLength,
-		saltLength: salt.length,
-		derivationTime: `${derivationTime}ms`,
-		pbkdf2Iterations: PBKDF2_ITERATIONS,
-	});
 	
 	// Armazenar chave (será a mesma para ambos os usuários)
 	await storage.setItem(storageKey, arrayBufferToBase64(key));
@@ -454,16 +402,7 @@ export async function encryptMessage(
 	chatId: string,
 	userId: string
 ): Promise<string> {
-	const startTime = Date.now();
-	
 	try {
-		console.log('🔒 [ENCRYPT] Iniciando criptografia de mensagem', {
-			chatId: chatId.substring(0, 8) + '...',
-			userId: userId.substring(0, 8) + '...',
-			plaintextLength: plaintext.length,
-			plaintextPreview: plaintext.substring(0, 50) + (plaintext.length > 50 ? '...' : ''),
-		});
-		
 		// Validar entrada
 		if (!plaintext || !plaintext.trim()) {
 			throw new Error('Mensagem não pode estar vazia');
@@ -475,30 +414,13 @@ export async function encryptMessage(
 		
 		// Obter chave do chat
 		const key = await getOrCreateChatKey(chatId, userId);
-		const keyHashHex = await sha256(arrayBufferToBase64(key));
 		
 		// Gerar IV único para esta mensagem
 		const ivBase64 = await generateIV();
 		const iv = base64ToArrayBuffer(ivBase64);
 		
-		console.log('🔐 [ENCRYPT] Chave e IV preparados', {
-			keyHash: `0x${keyHashHex.substring(0, 16)}`,
-			ivLength: iv.byteLength,
-			ivPreview: ivBase64.substring(0, 16) + '...',
-		});
-		
 		// Criptografar mensagem
-		const encryptStartTime = Date.now();
 		const { ciphertext, tag } = await encryptAES(plaintext, key, iv);
-		const encryptTime = Date.now() - encryptStartTime;
-		
-		console.log('✅ [ENCRYPT] Mensagem criptografada', {
-			ciphertextLength: ciphertext.length,
-			ciphertextPreview: ciphertext.substring(0, 32) + '...',
-			tagLength: tag.length,
-			tagPreview: tag.substring(0, 16) + '...',
-			encryptTime: `${encryptTime}ms`,
-		});
 		
 		// Criar payload criptografado
 		const payload = {
@@ -514,45 +436,11 @@ export async function encryptMessage(
 		const obfuscated = obfuscate(encoded);
 		
 		const finalResult = ENCRYPTED_PREFIX + obfuscated;
-		const totalTime = Date.now() - startTime;
-		
-		// Log específico para demonstrar criptografia
-		console.log('\n' + '='.repeat(80));
-		console.log('🔐 DEMONSTRAÇÃO DE CRIPTOGRAFIA - MENSAGEM SEGURA');
-		console.log('='.repeat(80));
-		console.log('📝 MENSAGEM ORIGINAL (Plaintext):');
-		console.log('   "' + plaintext + '"');
-		console.log('   Tamanho: ' + plaintext.length + ' caracteres');
-		console.log('');
-		console.log('🔒 MENSAGEM CRIPTOGRAFADA (Ciphertext - será armazenada no Firestore):');
-		console.log('   ' + finalResult.substring(0, 100) + (finalResult.length > 100 ? '...' : ''));
-		console.log('   Tamanho: ' + finalResult.length + ' caracteres');
-		console.log('   Prefixo de segurança: ' + ENCRYPTED_PREFIX);
-		console.log('');
-		console.log('✅ VERIFICAÇÃO:');
-		console.log('   ✓ Mensagens são DIFERENTES (criptografia funcionando)');
-		console.log('   ✓ Mensagem original NÃO pode ser lida no Firestore');
-		console.log('   ✓ Apenas quem tem a chave pode descriptografar');
-		console.log('   ✓ Tempo de criptografia: ' + totalTime + 'ms');
-		console.log('='.repeat(80) + '\n');
-		
-		console.log('🎯 [ENCRYPT] Criptografia concluída', {
-			originalLength: plaintext.length,
-			encryptedLength: finalResult.length,
-			expansionRatio: (finalResult.length / plaintext.length).toFixed(2) + 'x',
-			totalTime: `${totalTime}ms`,
-			hasPrefix: finalResult.startsWith(ENCRYPTED_PREFIX),
-		});
 		
 		// Retornar com prefixo
 		return finalResult;
 	} catch (error) {
-		const totalTime = Date.now() - startTime;
-		console.error('❌ [ENCRYPT] Erro ao criptografar mensagem', {
-			error: error instanceof Error ? error.message : String(error),
-			totalTime: `${totalTime}ms`,
-			chatId: chatId.substring(0, 8) + '...',
-		});
+		console.error('Erro ao criptografar mensagem:', error);
 		throw new Error('Falha ao criptografar mensagem');
 	}
 }
@@ -565,21 +453,9 @@ export async function decryptMessage(
 	chatId: string,
 	userId: string
 ): Promise<string> {
-	const startTime = Date.now();
-	
 	try {
-		console.log('🔓 [DECRYPT] Iniciando descriptografia de mensagem', {
-			chatId: chatId.substring(0, 8) + '...',
-			userId: userId.substring(0, 8) + '...',
-			encryptedLength: encryptedText.length,
-			hasPrefix: encryptedText.startsWith(ENCRYPTED_PREFIX),
-		});
-		
 		// Verificar se é uma mensagem criptografada
 		if (!encryptedText.startsWith(ENCRYPTED_PREFIX)) {
-			console.log('⚠️ [DECRYPT] Mensagem não criptografada (compatibilidade com mensagens antigas)', {
-				textPreview: encryptedText.substring(0, 50) + (encryptedText.length > 50 ? '...' : ''),
-			});
 			// Se não começar com o prefixo, pode ser uma mensagem antiga não criptografada
 			// Retornar como está (para compatibilidade com mensagens antigas)
 			return encryptedText;
@@ -589,21 +465,8 @@ export async function decryptMessage(
 		const withoutPrefix = encryptedText.substring(ENCRYPTED_PREFIX.length);
 		const deobfuscated = deobfuscate(withoutPrefix);
 		
-		console.log('🔍 [DECRYPT] Payload desofuscado', {
-			obfuscatedLength: withoutPrefix.length,
-			deobfuscatedLength: deobfuscated.length,
-		});
-		
 		// Decodificar payload
 		const payload = JSON.parse(deobfuscated);
-		
-		console.log('📦 [DECRYPT] Payload decodificado', {
-			version: payload.v,
-			timestamp: payload.t ? new Date(payload.t).toISOString() : 'N/A',
-			ivLength: payload.iv?.length || 0,
-			ciphertextLength: payload.ciphertext?.length || 0,
-			tagLength: payload.tag?.length || 0,
-		});
 		
 		// Validar versão
 		if (payload.v !== '1') {
@@ -612,65 +475,21 @@ export async function decryptMessage(
 		
 		// Obter chave do chat
 		const key = await getOrCreateChatKey(chatId, userId);
-		const keyHashHex = await sha256(arrayBufferToBase64(key));
 		
 		// Converter IV
 		const iv = base64ToArrayBuffer(payload.iv);
 		
-		console.log('🔐 [DECRYPT] Chave e IV preparados para descriptografia', {
-			keyHash: `0x${keyHashHex.substring(0, 16)}`,
-			ivLength: iv.byteLength,
-			ivPreview: payload.iv.substring(0, 16) + '...',
-		});
-		
 		// Descriptografar
-		const decryptStartTime = Date.now();
 		const plaintext = await decryptAES(
 			payload.ciphertext,
 			key,
 			iv,
 			payload.tag
 		);
-		const decryptTime = Date.now() - decryptStartTime;
-		
-		const totalTime = Date.now() - startTime;
-		
-		// Log específico para demonstrar descriptografia
-		console.log('\n' + '='.repeat(80));
-		console.log('🔓 DEMONSTRAÇÃO DE DESCRIPTOGRAFIA - MENSAGEM RECUPERADA');
-		console.log('='.repeat(80));
-		console.log('🔒 MENSAGEM CRIPTOGRAFADA (recebida do Firestore):');
-		console.log('   ' + encryptedText.substring(0, 100) + (encryptedText.length > 100 ? '...' : ''));
-		console.log('   Tamanho: ' + encryptedText.length + ' caracteres');
-		console.log('');
-		console.log('📝 MENSAGEM DESCRIPTOGRAFADA (Plaintext - exibida para o usuário):');
-		console.log('   "' + plaintext + '"');
-		console.log('   Tamanho: ' + plaintext.length + ' caracteres');
-		console.log('');
-		console.log('✅ VERIFICAÇÃO:');
-		console.log('   ✓ Mensagem descriptografada com SUCESSO');
-		console.log('   ✓ Integridade verificada (HMAC válido)');
-		console.log('   ✓ Mensagem não foi alterada ou corrompida');
-		console.log('   ✓ Tempo de descriptografia: ' + totalTime + 'ms');
-		console.log('='.repeat(80) + '\n');
-		
-		console.log('✅ [DECRYPT] Mensagem descriptografada com sucesso', {
-			plaintextLength: plaintext.length,
-			plaintextPreview: plaintext.substring(0, 50) + (plaintext.length > 50 ? '...' : ''),
-			decryptTime: `${decryptTime}ms`,
-			totalTime: `${totalTime}ms`,
-		});
 		
 		return plaintext;
 	} catch (error) {
-		const totalTime = Date.now() - startTime;
-		console.error('❌ [DECRYPT] Erro ao descriptografar mensagem', {
-			error: error instanceof Error ? error.message : String(error),
-			errorStack: error instanceof Error ? error.stack : undefined,
-			totalTime: `${totalTime}ms`,
-			chatId: chatId.substring(0, 8) + '...',
-			encryptedPreview: encryptedText.substring(0, 100) + '...',
-		});
+		console.error('Erro ao descriptografar mensagem:', error);
 		// Se falhar, retornar o texto original (pode ser mensagem antiga)
 		// Em produção, você pode querer lançar o erro ou retornar um placeholder
 		return encryptedText;
@@ -731,7 +550,6 @@ export async function clearAllKeys(): Promise<void> {
 			key.startsWith('chat_key_') || key.endsWith('_salt')
 		);
 		await Promise.all(chatKeys.map(key => AsyncStorage.removeItem(key)));
-		console.log(`✅ ${chatKeys.length} chave(s) de criptografia removida(s)`);
 	} catch (error) {
 		console.error('Erro ao limpar chaves:', error);
 		throw error;

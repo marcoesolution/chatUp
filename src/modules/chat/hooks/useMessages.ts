@@ -46,11 +46,6 @@ export function useMessages(contactId: string) {
 
 	useEffect(() => {
 		if (!firebaseUser || !contactId || !db) {
-			console.log("⚠️ useMessages: Condições não atendidas", {
-				hasFirebaseUser: !!firebaseUser,
-				contactId,
-				hasDb: !!db,
-			});
 			setIsLoading(false);
 			return;
 		}
@@ -59,12 +54,6 @@ export function useMessages(contactId: string) {
 		const chatId = generateChatId(currentUserId, contactId);
 		chatIdRef.current = chatId;
 		const firestoreDb = db; // Variável local para garantir tipo não-null
-
-		console.log("🔍 useMessages: Configurando listener", {
-			currentUserId,
-			contactId,
-			chatId,
-		});
 
 		// Query para mensagens (sem orderBy para evitar necessidade de índice composto)
 		// Ordenaremos manualmente no cliente e limitaremos a quantidade
@@ -80,91 +69,64 @@ export function useMessages(contactId: string) {
 		const unsubscribe = onSnapshot(
 			messagesQuery,
 			async (snapshot) => {
-				console.log("📨 useMessages: Snapshot recebido", {
-					size: snapshot.size,
-					empty: snapshot.empty,
-				});
+				// Processar mensagens e descriptografar de forma assíncrona para não bloquear UI
 
-				const messagesData: Message[] = [];
+				// Processar todas as mensagens de uma vez, mas de forma assíncrona
+				// Isso permite que a UI continue responsiva
+				(async () => {
+					const messagesData: Message[] = [];
 
-				// Processar mensagens e descriptografar
-				console.log("📥 [RECEIVE-MESSAGES] Processando mensagens recebidas", {
-					totalMessages: snapshot.docs.length,
-					chatId: chatId.substring(0, 8) + "...",
-					currentUserId: currentUserId.substring(0, 8) + "...",
-				});
+					for (const docSnapshot of snapshot.docs) {
+						const data = docSnapshot.data();
 
-				for (const docSnapshot of snapshot.docs) {
-					const data = docSnapshot.data();
-
-					console.log("📨 [RECEIVE-MESSAGE] Processando mensagem individual", {
-						messageId: docSnapshot.id.substring(0, 8) + "...",
-						senderId: data.senderId?.substring(0, 8) + "...",
-						receiverId: data.receiverId?.substring(0, 8) + "...",
-						isEncrypted: data.text?.startsWith("ENC:") || false,
-						textLength: data.text?.length || 0,
-					});
-
-					// Tentar descriptografar a mensagem
-					let decryptedText = data.text;
-					try {
-						// Descriptografar usando a chave do usuário atual
-						// A mensagem foi criptografada pelo remetente, então precisamos
-						// descriptografar usando a chave do chat do ponto de vista do usuário atual
-						decryptedText = await decryptMessage(data.text, chatId, currentUserId);
-						console.log("✅ [RECEIVE-MESSAGE] Mensagem processada com sucesso", {
-							messageId: docSnapshot.id.substring(0, 8) + "...",
-							wasEncrypted: data.text?.startsWith("ENC:") || false,
-							decryptedLength: decryptedText.length,
-						});
-					} catch (error) {
-						console.warn("⚠️ [RECEIVE-MESSAGE] Erro ao descriptografar mensagem, usando texto original", {
-							messageId: docSnapshot.id.substring(0, 8) + "...",
-							error: error instanceof Error ? error.message : String(error),
-							fallbackToOriginal: true,
-						});
-						// Se falhar, usar o texto original (pode ser mensagem antiga não criptografada)
-					}
-
-					// Converter viewedAt de Timestamp para Date se existir
-					let viewedAt: Date | null = null;
-					if (data.viewedAt) {
-						if (data.viewedAt.toDate) {
-							viewedAt = data.viewedAt.toDate();
-						} else if (data.viewedAt instanceof Date) {
-							viewedAt = data.viewedAt;
+						// Tentar descriptografar a mensagem
+						let decryptedText = data.text;
+						try {
+							// Descriptografar usando a chave do usuário atual
+							decryptedText = await decryptMessage(data.text, chatId, currentUserId);
+						} catch (error) {
+							// Se falhar, usar o texto original (pode ser mensagem antiga não criptografada)
 						}
+
+						// Converter viewedAt de Timestamp para Date se existir
+						let viewedAt: Date | null = null;
+						if (data.viewedAt) {
+							if (data.viewedAt.toDate) {
+								viewedAt = data.viewedAt.toDate();
+							} else if (data.viewedAt instanceof Date) {
+								viewedAt = data.viewedAt;
+							}
+						}
+
+						messagesData.push({
+							id: docSnapshot.id,
+							chatId: data.chatId,
+							senderId: data.senderId,
+							receiverId: data.receiverId,
+							text: decryptedText,
+							timestamp: data.timestamp?.toDate() || new Date(),
+							read: data.read || false,
+							viewedAt: viewedAt || null,
+							createdAt: data.createdAt,
+							updatedAt: data.updatedAt,
+						});
 					}
 
-					messagesData.push({
-						id: docSnapshot.id,
-						chatId: data.chatId,
-						senderId: data.senderId,
-						receiverId: data.receiverId,
-						text: decryptedText,
-						timestamp: data.timestamp?.toDate() || new Date(),
-						read: data.read || false,
-						viewedAt: viewedAt || null,
-						createdAt: data.createdAt,
-						updatedAt: data.updatedAt,
-					});
-				}
+					// Ordenar manualmente por timestamp (mais antigas primeiro)
+					messagesData.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
 
-				// Ordenar manualmente por timestamp (mais antigas primeiro)
-				messagesData.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+					// Guardar referência da última mensagem para paginação
+					if (snapshot.docs.length > 0) {
+						lastMessageRef.current = snapshot.docs[snapshot.docs.length - 1];
+						setHasMore(snapshot.docs.length === MESSAGES_PER_PAGE);
+					} else {
+						setHasMore(false);
+					}
 
-				// Guardar referência da última mensagem para paginação
-				if (snapshot.docs.length > 0) {
-					lastMessageRef.current = snapshot.docs[snapshot.docs.length - 1];
-					setHasMore(snapshot.docs.length === MESSAGES_PER_PAGE);
-				} else {
-					setHasMore(false);
-				}
-
-				console.log("✅ useMessages: Mensagens processadas", messagesData.length);
-				setMessages(messagesData);
-				setIsLoading(false);
-				setError(null);
+					setMessages(messagesData);
+					setIsLoading(false);
+					setError(null);
+				})();
 			},
 			(err) => {
 				console.error("❌ Erro ao buscar mensagens:", err);
@@ -176,11 +138,10 @@ export function useMessages(contactId: string) {
 		// Marcar mensagens como lidas quando o usuário visualiza o chat
 		// Fazer isso de forma assíncrona sem bloquear a renderização
 		const markAsRead = async () => {
-			const firestoreDb = db;
-			if (!firestoreDb) {
-				console.warn("⚠️ Firestore não está disponível para marcar mensagens como lidas");
-				return;
-			}
+		const firestoreDb = db;
+		if (!firestoreDb) {
+			return;
+		}
 
 			try {
 				// Buscar mensagens não lidas do usuário atual neste chat
@@ -194,7 +155,6 @@ export function useMessages(contactId: string) {
 				const unreadSnapshot = await getDocs(unreadQuery);
 
 				if (unreadSnapshot.empty) {
-					console.log("📖 Nenhuma mensagem não lida para marcar");
 					return;
 				}
 
@@ -207,12 +167,9 @@ export function useMessages(contactId: string) {
 				);
 
 				await Promise.all(updatePromises);
-				console.log(`✅ ${unreadSnapshot.size} mensagem(ns) marcada(s) como lida(s)`);
 			} catch (err: any) {
-				// Se o erro for de índice faltando, apenas logar (não é crítico)
-				if (err.code === "failed-precondition") {
-					console.warn("⚠️ Índice composto necessário para marcar como lida. Não é crítico.");
-				} else {
+				// Se o erro for de índice faltando, ignorar (não é crítico)
+				if (err.code !== "failed-precondition") {
 					console.error("Erro ao marcar mensagens como lidas:", err);
 				}
 			}
@@ -269,16 +226,13 @@ export function useMessages(contactId: string) {
 				})
 			);
 
-			await Promise.all(updatePromises);
-			console.log(`👁️ ${unviewedMessages.length} mensagem(ns) marcada(s) como visualizada(s)`);
-		} catch (err: any) {
-			// Se o erro for de índice faltando, apenas logar (não é crítico)
-			if (err.code === "failed-precondition") {
-				console.warn("⚠️ Índice composto necessário para marcar como visualizada. Não é crítico.");
-			} else {
-				console.error("Erro ao marcar mensagens como visualizadas:", err);
+				await Promise.all(updatePromises);
+			} catch (err: any) {
+				// Se o erro for de índice faltando, ignorar (não é crítico)
+				if (err.code !== "failed-precondition") {
+					console.error("Erro ao marcar mensagens como visualizadas:", err);
+				}
 			}
-		}
 	};
 
 	/**
@@ -302,27 +256,18 @@ export function useMessages(contactId: string) {
 			const plaintext = messageData.text.trim();
 			let encryptedText: string;
 
-			console.log("📤 [SEND-MESSAGE] Preparando mensagem para envio", {
-				chatId: chatId.substring(0, 8) + "...",
-				senderId: currentUserId.substring(0, 8) + "...",
-				receiverId: messageData.receiverId.substring(0, 8) + "...",
-				plaintextLength: plaintext.length,
-				plaintextPreview: plaintext.substring(0, 50) + (plaintext.length > 50 ? "..." : ""),
-			});
-
 			try {
-				encryptedText = await encryptMessage(plaintext, chatId, currentUserId);
-				console.log("✅ [SEND-MESSAGE] Mensagem criptografada com sucesso", {
-					originalLength: plaintext.length,
-					encryptedLength: encryptedText.length,
-					willBeStored: true,
-				});
+				encryptedText = await Promise.race([
+					encryptMessage(plaintext, chatId, currentUserId),
+					new Promise<string>((_, reject) =>
+						setTimeout(() => reject(new Error("Timeout: Criptografia demorou mais de 30 segundos")), 30000)
+					),
+				]);
 			} catch (encryptError) {
-				console.error("❌ [SEND-MESSAGE] Erro ao criptografar mensagem:", encryptError);
+				console.error("Erro ao criptografar mensagem:", encryptError);
 				// Se a criptografia falhar, ainda podemos enviar a mensagem não criptografada
 				// (para compatibilidade, mas em produção você pode querer falhar aqui)
 				encryptedText = plaintext;
-				console.warn("⚠️ [SEND-MESSAGE] Enviando mensagem sem criptografia (fallback)");
 			}
 
 			const newMessage = {
@@ -339,28 +284,6 @@ export function useMessages(contactId: string) {
 
 			await addDoc(collection(firestoreDb, "messages"), newMessage);
 
-			// Log específico mostrando o que foi armazenado no Firestore
-			console.log("\n" + "=".repeat(80));
-			console.log("💾 ARMAZENAMENTO NO FIRESTORE - MENSAGEM SEGURA");
-			console.log("=".repeat(80));
-			console.log("📤 Mensagem enviada pelo usuário:");
-			console.log('   "' + plaintext + '"');
-			console.log("");
-			console.log("🔒 O que foi ARMAZENADO no Firestore (criptografado):");
-			console.log("   " + encryptedText.substring(0, 120) + (encryptedText.length > 120 ? "..." : ""));
-			console.log("");
-			console.log("✅ SEGURANÇA GARANTIDA:");
-			console.log("   ✓ Firestore NÃO consegue ler o conteúdo da mensagem");
-			console.log("   ✓ Apenas texto criptografado está armazenado");
-			console.log("   ✓ Mesmo com acesso ao banco, mensagem está protegida");
-			console.log("=".repeat(80) + "\n");
-
-			console.log("✅ [SEND-MESSAGE] Mensagem enviada e armazenada no Firestore", {
-				chatId: chatId.substring(0, 8) + "...",
-				messageId: "pending",
-				isEncrypted: encryptedText.startsWith("ENC:"),
-				storedTextLength: encryptedText.length,
-			});
 
 			// Atualizar última mensagem do chat (opcional, pode ser feito via Cloud Function)
 			// Por enquanto, vamos apenas enviar a mensagem
@@ -405,7 +328,6 @@ export function useMessages(contactId: string) {
 				);
 			} catch (err: any) {
 				// Se o índice não existir, não podemos fazer paginação eficiente
-				console.warn("⚠️ Índice composto necessário para paginação. Criando índice no Firestore Console.");
 				setHasMore(false);
 				setIsLoadingMore(false);
 				return;
@@ -462,8 +384,6 @@ export function useMessages(contactId: string) {
 			// Atualizar referência e hasMore
 			lastMessageRef.current = snapshot.docs[snapshot.docs.length - 1];
 			setHasMore(snapshot.docs.length === MESSAGES_PER_PAGE);
-
-			console.log(`✅ Carregadas ${olderMessages.length} mensagens antigas`);
 		} catch (err: any) {
 			console.error("Erro ao carregar mais mensagens:", err);
 			setError("Erro ao carregar mais mensagens");
