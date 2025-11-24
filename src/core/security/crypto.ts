@@ -1,12 +1,16 @@
 /**
  * Módulo de Criptografia para Mensagens do Chat
  * 
- * Implementa múltiplas camadas de segurança:
- * 1. Criptografia End-to-End (E2E) com AES-256-CBC (simulado)
+ * Implementa criptografia End-to-End (E2E) simplificada para desenvolvimento:
+ * 1. Criptografia simétrica usando XOR com chave derivada (simulado AES)
  * 2. Derivação de chaves únicas por chat usando PBKDF2 (simulado)
  * 3. Autenticação de mensagens com HMAC-SHA256
- * 4. Obfuscação adicional para dificultar análise
- * 5. Armazenamento seguro de chaves
+ * 4. Armazenamento seguro de chaves
+ * 
+ * NOTA: Versão simplificada para desenvolvimento inicial
+ * - Sem ofuscação adicional (facilita debug)
+ * - PBKDF2 com menos iterações (1000 vs 10000+)
+ * - Formato de payload simplificado (base64 JSON)
  * 
  * Usa apenas expo-crypto e APIs JavaScript nativas (sem módulos nativos)
  */
@@ -16,9 +20,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { storage } from '@/services/storage';
 
 // Constantes de segurança
-// NOTA: Reduzido de 100000 para 10000 para melhorar performance
-// Ainda oferece segurança adequada para aplicações móveis
-const PBKDF2_ITERATIONS = 10000; // Balanceamento entre segurança e performance
+// NOTA: Reduzido para desenvolvimento inicial - aumentar em produção
+const PBKDF2_ITERATIONS = 1000; // Reduzido para desenvolvimento (aumentar para 10000+ em produção)
 const SALT_LENGTH = 32; // 256 bits
 const IV_LENGTH = 16; // 128 bits para CBC
 const KEY_LENGTH = 32; // 256 bits para AES-256
@@ -329,22 +332,28 @@ function constantTimeEquals(a: Uint8Array, b: Uint8Array): boolean {
 }
 
 /**
- * Obfuscação adicional para dificultar análise
+ * Codifica payload para base64 (simplificado para desenvolvimento)
+ * Usa arrayBufferToBase64 para compatibilidade com React Native
  */
-function obfuscate(data: string): string {
-	// Adiciona padding aleatório e inverte a string
-	const padding = Math.floor(Math.random() * 10) + 1;
-	const padded = '0'.repeat(padding) + data;
-	return padded.split('').reverse().join('');
+function encodePayload(payload: any): string {
+	const json = JSON.stringify(payload);
+	const jsonBuffer = stringToArrayBuffer(json);
+	return arrayBufferToBase64(jsonBuffer);
 }
 
 /**
- * Remove ofuscação
+ * Decodifica payload de base64 (simplificado para desenvolvimento)
+ * Usa base64ToArrayBuffer para compatibilidade com React Native
  */
-function deobfuscate(data: string): string {
-	const reversed = data.split('').reverse().join('');
-	// Remove padding (zeros no início)
-	return reversed.replace(/^0+/, '');
+function decodePayload(encoded: string): any {
+	try {
+		const jsonBuffer = base64ToArrayBuffer(encoded);
+		const json = arrayBufferToString(jsonBuffer);
+		return JSON.parse(json);
+	} catch (error) {
+		console.error('❌ Erro ao decodificar payload:', error);
+		throw new Error('Payload inválido');
+	}
 }
 
 /**
@@ -363,37 +372,63 @@ async function generateChatHash(chatId: string): Promise<string> {
  * (baseada apenas no chatId), permitindo E2E encryption
  */
 async function getOrCreateChatKey(chatId: string, userId: string): Promise<ArrayBuffer> {
-	// Usar apenas chatId para a chave de armazenamento
-	// Isso garante que ambos os usuários compartilhem a mesma chave
-	const storageKey = `chat_key_${chatId}`;
-	
-	// Tentar recuperar chave existente
-	const storedKey = await storage.getItem<string>(storageKey);
-	if (storedKey) {
-		const key = base64ToArrayBuffer(storedKey);
+	try {
+		// Usar apenas chatId para a chave de armazenamento
+		// Isso garante que ambos os usuários compartilhem a mesma chave
+		const storageKey = `chat_key_${chatId}`;
+		
+		// Tentar recuperar chave existente
+		const storedKey = await storage.getItem<string>(storageKey);
+		if (storedKey) {
+			try {
+				const key = base64ToArrayBuffer(storedKey);
+				// Validar tamanho da chave
+				if (key.byteLength !== KEY_LENGTH) {
+					console.warn(`⚠️ Chave armazenada tem tamanho incorreto (${key.byteLength} bytes, esperado ${KEY_LENGTH}). Regenerando...`);
+					// Remover chave inválida e regenerar
+					await storage.removeItem(storageKey);
+					await storage.removeItem(`${storageKey}_salt`);
+				} else {
+					return key;
+				}
+			} catch (keyError) {
+				console.error('❌ Erro ao recuperar chave armazenada:', keyError);
+				// Remover chave corrompida e regenerar
+				await storage.removeItem(storageKey);
+				await storage.removeItem(`${storageKey}_salt`);
+			}
+		}
+		
+		// Gerar nova chave compartilhada
+		// A chave é derivada apenas do chatId para garantir que ambos os usuários
+		// gerem a mesma chave quando acessarem o chat
+		const chatHash = await generateChatHash(chatId);
+		
+		// Usar um salt fixo baseado no chatId (garante consistência)
+		const saltHash = await sha256(`salt_${chatId}`);
+		const saltBuffer = hexToArrayBuffer(saltHash);
+		const salt = arrayBufferToBase64(saltBuffer);
+		
+		// Usar chatHash como password para PBKDF2
+		// Isso garante que ambos os usuários gerem a mesma chave
+		const password = chatHash;
+		const key = await pbkdf2(password, salt, PBKDF2_ITERATIONS, KEY_LENGTH);
+		
+		// Validar tamanho da chave gerada
+		if (key.byteLength !== KEY_LENGTH) {
+			throw new Error(`Chave gerada tem tamanho incorreto: ${key.byteLength} bytes (esperado ${KEY_LENGTH})`);
+		}
+		
+		// Armazenar chave (será a mesma para ambos os usuários)
+		await storage.setItem(storageKey, arrayBufferToBase64(key));
+		await storage.setItem(`${storageKey}_salt`, salt);
+		
 		return key;
+	} catch (error) {
+		console.error('❌ Erro ao obter/criar chave do chat:', error);
+		console.error('ChatId:', chatId, 'UserId:', userId);
+		throw error;
 	}
-	
-	// Gerar nova chave compartilhada
-	// A chave é derivada apenas do chatId para garantir que ambos os usuários
-	// gerem a mesma chave quando acessarem o chat
-	const chatHash = await generateChatHash(chatId);
-	
-	// Usar um salt fixo baseado no chatId (garante consistência)
-	const saltHash = await sha256(`salt_${chatId}`);
-	const saltBuffer = hexToArrayBuffer(saltHash);
-	const salt = arrayBufferToBase64(saltBuffer);
-	
-	// Usar chatHash como password para PBKDF2
-	// Isso garante que ambos os usuários gerem a mesma chave
-	const password = chatHash;
-	const key = await pbkdf2(password, salt, PBKDF2_ITERATIONS, KEY_LENGTH);
-	
-	// Armazenar chave (será a mesma para ambos os usuários)
-	await storage.setItem(storageKey, arrayBufferToBase64(key));
-	await storage.setItem(`${storageKey}_salt`, salt);
-	
-	return key;
 }
 
 /**
@@ -429,15 +464,13 @@ export async function encryptMessage(
 			iv: ivBase64,
 			ciphertext,
 			tag,
-			v: '1', // versão do formato de criptografia
-			t: Date.now(), // timestamp para evitar replay attacks
+			v: '2', // versão 2: formato simplificado sem ofuscação
 		};
 		
-		// Codificar e ofuscar
-		const encoded = JSON.stringify(payload);
-		const obfuscated = obfuscate(encoded);
+		// Codificar em base64 (sem ofuscação para facilitar debug)
+		const encoded = encodePayload(payload);
 		
-		const finalResult = ENCRYPTED_PREFIX + obfuscated;
+		const finalResult = ENCRYPTED_PREFIX + encoded;
 		
 		// Retornar com prefixo
 		return finalResult;
@@ -458,28 +491,50 @@ export async function decryptMessage(
 	try {
 		// Verificar se é uma mensagem criptografada
 		if (!encryptedText.startsWith(ENCRYPTED_PREFIX)) {
-			// Se não começar com o prefixo, pode ser uma mensagem antiga não criptografada
-			// Retornar como está (para compatibilidade com mensagens antigas)
+			// Se não começar com o prefixo, retornar como está (mensagem não criptografada)
 			return encryptedText;
 		}
 		
-		// Remover prefixo e desofuscar
+		// Remover prefixo
 		const withoutPrefix = encryptedText.substring(ENCRYPTED_PREFIX.length);
-		const deobfuscated = deobfuscate(withoutPrefix);
+		if (!withoutPrefix || withoutPrefix.length === 0) {
+			throw new Error('Mensagem criptografada vazia após remover prefixo');
+		}
 		
-		// Decodificar payload
-		const payload = JSON.parse(deobfuscated);
+		// Decodificar payload (base64)
+		let payload: any;
+		try {
+			payload = decodePayload(withoutPrefix);
+		} catch (decodeError) {
+			console.error('❌ Erro ao decodificar payload:', decodeError);
+			throw new Error('Payload inválido');
+		}
 		
-		// Validar versão
-		if (payload.v !== '1') {
-			throw new Error(`Versão de criptografia não suportada: ${payload.v}`);
+		// Validar estrutura do payload
+		if (!payload || typeof payload !== 'object') {
+			throw new Error('Payload inválido: não é um objeto');
+		}
+		
+		if (!payload.iv || !payload.ciphertext || !payload.tag) {
+			throw new Error('Payload inválido: campos obrigatórios faltando (iv, ciphertext, tag)');
+		}
+		
+		// Validar versão (suporta versão 2 - simplificada)
+		if (payload.v !== '2') {
+			throw new Error(`Versão de criptografia não suportada: ${payload.v} (esperado: 2)`);
 		}
 		
 		// Obter chave do chat
 		const key = await getOrCreateChatKey(chatId, userId);
 		
 		// Converter IV
-		const iv = base64ToArrayBuffer(payload.iv);
+		let iv: ArrayBuffer;
+		try {
+			iv = base64ToArrayBuffer(payload.iv);
+		} catch (ivError) {
+			console.error('❌ Erro ao converter IV:', ivError);
+			throw new Error('IV inválido');
+		}
 		
 		// Descriptografar
 		const plaintext = await decryptAES(
@@ -490,11 +545,26 @@ export async function decryptMessage(
 		);
 		
 		return plaintext;
-	} catch (error) {
-		console.error('Erro ao descriptografar mensagem:', error);
-		// Se falhar, retornar o texto original (pode ser mensagem antiga)
-		// Em produção, você pode querer lançar o erro ou retornar um placeholder
-		return encryptedText;
+	} catch (error: any) {
+		console.error('❌ Erro ao descriptografar mensagem:', error);
+		console.error('ChatId:', chatId, 'UserId:', userId);
+		console.error('Texto criptografado (primeiros 50 chars):', encryptedText.substring(0, 50));
+		
+		// Se for erro de autenticação (tag inválida), pode ser mensagem corrompida ou chave incorreta
+		if (error.message && error.message.includes('Autenticação falhou')) {
+			console.warn('⚠️ Falha de autenticação - mensagem pode estar corrompida ou chave incorreta');
+			// Retornar placeholder ao invés do texto criptografado
+			return '[Mensagem não pode ser descriptografada]';
+		}
+		
+		// Se for erro de versão, pode ser mensagem antiga com formato diferente
+		if (error.message && error.message.includes('Versão de criptografia não suportada')) {
+			console.warn('⚠️ Versão de criptografia não suportada - mensagem pode ser antiga');
+			return '[Mensagem com formato antigo]';
+		}
+		
+		// Para outros erros, retornar placeholder (não retornar texto criptografado por segurança)
+		return '[Erro ao descriptografar mensagem]';
 	}
 }
 

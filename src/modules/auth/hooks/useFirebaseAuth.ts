@@ -223,9 +223,16 @@ export function useFirebaseAuth() {
 		try {
 			// Buscar o usuário atual do Firebase Auth para preservar o photoURL
 			const currentUser = auth.currentUser;
+			
+			// Buscar perfil existente para preservar dados que não foram alterados
+			const existingProfile = await getUserProfile(userId);
 
 			const profileDoc: any = {
-				...profileData,
+				email: profileData.email.trim(),
+				displayName: profileData.displayName.trim(),
+				// Preservar dados existentes se os novos estiverem vazios
+				phoneNumber: (profileData.phoneNumber?.trim() || existingProfile?.phoneNumber || "").trim(),
+				bio: (profileData.bio?.trim() || existingProfile?.bio || "").trim(),
 				hasProfile: true,
 				updatedAt: serverTimestamp(),
 			};
@@ -239,8 +246,30 @@ export function useFirebaseAuth() {
 				// Se não tiver no Firebase Auth, usar o que veio no profileData
 				profileDoc.photoURL = profileData.photoURL;
 				console.log("✅ Usando photoURL do profileData:", profileData.photoURL);
+			} else if (existingProfile?.photoURL) {
+				// Preservar photoURL existente se não houver novo
+				profileDoc.photoURL = existingProfile.photoURL;
+				console.log("✅ Preservando photoURL existente:", existingProfile.photoURL);
 			} else {
 				console.warn("⚠️ Nenhum photoURL disponível para salvar");
+			}
+
+			// Preservar outros campos do perfil existente que não foram alterados
+			if (existingProfile) {
+				// Preservar localização se existir
+				if (existingProfile.location) {
+					profileDoc.location = existingProfile.location;
+				}
+				if (existingProfile.isLocationEnabled !== undefined) {
+					profileDoc.isLocationEnabled = existingProfile.isLocationEnabled;
+				}
+				// Preservar createdAt se existir
+				if (existingProfile.createdAt) {
+					profileDoc.createdAt = existingProfile.createdAt;
+				}
+			} else {
+				// Se não tiver perfil existente, criar createdAt
+				profileDoc.createdAt = serverTimestamp();
 			}
 
 			console.log("📦 Dados do perfil que serão salvos:", JSON.stringify(profileDoc, null, 2));
@@ -526,8 +555,24 @@ export function useFirebaseAuth() {
 
 	/**
 	 * Verificar se o usuário tem perfil completo
+	 * Um perfil está completo quando:
+	 * 1. hasProfile é true
+	 * 2. Todos os campos obrigatórios estão preenchidos (email, displayName, phoneNumber, bio)
 	 */
-	const hasCompleteProfile = userProfile?.hasProfile ?? false;
+	const hasCompleteProfile = (() => {
+		if (!userProfile) return false;
+		
+		// Verificar se hasProfile é true
+		if (!userProfile.hasProfile) return false;
+		
+		// Verificar se todos os campos obrigatórios estão preenchidos
+		const hasEmail = !!userProfile.email && userProfile.email.trim().length > 0;
+		const hasDisplayName = !!userProfile.displayName && userProfile.displayName.trim().length > 0;
+		const hasPhoneNumber = !!userProfile.phoneNumber && userProfile.phoneNumber.trim().length >= 10;
+		const hasBio = !!userProfile.bio && userProfile.bio.trim().length >= 10;
+		
+		return hasEmail && hasDisplayName && hasPhoneNumber && hasBio;
+	})();
 
 	/**
 	 * Sincronizar photoURL do Firebase Auth com o Firestore
