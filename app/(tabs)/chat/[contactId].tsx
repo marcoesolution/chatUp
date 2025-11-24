@@ -1,5 +1,13 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
-import { KeyboardAvoidingView, Platform, TextInput as RNTextInput, ActivityIndicator, FlatList } from "react-native";
+import {
+	KeyboardAvoidingView,
+	Platform,
+	TextInput as RNTextInput,
+	ActivityIndicator,
+	FlatList,
+	Keyboard,
+	View,
+} from "react-native";
 import { useRouter, useLocalSearchParams, useFocusEffect } from "expo-router";
 import { useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -11,6 +19,11 @@ import { useTranslation } from "@/core/i18n";
 import { mockContacts } from "@/modules/chat";
 import { MessageStatus } from "@/shared/components/MessageStatus";
 import type { CreateMessageData, Message } from "@/modules/chat/types";
+
+const ContainerWrapper = styled.View`
+	flex: 1;
+	background-color: ${(props) => props.theme.colors.background.primary};
+`;
 
 const Container = styled(KeyboardAvoidingView)`
 	flex: 1;
@@ -52,14 +65,26 @@ const MessageTime = styled.Text<{ isOwn: boolean }>`
 	opacity: 0.7;
 `;
 
-const InputContainer = styled.View<{ bottomInset: number }>`
+const InputContainer = styled.View<{ bottomInset: number; keyboardHeight: number }>`
 	flex-direction: row;
 	padding: ${(props) => props.theme.spacing.md}px;
-	padding-bottom: ${(props) => Math.max(props.theme.spacing.md, props.bottomInset)}px;
+	padding-bottom: ${(props) => {
+		const basePadding = Math.max(props.theme.spacing.md, props.bottomInset);
+		return basePadding;
+	}}px;
 	background-color: ${(props) => props.theme.colors.background.secondary};
 	border-top-width: 1px;
 	border-top-color: ${(props) => props.theme.colors.border.secondary};
 	align-items: center;
+	${(props) =>
+		Platform.OS === "android" && props.keyboardHeight > 0
+			? `
+		position: absolute;
+		bottom: ${props.keyboardHeight}px;
+		left: 0;
+		right: 0;
+	`
+			: ""}
 `;
 
 const TextInput = styled.TextInput.attrs(() => ({
@@ -151,6 +176,7 @@ export default function ChatScreen() {
 	);
 	const [messageText, setMessageText] = useState("");
 	const [isSending, setIsSending] = useState(false);
+	const [keyboardHeight, setKeyboardHeight] = useState(0);
 	const flatListRef = useRef<FlatList<Message>>(null);
 	const inputRef = useRef<RNTextInput>(null);
 
@@ -165,6 +191,32 @@ export default function ChatScreen() {
 			}, 100);
 		}
 	}, [messages.length]);
+
+	// Detectar altura do teclado para ajustar o layout
+	useEffect(() => {
+		const keyboardWillShowListener = Keyboard.addListener(
+			Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
+			(e) => {
+				setKeyboardHeight(e.endCoordinates.height);
+				// Rolar para o final quando o teclado abrir
+				setTimeout(() => {
+					flatListRef.current?.scrollToEnd({ animated: true });
+				}, 100);
+			}
+		);
+
+		const keyboardWillHideListener = Keyboard.addListener(
+			Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
+			() => {
+				setKeyboardHeight(0);
+			}
+		);
+
+		return () => {
+			keyboardWillShowListener.remove();
+			keyboardWillHideListener.remove();
+		};
+	}, []);
 
 	// Formatar hora da mensagem
 	const formatTime = useCallback((date: Date) => {
@@ -260,11 +312,74 @@ export default function ChatScreen() {
 
 	// Header será configurado no _layout.tsx
 
+	// No Android, usar wrapper customizado; no iOS, usar KeyboardAvoidingView
+	if (Platform.OS === "android") {
+		return (
+			<ContainerWrapper>
+				{messages.length === 0 && !isLoading ? (
+					<EmptyContainer>
+						<EmptyText>{t("chat.noMessages")}</EmptyText>
+					</EmptyContainer>
+				) : (
+					<MessagesListContainer>
+						<FlatList
+							ref={flatListRef}
+							data={reversedMessages}
+							renderItem={renderMessage}
+							keyExtractor={keyExtractor}
+							inverted
+							onEndReached={handleLoadMore}
+							onEndReachedThreshold={0.5}
+							ListFooterComponent={renderFooter}
+							contentContainerStyle={{
+								paddingBottom: insets.bottom > 0 ? insets.bottom : 0,
+								flexGrow: 1,
+							}}
+							keyboardShouldPersistTaps="handled"
+							removeClippedSubviews={true}
+							maxToRenderPerBatch={10}
+							windowSize={10}
+							initialNumToRender={20}
+							getItemLayout={(data, index) => ({
+								length: 80, // Altura estimada de cada mensagem
+								offset: 80 * index,
+								index,
+							})}
+						/>
+					</MessagesListContainer>
+				)}
+
+				<InputContainer bottomInset={insets.bottom} keyboardHeight={keyboardHeight}>
+					<TextInput
+						ref={inputRef as any}
+						value={messageText}
+						onChangeText={setMessageText}
+						placeholder={t("chat.messagePlaceholder")}
+						multiline
+						maxLength={1000}
+						editable={!isSending}
+						onFocus={() => {
+							// Garantir que a lista role para o final quando o input receber foco
+							setTimeout(() => {
+								flatListRef.current?.scrollToEnd({ animated: true });
+							}, 300);
+						}}
+					/>
+					<SendButton
+						onPress={handleSendMessage}
+						disabled={!messageText.trim() || isSending}
+						activeOpacity={0.7}
+					>
+						<Ionicons name="send" size={20} color={theme.colors.text.primary} />
+					</SendButton>
+				</InputContainer>
+			</ContainerWrapper>
+		);
+	}
+
+	// iOS usa KeyboardAvoidingView
 	return (
-		<Container
-			behavior={Platform.OS === "ios" ? "padding" : "height"}
-			keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
-		>
+		<Container behavior="padding" keyboardVerticalOffset={insets.top + 90}>
 			{messages.length === 0 && !isLoading ? (
 				<EmptyContainer>
 					<EmptyText>{t("chat.noMessages")}</EmptyText>
@@ -298,7 +413,7 @@ export default function ChatScreen() {
 				</MessagesListContainer>
 			)}
 
-			<InputContainer bottomInset={insets.bottom}>
+			<InputContainer bottomInset={insets.bottom} keyboardHeight={0}>
 				<TextInput
 					ref={inputRef as any}
 					value={messageText}
@@ -307,6 +422,12 @@ export default function ChatScreen() {
 					multiline
 					maxLength={1000}
 					editable={!isSending}
+					onFocus={() => {
+						// Garantir que a lista role para o final quando o input receber foco
+						setTimeout(() => {
+							flatListRef.current?.scrollToEnd({ animated: true });
+						}, 300);
+					}}
 				/>
 				<SendButton onPress={handleSendMessage} disabled={!messageText.trim() || isSending} activeOpacity={0.7}>
 					<Ionicons name="send" size={20} color={theme.colors.text.primary} />
