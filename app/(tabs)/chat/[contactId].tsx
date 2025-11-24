@@ -80,7 +80,7 @@ const InputContainer = styled.View<{ bottomInset: number; keyboardHeight: number
 		Platform.OS === "android" && props.keyboardHeight > 0
 			? `
 		position: absolute;
-		bottom: ${props.keyboardHeight}px;
+		bottom: ${props.keyboardHeight + 10}px;
 		left: 0;
 		right: 0;
 	`
@@ -183,14 +183,14 @@ export default function ChatScreen() {
 	// Encontrar informações do contato
 	const contact = mockContacts.find((c) => c.id === contactId);
 
-	// Rolar para o final quando novas mensagens chegarem
+	// Rolar para o topo (mensagem mais recente) quando a tela carregar ou novas mensagens chegarem
 	useEffect(() => {
-		if (messages.length > 0) {
+		if (messages.length > 0 && !isLoading) {
 			setTimeout(() => {
-				flatListRef.current?.scrollToEnd({ animated: true });
-			}, 100);
+				flatListRef.current?.scrollToIndex({ index: 0, animated: false, viewPosition: 0 });
+			}, 200);
 		}
-	}, [messages.length]);
+	}, [messages.length, isLoading]);
 
 	// Detectar altura do teclado para ajustar o layout
 	useEffect(() => {
@@ -198,9 +198,11 @@ export default function ChatScreen() {
 			Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
 			(e) => {
 				setKeyboardHeight(e.endCoordinates.height);
-				// Rolar para o final quando o teclado abrir
+				// Rolar para o topo (mensagem mais recente) quando o teclado abrir
 				setTimeout(() => {
-					flatListRef.current?.scrollToEnd({ animated: true });
+					if (messages.length > 0) {
+						flatListRef.current?.scrollToIndex({ index: 0, animated: true, viewPosition: 0 });
+					}
 				}, 100);
 			}
 		);
@@ -216,7 +218,7 @@ export default function ChatScreen() {
 			keyboardWillShowListener.remove();
 			keyboardWillHideListener.remove();
 		};
-	}, []);
+	}, [messages.length]);
 
 	// Formatar hora da mensagem
 	const formatTime = useCallback((date: Date) => {
@@ -248,10 +250,10 @@ export default function ChatScreen() {
 	// Key extractor para FlatList
 	const keyExtractor = useCallback((item: Message) => item.id, []);
 
-	// Lista invertida (mensagens mais recentes no final)
-	const reversedMessages = useMemo(() => [...messages].reverse(), [messages]);
+	// Lista com mensagens mais recentes no topo (inverter ordem)
+	const sortedMessages = useMemo(() => [...messages].reverse(), [messages]);
 
-	// Carregar mais mensagens ao fazer scroll para o topo
+	// Carregar mais mensagens antigas ao fazer scroll para o final da lista
 	const handleLoadMore = useCallback(() => {
 		if (hasMore && !isLoadingMore && !isLoading) {
 			loadMoreMessages();
@@ -281,6 +283,12 @@ export default function ChatScreen() {
 
 			await sendMessage(messageData);
 			setMessageText("");
+			// Rolar para o topo após enviar mensagem
+			setTimeout(() => {
+				if (messages.length > 0) {
+					flatListRef.current?.scrollToIndex({ index: 0, animated: true, viewPosition: 0 });
+				}
+			}, 100);
 			inputRef.current?.blur();
 		} catch (err: any) {
 			console.error("Erro ao enviar mensagem:", err);
@@ -324,16 +332,15 @@ export default function ChatScreen() {
 					<MessagesListContainer>
 						<FlatList
 							ref={flatListRef}
-							data={reversedMessages}
+							data={sortedMessages}
 							renderItem={renderMessage}
 							keyExtractor={keyExtractor}
-							inverted
 							onEndReached={handleLoadMore}
 							onEndReachedThreshold={0.5}
 							ListFooterComponent={renderFooter}
 							contentContainerStyle={{
+								paddingTop: insets.top > 0 ? insets.top : 0,
 								paddingBottom: insets.bottom > 0 ? insets.bottom : 0,
-								flexGrow: 1,
 							}}
 							keyboardShouldPersistTaps="handled"
 							removeClippedSubviews={true}
@@ -345,6 +352,12 @@ export default function ChatScreen() {
 								offset: 80 * index,
 								index,
 							})}
+							onScrollToIndexFailed={(info) => {
+								// Fallback se scrollToIndex falhar
+								setTimeout(() => {
+									flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+								}, 100);
+							}}
 						/>
 					</MessagesListContainer>
 				)}
@@ -359,9 +372,11 @@ export default function ChatScreen() {
 						maxLength={1000}
 						editable={!isSending}
 						onFocus={() => {
-							// Garantir que a lista role para o final quando o input receber foco
+							// Garantir que a lista role para o topo (mensagem mais recente) quando o input receber foco
 							setTimeout(() => {
-								flatListRef.current?.scrollToEnd({ animated: true });
+								if (messages.length > 0) {
+									flatListRef.current?.scrollToIndex({ index: 0, animated: true, viewPosition: 0 });
+								}
 							}, 300);
 						}}
 					/>
@@ -379,7 +394,7 @@ export default function ChatScreen() {
 
 	// iOS usa KeyboardAvoidingView
 	return (
-		<Container behavior="padding" keyboardVerticalOffset={insets.top + 90}>
+		<Container behavior="padding" keyboardVerticalOffset={insets.top + 100}>
 			{messages.length === 0 && !isLoading ? (
 				<EmptyContainer>
 					<EmptyText>{t("chat.noMessages")}</EmptyText>
@@ -388,16 +403,15 @@ export default function ChatScreen() {
 				<MessagesListContainer>
 					<FlatList
 						ref={flatListRef}
-						data={reversedMessages}
+						data={sortedMessages}
 						renderItem={renderMessage}
 						keyExtractor={keyExtractor}
-						inverted
 						onEndReached={handleLoadMore}
 						onEndReachedThreshold={0.5}
 						ListFooterComponent={renderFooter}
 						contentContainerStyle={{
+							paddingTop: insets.top > 0 ? insets.top : 0,
 							paddingBottom: insets.bottom > 0 ? insets.bottom : 0,
-							flexGrow: 1,
 						}}
 						keyboardShouldPersistTaps="handled"
 						removeClippedSubviews={true}
@@ -409,6 +423,12 @@ export default function ChatScreen() {
 							offset: 80 * index,
 							index,
 						})}
+						onScrollToIndexFailed={(info) => {
+							// Fallback se scrollToIndex falhar
+							setTimeout(() => {
+								flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+							}, 100);
+						}}
 					/>
 				</MessagesListContainer>
 			)}
@@ -423,9 +443,11 @@ export default function ChatScreen() {
 					maxLength={1000}
 					editable={!isSending}
 					onFocus={() => {
-						// Garantir que a lista role para o final quando o input receber foco
+						// Garantir que a lista role para o topo (mensagem mais recente) quando o input receber foco
 						setTimeout(() => {
-							flatListRef.current?.scrollToEnd({ animated: true });
+							if (messages.length > 0) {
+								flatListRef.current?.scrollToIndex({ index: 0, animated: true, viewPosition: 0 });
+							}
 						}, 300);
 					}}
 				/>
