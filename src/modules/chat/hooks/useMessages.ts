@@ -239,10 +239,14 @@ export function useMessages(contactId: string) {
 			};
 
 			// 3. Inserir no banco local primeiro (atualização otimista)
+			// Não aguardar para não bloquear a UI
 			insertMessage({
 				...tempMessage,
 				encryptedText, // Manter versão criptografada
 				isLocal: true, // Marcar como não sincronizada
+			}).catch((err) => {
+				// Tratar erro silenciosamente (pode ser race condition)
+				console.warn("⚠️ Erro ao inserir mensagem local (pode ser race condition):", err);
 			});
 
 			// 4. Atualizar UI imediatamente

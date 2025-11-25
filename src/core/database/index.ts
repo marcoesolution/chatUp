@@ -134,21 +134,25 @@ export async function insertMessage(
 				? message.updatedAt.getTime()
 				: message.updatedAt
 			: timestamp;
-		const viewedAt = message.viewedAt ? (message.viewedAt instanceof Date ? message.viewedAt.getTime() : null) : null;
+		const viewedAt = message.viewedAt
+			? message.viewedAt instanceof Date
+				? message.viewedAt.getTime()
+				: null
+			: null;
 
-		// Verificar se mensagem já existe antes de inserir
-		const existing = await db.getFirstAsync<{ id: string }>("SELECT id FROM messages WHERE id = ?", [messageId]);
-		
-		if (existing) {
-			// Se já existe, fazer UPDATE ao invés de INSERT
+		// Usar INSERT OR REPLACE para evitar erros de UNIQUE constraint
+		// Isso garante que se a mensagem já existir, será atualizada
+		// Tratar erros silenciosamente para evitar race conditions
+		try {
 			await db.runAsync(
 				`
-				UPDATE messages SET
-					chatId = ?, senderId = ?, receiverId = ?, text = ?, encryptedText = ?,
-					timestamp = ?, read = ?, viewedAt = ?, createdAt = ?, updatedAt = ?, syncedAt = ?, isLocal = ?
-				WHERE id = ?
+				INSERT OR REPLACE INTO messages (
+					id, chatId, senderId, receiverId, text, encryptedText,
+					timestamp, read, viewedAt, createdAt, updatedAt, syncedAt, isLocal
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			`,
 				[
+					messageId,
 					message.chatId,
 					message.senderId,
 					message.receiverId,
@@ -159,36 +163,49 @@ export async function insertMessage(
 					viewedAt,
 					createdAt,
 					updatedAt,
-					message.isLocal ? null : Date.now(),
+					message.isLocal ? null : Date.now(), // syncedAt só se não for local
 					message.isLocal ? 1 : 0,
-					messageId,
 				]
 			);
-		} else {
-			// Inserir nova mensagem
-			await db.runAsync(
-				`
-				INSERT INTO messages (
-					id, chatId, senderId, receiverId, text, encryptedText,
-					timestamp, read, viewedAt, createdAt, updatedAt, syncedAt, isLocal
-				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-			`,
-			[
-				messageId,
-				message.chatId,
-				message.senderId,
-				message.receiverId,
-				message.text,
-				message.encryptedText || null,
-				timestamp,
-				message.read ? 1 : 0,
-				viewedAt,
-				createdAt,
-				updatedAt,
-				message.isLocal ? null : Date.now(), // syncedAt só se não for local
-				message.isLocal ? 1 : 0,
-			]
-		);
+		} catch (insertError: any) {
+			// Se for erro de UNIQUE constraint, tentar UPDATE
+			if (
+				insertError?.message?.includes("UNIQUE constraint") ||
+				insertError?.code === "SQLITE_CONSTRAINT_UNIQUE"
+			) {
+				try {
+					await db.runAsync(
+						`
+						UPDATE messages SET
+							chatId = ?, senderId = ?, receiverId = ?, text = ?, encryptedText = ?,
+							timestamp = ?, read = ?, viewedAt = ?, createdAt = ?, updatedAt = ?, syncedAt = ?, isLocal = ?
+						WHERE id = ?
+					`,
+						[
+							message.chatId,
+							message.senderId,
+							message.receiverId,
+							message.text,
+							message.encryptedText || null,
+							timestamp,
+							message.read ? 1 : 0,
+							viewedAt,
+							createdAt,
+							updatedAt,
+							message.isLocal ? null : Date.now(),
+							message.isLocal ? 1 : 0,
+							messageId,
+						]
+					);
+				} catch (updateError) {
+					// Se UPDATE também falhar, apenas logar (mensagem provavelmente já existe)
+					console.warn("⚠️ Erro ao atualizar mensagem existente (pode ser race condition):", updateError);
+				}
+			} else {
+				// Para outros erros, propagar
+				throw insertError;
+			}
+		}
 
 		return messageId;
 	} catch (error) {
@@ -232,15 +249,17 @@ export async function updateMessage(id: string, updates: Partial<MessageRow>): P
 			const oldResult = await db.getFirstAsync<MessageRow>("SELECT * FROM messages WHERE id = ?", [id]);
 			if (oldResult) {
 				// Verificar se já existe uma mensagem com o novo ID
-				const existingMessage = await db.getFirstAsync<MessageRow>("SELECT * FROM messages WHERE id = ?", [updates.id]);
-				
+				const existingMessage = await db.getFirstAsync<MessageRow>("SELECT * FROM messages WHERE id = ?", [
+					updates.id,
+				]);
+
 				if (existingMessage) {
 					// Se já existe, apenas deletar a mensagem antiga (a nova já está no banco)
 					await db.runAsync("DELETE FROM messages WHERE id = ?", [id]);
 					console.log(`✅ Mensagem antiga (${id}) removida, nova mensagem (${updates.id}) já existe`);
 					return;
 				}
-				
+
 				// Deletar antiga
 				await db.runAsync("DELETE FROM messages WHERE id = ?", [id]);
 				// Inserir com novo ID usando INSERT OR IGNORE para evitar conflitos
