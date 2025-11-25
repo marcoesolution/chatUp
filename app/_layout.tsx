@@ -5,10 +5,12 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ThemeProvider } from "@/core/theme/ThemeProvider";
 import { I18nProvider } from "@/core/i18n/I18nProvider";
 import { UpdateDialog } from "@/shared/components";
-import React, { Suspense } from "react";
+import React, { Suspense, useEffect } from "react";
 import { View, Text, StyleSheet, ActivityIndicator } from "react-native";
 // Inicializa o Firebase quando o app inicia
 import "@/core/firebase";
+// Inicializa o banco de dados local
+import { initDatabase } from "@/core/database";
 
 // Error Boundary para capturar erros de inicialização
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean; error: Error | null }> {
@@ -88,6 +90,17 @@ const LoadingFallback = () => (
 );
 
 function AppContent() {
+	// Inicializar banco de dados local quando o app inicia
+	useEffect(() => {
+		(async () => {
+			try {
+				await initDatabase();
+			} catch (error) {
+				console.error("❌ Erro ao inicializar banco de dados:", error);
+			}
+		})();
+	}, []);
+
 	return (
 		<Suspense fallback={<LoadingFallback />}>
 			<Stack

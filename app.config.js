@@ -64,6 +64,7 @@ module.exports = {
 				},
 			],
 			"expo-font",
+			"expo-sqlite",
 		],
 		updates: {
 			enabled: true,

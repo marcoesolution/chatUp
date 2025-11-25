@@ -4,10 +4,10 @@ import {
 	Platform,
 	TextInput as RNTextInput,
 	ActivityIndicator,
-	FlatList,
 	Keyboard,
 	View,
 } from "react-native";
+import { FlashList } from "@shopify/flash-list";
 import { useRouter, useLocalSearchParams, useFocusEffect } from "expo-router";
 import { useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -177,7 +177,7 @@ export default function ChatScreen() {
 	const [messageText, setMessageText] = useState("");
 	const [isSending, setIsSending] = useState(false);
 	const [keyboardHeight, setKeyboardHeight] = useState(0);
-	const flatListRef = useRef<FlatList<Message>>(null);
+	const flashListRef = useRef<FlashList<Message>>(null);
 	const inputRef = useRef<RNTextInput>(null);
 
 	// Encontrar informações do contato
@@ -187,7 +187,7 @@ export default function ChatScreen() {
 	useEffect(() => {
 		if (messages.length > 0 && !isLoading) {
 			setTimeout(() => {
-				flatListRef.current?.scrollToIndex({ index: 0, animated: false, viewPosition: 0 });
+				flashListRef.current?.scrollToIndex({ index: 0, animated: false });
 			}, 200);
 		}
 	}, [messages.length, isLoading]);
@@ -201,7 +201,7 @@ export default function ChatScreen() {
 				// Rolar para o topo (mensagem mais recente) quando o teclado abrir
 				setTimeout(() => {
 					if (messages.length > 0) {
-						flatListRef.current?.scrollToIndex({ index: 0, animated: true, viewPosition: 0 });
+						flashListRef.current?.scrollToIndex({ index: 0, animated: true });
 					}
 				}, 100);
 			}
@@ -290,7 +290,7 @@ export default function ChatScreen() {
 			// Rolar para o topo após enviar mensagem
 			setTimeout(() => {
 				if (sortedMessages.length > 0) {
-					flatListRef.current?.scrollToIndex({ index: 0, animated: true, viewPosition: 0 });
+					flashListRef.current?.scrollToIndex({ index: 0, animated: true });
 				}
 			}, 100);
 			inputRef.current?.blur();
@@ -325,11 +325,12 @@ export default function ChatScreen() {
 							<LoadingText>{t("chat.loadingMessages")}</LoadingText>
 						</LoadingContainer>
 					) : (
-						<FlatList
-							ref={flatListRef}
+						<FlashList
+							ref={flashListRef}
 							data={sortedMessages}
 							renderItem={renderMessage}
 							keyExtractor={keyExtractor}
+							estimatedItemSize={80}
 							onEndReached={handleLoadMore}
 							onEndReachedThreshold={0.5}
 							ListFooterComponent={renderFooter}
@@ -339,25 +340,6 @@ export default function ChatScreen() {
 								flexGrow: sortedMessages.length === 0 ? 1 : 0,
 							}}
 							keyboardShouldPersistTaps="handled"
-							removeClippedSubviews={true}
-							maxToRenderPerBatch={10}
-							windowSize={10}
-							initialNumToRender={20}
-							getItemLayout={
-								sortedMessages.length > 0
-									? (data, index) => ({
-											length: 80, // Altura estimada de cada mensagem
-											offset: 80 * index,
-											index,
-									  })
-									: undefined
-							}
-							onScrollToIndexFailed={() => {
-								// Fallback se scrollToIndex falhar
-								setTimeout(() => {
-									flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
-								}, 100);
-							}}
 							ListEmptyComponent={
 								!isLoading ? (
 									<EmptyContainer>
@@ -382,7 +364,7 @@ export default function ChatScreen() {
 							// Garantir que a lista role para o topo (mensagem mais recente) quando o input receber foco
 							setTimeout(() => {
 								if (messages.length > 0) {
-									flatListRef.current?.scrollToIndex({ index: 0, animated: true, viewPosition: 0 });
+									flashListRef.current?.scrollToIndex({ index: 0, animated: true });
 								}
 							}, 300);
 						}}
@@ -413,11 +395,12 @@ export default function ChatScreen() {
 						<LoadingText>{t("chat.loadingMessages")}</LoadingText>
 					</LoadingContainer>
 				) : (
-					<FlatList
-						ref={flatListRef}
+					<FlashList
+						ref={flashListRef}
 						data={sortedMessages}
 						renderItem={renderMessage}
 						keyExtractor={keyExtractor}
+						estimatedItemSize={80}
 						onEndReached={handleLoadMore}
 						onEndReachedThreshold={0.5}
 						ListFooterComponent={renderFooter}
@@ -427,21 +410,6 @@ export default function ChatScreen() {
 							flexGrow: sortedMessages.length === 0 ? 1 : 0,
 						}}
 						keyboardShouldPersistTaps="handled"
-						removeClippedSubviews={true}
-						maxToRenderPerBatch={10}
-						windowSize={10}
-						initialNumToRender={20}
-						getItemLayout={(data, index) => ({
-							length: 80, // Altura estimada de cada mensagem
-							offset: 80 * index,
-							index,
-						})}
-						onScrollToIndexFailed={(info) => {
-							// Fallback se scrollToIndex falhar
-							setTimeout(() => {
-								flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
-							}, 100);
-						}}
 						ListEmptyComponent={
 							!isLoading ? (
 								<EmptyContainer>
@@ -466,7 +434,7 @@ export default function ChatScreen() {
 						// Garantir que a lista role para o topo (mensagem mais recente) quando o input receber foco
 						setTimeout(() => {
 							if (messages.length > 0) {
-								flatListRef.current?.scrollToIndex({ index: 0, animated: true, viewPosition: 0 });
+								flashListRef.current?.scrollToIndex({ index: 0, animated: true });
 							}
 						}, 300);
 					}}
