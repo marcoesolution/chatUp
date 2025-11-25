@@ -17,7 +17,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/core/firebase";
 import { useAuth } from "@/modules/auth";
-import { encryptMessage, decryptMessage } from "@/core/security";
+import { encryptMessage, decryptMessage, preloadChatKey } from "@/core/security";
 import type { Message, CreateMessageData } from "../types";
 
 /**
@@ -54,6 +54,12 @@ export function useMessages(contactId: string) {
 		const chatId = generateChatId(currentUserId, contactId);
 		chatIdRef.current = chatId;
 		const firestoreDb = db; // Variável local para garantir tipo não-null
+
+		// Pré-carregar chave de criptografia em background
+		// Isso evita delay na primeira mensagem do chat
+		preloadChatKey(chatId, currentUserId).catch((err) => {
+			console.warn("⚠️ Erro ao pré-carregar chave:", err);
+		});
 
 		// Query para mensagens (sem orderBy para evitar necessidade de índice composto)
 		// Ordenaremos manualmente no cliente e limitaremos a quantidade
@@ -138,10 +144,10 @@ export function useMessages(contactId: string) {
 		// Marcar mensagens como lidas quando o usuário visualiza o chat
 		// Fazer isso de forma assíncrona sem bloquear a renderização
 		const markAsRead = async () => {
-		const firestoreDb = db;
-		if (!firestoreDb) {
-			return;
-		}
+			const firestoreDb = db;
+			if (!firestoreDb) {
+				return;
+			}
 
 			try {
 				// Buscar mensagens não lidas do usuário atual neste chat
@@ -226,13 +232,13 @@ export function useMessages(contactId: string) {
 				})
 			);
 
-				await Promise.all(updatePromises);
-			} catch (err: any) {
-				// Se o erro for de índice faltando, ignorar (não é crítico)
-				if (err.code !== "failed-precondition") {
-					console.error("Erro ao marcar mensagens como visualizadas:", err);
-				}
+			await Promise.all(updatePromises);
+		} catch (err: any) {
+			// Se o erro for de índice faltando, ignorar (não é crítico)
+			if (err.code !== "failed-precondition") {
+				console.error("Erro ao marcar mensagens como visualizadas:", err);
 			}
+		}
 	};
 
 	/**
@@ -284,7 +290,6 @@ export function useMessages(contactId: string) {
 			};
 
 			await addDoc(collection(firestoreDb, "messages"), newMessage);
-
 
 			// Atualizar última mensagem do chat (opcional, pode ser feito via Cloud Function)
 			// Por enquanto, vamos apenas enviar a mensagem

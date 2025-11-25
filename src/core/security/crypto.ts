@@ -33,6 +33,36 @@ const STORAGE_KEY_ENCRYPTED_PREFIX = "encrypted_chat_key_";
 // Prefixo para identificar mensagens criptografadas
 const ENCRYPTED_PREFIX = "ENC:";
 
+// Cache em memória de chaves descriptografadas (por chatId)
+const keyCache = new Map<string, { key: ArrayBuffer; timestamp: number }>();
+const CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutos
+const MAX_CACHE_SIZE = 50; // Limitar cache a 50 chaves
+
+// Cache em memória da chave mestre (por userId)
+const masterKeyCache = new Map<string, { key: ArrayBuffer; timestamp: number }>();
+const MASTER_KEY_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hora
+
+/**
+ * Limpa cache expirado de chaves de chat
+ */
+function cleanExpiredCache() {
+	const now = Date.now();
+	for (const [chatId, entry] of keyCache.entries()) {
+		if (now - entry.timestamp > CACHE_TTL_MS) {
+			keyCache.delete(chatId);
+		}
+	}
+
+	// Se ainda estiver muito grande, remover as mais antigas
+	if (keyCache.size > MAX_CACHE_SIZE) {
+		const entries = Array.from(keyCache.entries()).sort((a, b) => a[1].timestamp - b[1].timestamp);
+		const toRemove = entries.slice(0, keyCache.size - MAX_CACHE_SIZE);
+		for (const [chatId] of toRemove) {
+			keyCache.delete(chatId);
+		}
+	}
+}
+
 /**
  * Converte ArrayBuffer para string base64
  */
@@ -86,7 +116,7 @@ async function getRandomBytes(length: number): Promise<Uint8Array> {
  */
 async function generateSalt(): Promise<string> {
 	const randomBytes = await getRandomBytes(SALT_LENGTH);
-	return arrayBufferToBase64(randomBytes.buffer);
+	return arrayBufferToBase64(new Uint8Array(randomBytes).buffer);
 }
 
 /**
@@ -94,7 +124,7 @@ async function generateSalt(): Promise<string> {
  */
 async function generateIV(): Promise<string> {
 	const ivBytes = await getRandomBytes(IV_LENGTH);
-	return arrayBufferToBase64(ivBytes.buffer);
+	return arrayBufferToBase64(new Uint8Array(ivBytes).buffer);
 }
 
 /**
@@ -102,7 +132,7 @@ async function generateIV(): Promise<string> {
  */
 async function generateNonce(): Promise<string> {
 	const nonceBytes = await getRandomBytes(16);
-	return arrayBufferToBase64(nonceBytes.buffer);
+	return arrayBufferToBase64(new Uint8Array(nonceBytes).buffer);
 }
 
 /**
@@ -399,6 +429,12 @@ async function generateChatHash(chatId: string): Promise<string> {
  * A chave mestre é derivada do userId usando PBKDF2
  */
 async function getOrCreateMasterKey(userId: string): Promise<ArrayBuffer> {
+	// Verificar cache em memória primeiro
+	const cached = masterKeyCache.get(userId);
+	if (cached && Date.now() - cached.timestamp < MASTER_KEY_CACHE_TTL_MS) {
+		return cached.key;
+	}
+
 	const masterSaltKey = `${STORAGE_KEY_MASTER_SALT_PREFIX}${userId}`;
 
 	// Tentar recuperar salt existente ou criar novo
@@ -409,13 +445,16 @@ async function getOrCreateMasterKey(userId: string): Promise<ArrayBuffer> {
 	} else {
 		// Gerar novo salt aleatório para este usuário
 		const saltBytes = await getRandomBytes(SALT_LENGTH);
-		salt = arrayBufferToBase64(saltBytes.buffer);
+		salt = arrayBufferToBase64(new Uint8Array(saltBytes).buffer);
 		await storage.setItem(masterSaltKey, salt);
 	}
 
 	// Derivar chave mestre do userId
 	const userIdHash = await sha256(userId);
 	const masterKey = await pbkdf2(userIdHash, salt, PBKDF2_ITERATIONS_STORAGE, KEY_LENGTH);
+
+	// Armazenar no cache
+	masterKeyCache.set(userId, { key: masterKey, timestamp: Date.now() });
 
 	return masterKey;
 }
@@ -512,6 +551,17 @@ async function decryptStorageKey(encryptedKey: string, userId: string): Promise<
  */
 async function getOrCreateChatKey(chatId: string, userId: string): Promise<ArrayBuffer> {
 	try {
+		// Limpar cache expirado periodicamente (10% das vezes para não impactar performance)
+		if (Math.random() < 0.1) {
+			cleanExpiredCache();
+		}
+
+		// Verificar cache em memória primeiro
+		const cached = keyCache.get(chatId);
+		if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+			return cached.key;
+		}
+
 		// Usar apenas chatId para a chave de armazenamento
 		// Isso garante que ambos os usuários compartilhem a mesma chave
 		const storageKey = `${STORAGE_KEY_ENCRYPTED_PREFIX}${chatId}`;
@@ -531,6 +581,8 @@ async function getOrCreateChatKey(chatId: string, userId: string): Promise<Array
 					await storage.removeItem(storageKey);
 					await storage.removeItem(`${storageKey}_salt`);
 				} else {
+					// Armazenar no cache antes de retornar
+					keyCache.set(chatId, { key, timestamp: Date.now() });
 					return key;
 				}
 			} catch (keyError) {
@@ -566,6 +618,9 @@ async function getOrCreateChatKey(chatId: string, userId: string): Promise<Array
 		await storage.setItem(storageKey, encryptedKey);
 		await storage.setItem(`${storageKey}_salt`, salt);
 
+		// Armazenar no cache
+		keyCache.set(chatId, { key, timestamp: Date.now() });
+
 		return key;
 	} catch (error) {
 		console.error("❌ Erro ao obter/criar chave do chat:", error);
@@ -588,15 +643,14 @@ export async function encryptMessage(plaintext: string, chatId: string, userId: 
 			throw new Error("chatId e userId são obrigatórios");
 		}
 
-		// Obter chave do chat
-		const key = await getOrCreateChatKey(chatId, userId);
+		// Obter chave e gerar IV/nonce em paralelo para melhor performance
+		const [key, ivBase64, nonce] = await Promise.all([
+			getOrCreateChatKey(chatId, userId),
+			generateIV(),
+			generateNonce(),
+		]);
 
-		// Gerar IV único para esta mensagem
-		const ivBase64 = await generateIV();
 		const iv = base64ToArrayBuffer(ivBase64);
-
-		// Gerar nonce único para prevenir replay attacks
-		const nonce = await generateNonce();
 
 		// Criptografar mensagem usando AES-256-GCM
 		const { ciphertext, tag } = await encryptAES(plaintext, key, iv);
@@ -770,10 +824,28 @@ export async function verifyMessageHMAC(
 }
 
 /**
+ * Pré-carrega a chave de criptografia para um chat específico
+ * Isso evita o delay na primeira mensagem do chat
+ */
+export async function preloadChatKey(chatId: string, userId: string): Promise<void> {
+	try {
+		await getOrCreateChatKey(chatId, userId);
+	} catch (error) {
+		console.warn("⚠️ Erro ao pré-carregar chave do chat:", error);
+		// Não propagar erro - é apenas otimização
+	}
+}
+
+/**
  * Limpa todas as chaves de criptografia (útil para logout)
  */
 export async function clearAllKeys(): Promise<void> {
 	try {
+		// Limpar caches em memória
+		keyCache.clear();
+		masterKeyCache.clear();
+
+		// Limpar chaves do storage
 		const keys = await AsyncStorage.getAllKeys();
 		const chatKeys = keys.filter(
 			(key) =>
