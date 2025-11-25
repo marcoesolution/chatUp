@@ -45,7 +45,11 @@ export const en = {
 		phoneNumber: "Phone Number",
 		phoneNumberPlaceholder: "Enter your phone number",
 		phoneOptional: "Phone (Optional)",
+		phoneRequired: "Phone number is required",
+		phoneMinLength: "Phone number must be at least 10 characters",
 		bioOptional: "Bio (Optional)",
+		bioRequired: "Biography is required",
+		bioMinLength: "Biography must be at least 10 characters",
 		photoURL: "Profile Photo",
 		saving: "Saving...",
 		error: "Authentication error",
@@ -71,7 +75,7 @@ export const en = {
 		notFound: "Profile not found",
 		errorLoading: "Error loading profile",
 		user: "User",
-		googlePhotoHint: "To see your Google photo, log out and sign in again using \"Sign in with Google\"",
+		googlePhotoHint: 'To see your Google photo, log out and sign in again using "Sign in with Google"',
 	},
 
 	// Conversations
@@ -101,7 +105,9 @@ export const en = {
 		language: "Language",
 		languageDescription: "Choose the app language",
 		appVersion: "App Version",
+		versionCode: "Version Code",
 		runtimeVersion: "Runtime Version",
+		channel: "Channel",
 		selectLanguage: "Select Language",
 		portuguese: "Português (Brasil)",
 		english: "English",
@@ -122,5 +128,17 @@ export const en = {
 		unknownError: "Unknown error",
 		checkLogs: "Check logs for more details",
 	},
-};
 
+	// OTA Updates
+	updates: {
+		availableTitle: "Update available",
+		availableMessage: "A new version of the app is available. Would you like to update now?",
+		updateNow: "Update now",
+		later: "Later",
+		downloading: "Downloading update...",
+		downloadErrorTitle: "Error downloading update",
+		downloadErrorMessage: "Could not download the update. Please try again later.",
+		reloadErrorTitle: "Error updating",
+		reloadErrorMessage: "Could not apply the update. The app will restart.",
+	},
+};

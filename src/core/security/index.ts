@@ -10,5 +10,6 @@ export {
 	clearAllKeys,
 	exportChatKey,
 	importChatKey,
+	preloadChatKey,
 } from './crypto';
 

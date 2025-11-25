@@ -12,6 +12,8 @@ import {
 import { doc, getDoc, setDoc, serverTimestamp, Timestamp } from "firebase/firestore";
 import * as AuthSession from "expo-auth-session";
 import * as WebBrowser from "expo-web-browser";
+import * as Linking from "expo-linking";
+import * as Crypto from "expo-crypto";
 import { Platform } from "react-native";
 import { auth, db } from "@/core/firebase";
 import { clearAllKeys } from "@/core/security";
@@ -222,8 +224,15 @@ export function useFirebaseAuth() {
 			// Buscar o usuário atual do Firebase Auth para preservar o photoURL
 			const currentUser = auth.currentUser;
 
+			// Buscar perfil existente para preservar dados que não foram alterados
+			const existingProfile = await getUserProfile(userId);
+
 			const profileDoc: any = {
-				...profileData,
+				email: profileData.email.trim(),
+				displayName: profileData.displayName.trim(),
+				// Preservar dados existentes se os novos estiverem vazios
+				phoneNumber: (profileData.phoneNumber?.trim() || existingProfile?.phoneNumber || "").trim(),
+				bio: (profileData.bio?.trim() || existingProfile?.bio || "").trim(),
 				hasProfile: true,
 				updatedAt: serverTimestamp(),
 			};
@@ -237,8 +246,30 @@ export function useFirebaseAuth() {
 				// Se não tiver no Firebase Auth, usar o que veio no profileData
 				profileDoc.photoURL = profileData.photoURL;
 				console.log("✅ Usando photoURL do profileData:", profileData.photoURL);
+			} else if (existingProfile?.photoURL) {
+				// Preservar photoURL existente se não houver novo
+				profileDoc.photoURL = existingProfile.photoURL;
+				console.log("✅ Preservando photoURL existente:", existingProfile.photoURL);
 			} else {
 				console.warn("⚠️ Nenhum photoURL disponível para salvar");
+			}
+
+			// Preservar outros campos do perfil existente que não foram alterados
+			if (existingProfile) {
+				// Preservar localização se existir
+				if (existingProfile.location) {
+					profileDoc.location = existingProfile.location;
+				}
+				if (existingProfile.isLocationEnabled !== undefined) {
+					profileDoc.isLocationEnabled = existingProfile.isLocationEnabled;
+				}
+				// Preservar createdAt se existir
+				if (existingProfile.createdAt) {
+					profileDoc.createdAt = existingProfile.createdAt;
+				}
+			} else {
+				// Se não tiver perfil existente, criar createdAt
+				profileDoc.createdAt = serverTimestamp();
 			}
 
 			console.log("📦 Dados do perfil que serão salvos:", JSON.stringify(profileDoc, null, 2));
@@ -286,48 +317,90 @@ export function useFirebaseAuth() {
 
 			console.log("🔑 Web Client ID configurado:", webClientId.substring(0, 20) + "...");
 
-			// Configurar redirect URI usando o proxy do Expo
-			// O slug do projeto está em app.json (atualmente "chatUp")
-			// O formato do proxy do Expo é: https://auth.expo.io/@anonymous/[slug]
-			// IMPORTANTE: O slug deve corresponder EXATAMENTE ao app.json
-			// O Expo usa o slug em minúsculas no proxy: "chatup"
-			const redirectUri = `https://auth.expo.io/@anonymous/chatup`;
+			// Gerar redirect URI usando o proxy do Expo
+			// O Google OAuth só aceita URIs http:// ou https://
+			// O proxy do Expo fornece um URI https:// que funciona com OAuth
+			// O formato é: https://auth.expo.io/@anonymous/[slug]
+			let redirectUri = AuthSession.makeRedirectUri({
+				useProxy: true,
+			});
+
+			// Se o URI gerado não for do proxy do Expo, forçar o uso do proxy
+			// Isso garante que sempre usemos um URI https:// válido
+			if (!redirectUri.startsWith("https://auth.expo.io")) {
+				// Usar o slug do app.json (convertido para minúsculas)
+				// O slug está em app.json como "chatUp", mas o proxy usa "chatup"
+				const slug = "chatup"; // Slug em minúsculas conforme usado pelo Expo
+				redirectUri = `https://auth.expo.io/@anonymous/${slug}`;
+				console.log("⚠️ URI não é do proxy, forçando uso do proxy do Expo:", redirectUri);
+			}
 
 			console.log("🔐 Iniciando login com Google...");
-			console.log("📋 Redirect URI:", redirectUri);
+			console.log("📋 Redirect URI (proxy do Expo):", redirectUri);
 			console.log("📋 ⚠️ IMPORTANTE: Este URI EXATO deve estar no Google Cloud Console!");
 			console.log("📋 Vá em: Google Cloud Console > APIs e Serviços > Credenciais");
-			console.log("📋 Encontre seu OAuth Client ID e adicione este URI:");
+			console.log("📋 Encontre seu OAuth Client ID (Web) e adicione este URI:");
 			console.log("📋", redirectUri);
 
-			// Criar URL de autorização manualmente
-			// Usar WebBrowser.openAuthSessionAsync que deve usar o navegador do sistema
-			const scopes = ["openid", "profile", "email"].join(" ");
-			const state = Math.random().toString(36).substring(7);
-			const nonce = Math.random().toString(36).substring(7);
+			// Gerar nonce seguro para OAuth ID Token
+			// O nonce é obrigatório quando usamos response_type=id_token
+			// Ele garante que o token recebido seja o mesmo que foi solicitado
+			// O Google espera um nonce aleatório (não necessariamente um hash)
+			// Vamos gerar um nonce único usando crypto para garantir segurança
+			const randomBytes = await Crypto.getRandomBytesAsync(32);
+			const nonce = Array.from(randomBytes)
+				.map((b) => b.toString(16).padStart(2, "0"))
+				.join("");
 
-			const authUrl =
-				`https://accounts.google.com/o/oauth2/v2/auth?` +
-				`client_id=${encodeURIComponent(webClientId)}&` +
-				`redirect_uri=${encodeURIComponent(redirectUri)}&` +
-				`response_type=id_token&` +
-				`scope=${encodeURIComponent(scopes)}&` +
-				`state=${state}&` +
-				`nonce=${nonce}`;
+			console.log("🔐 Nonce gerado para segurança OAuth");
 
-			console.log("🔗 URL de autorização criada");
-			console.log("📋 Redirect URI:", redirectUri);
-			console.log("⚠️ Se aparecer erro 403, o Google pode estar bloqueando WebView");
-			console.log("⚠️ Tente usar o app em um dispositivo físico ou emulador Android/iOS");
+			// Criar requisição de autenticação usando AuthRequest
+			// Isso garante que todos os parâmetros OAuth sejam configurados corretamente
+			const request = new AuthSession.AuthRequest({
+				clientId: webClientId,
+				scopes: ["openid", "profile", "email"],
+				responseType: AuthSession.ResponseType.IdToken,
+				redirectUri,
+				usePKCE: false, // Google OAuth não requer PKCE para ID token
+				nonce, // Nonce obrigatório para response_type=id_token
+				extraParams: {
+					nonce, // Garantir que o nonce seja incluído na URL
+				},
+			});
 
-			// Abrir no navegador do sistema
-			// No Android/iOS, isso deve usar Custom Tabs/ASWebAuthenticationSession
+			// Configurar discovery para Google OAuth
+			const discovery = {
+				authorizationEndpoint: "https://accounts.google.com/o/oauth2/v2/auth",
+			};
+
+			console.log("🔗 Iniciando autenticação OAuth...");
+
+			// Garantir que o WebBrowser está configurado corretamente antes de iniciar
+			// Isso é necessário para que o deep linking funcione corretamente
+			WebBrowser.maybeCompleteAuthSession();
+
+			// Abrir no navegador do sistema usando AuthSession
+			// No Android/iOS, isso usa Custom Tabs/ASWebAuthenticationSession
 			// que são considerados navegadores seguros pelo Google
-			const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUri);
+			// Usar proxy do Expo para garantir URI https:// válido
+			console.log("🔗 Iniciando promptAsync com proxy do Expo");
+
+			const result = await request.promptAsync(discovery, {
+				useProxy: true, // Usar proxy do Expo para URI https:// válido
+			});
 
 			console.log("📥 Resultado do OAuth:", result.type);
-			if (result.type === "success" && result.url) {
-				console.log("✅ URL de retorno recebida:", result.url.substring(0, 200));
+			console.log("📥 Resultado completo:", JSON.stringify(result, null, 2));
+			if (result.type === "success" && result.params) {
+				console.log("✅ Resposta recebida do Google");
+				console.log("📋 Parâmetros recebidos:", Object.keys(result.params));
+				console.log("📋 URL de retorno:", result.url?.substring(0, 200));
+			} else if (result.type === "error") {
+				console.error("❌ Erro no resultado:", result.error);
+				console.error("❌ Código do erro:", result.error?.code);
+				console.error("❌ Mensagem do erro:", result.error?.message);
+			} else {
+				console.log("⚠️ Tipo de resultado inesperado:", result.type);
 			}
 
 			if (result.type !== "success") {
@@ -339,6 +412,12 @@ export function useFirebaseAuth() {
 					errorMsg = "Autenticação com Google cancelada. Você pode tentar novamente quando quiser.";
 					shouldThrow = false; // Não lançar erro para cancelamento, apenas informar
 					console.log("ℹ️", errorMsg);
+				} else if (result.type === "error") {
+					errorMsg = result.error?.message || "Erro na autenticação com Google";
+					console.error("❌", errorMsg);
+					if (result.error?.code === "redirect_uri_mismatch") {
+						errorMsg = `Erro de configuração: O redirect URI não está registrado no Google Cloud Console. Adicione: ${redirectUri}`;
+					}
 				} else {
 					errorMsg = `Erro na autenticação: ${result.type}`;
 					console.error("❌", errorMsg);
@@ -356,25 +435,13 @@ export function useFirebaseAuth() {
 				}
 			}
 
-			// Extrair o ID token da URL de retorno
-			let idToken: string | null = null;
-
-			if (result.type === "success" && result.url) {
-				const url = new URL(result.url);
-				// O token pode vir como fragmento (#id_token=...) ou como query param (?id_token=...)
-				idToken = url.hash.split("id_token=")[1]?.split("&")[0] || url.searchParams.get("id_token");
-
-				// Também tentar extrair do fragmento completo caso o formato seja diferente
-				if (!idToken && url.hash) {
-					const hashParams = new URLSearchParams(url.hash.substring(1));
-					idToken = hashParams.get("id_token");
-				}
-			}
+			// Extrair o ID token da resposta
+			const idToken = result.params?.id_token as string | null;
 
 			console.log("🔑 Token recebido:", idToken ? "Sim" : "Não");
 
 			if (!idToken) {
-				console.error("❌ Token não encontrado na URL de retorno:", result.url?.substring(0, 200));
+				console.error("❌ Token não encontrado na resposta");
 				const errorMsg = "Token do Google não recebido. Tente novamente.";
 				setError(errorMsg);
 				setIsLoading(false);
@@ -488,8 +555,24 @@ export function useFirebaseAuth() {
 
 	/**
 	 * Verificar se o usuário tem perfil completo
+	 * Um perfil está completo quando:
+	 * 1. hasProfile é true
+	 * 2. Todos os campos obrigatórios estão preenchidos (email, displayName, phoneNumber, bio)
 	 */
-	const hasCompleteProfile = userProfile?.hasProfile ?? false;
+	const hasCompleteProfile = (() => {
+		if (!userProfile) return false;
+
+		// Verificar se hasProfile é true
+		if (!userProfile.hasProfile) return false;
+
+		// Verificar se todos os campos obrigatórios estão preenchidos
+		const hasEmail = !!userProfile.email && userProfile.email.trim().length > 0;
+		const hasDisplayName = !!userProfile.displayName && userProfile.displayName.trim().length > 0;
+		const hasPhoneNumber = !!userProfile.phoneNumber && userProfile.phoneNumber.trim().length >= 10;
+		const hasBio = !!userProfile.bio && userProfile.bio.trim().length >= 10;
+
+		return hasEmail && hasDisplayName && hasPhoneNumber && hasBio;
+	})();
 
 	/**
 	 * Sincronizar photoURL do Firebase Auth com o Firestore

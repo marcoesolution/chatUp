@@ -2,7 +2,7 @@
  * Utilitários para cálculos geográficos
  */
 
-import type { Location } from '../types';
+import type { Location } from "../types";
 
 /**
  * Raio da Terra em metros
@@ -17,21 +17,13 @@ const EARTH_RADIUS_METERS = 6371000;
  * @param lon2 Longitude do segundo ponto
  * @returns Distância em metros
  */
-export function calculateDistance(
-	lat1: number,
-	lon1: number,
-	lat2: number,
-	lon2: number
-): number {
+export function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
 	const dLat = toRadians(lat2 - lat1);
 	const dLon = toRadians(lon2 - lon1);
 
 	const a =
 		Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-		Math.cos(toRadians(lat1)) *
-			Math.cos(toRadians(lat2)) *
-			Math.sin(dLon / 2) *
-			Math.sin(dLon / 2);
+		Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
 
 	const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 	const distance = EARTH_RADIUS_METERS * c;
@@ -49,16 +41,8 @@ function toRadians(degrees: number): number {
 /**
  * Calcula a distância entre duas localizações
  */
-export function calculateLocationDistance(
-	location1: Location,
-	location2: Location
-): number {
-	return calculateDistance(
-		location1.latitude,
-		location1.longitude,
-		location2.latitude,
-		location2.longitude
-	);
+export function calculateLocationDistance(location1: Location, location2: Location): number {
+	return calculateDistance(location1.latitude, location1.longitude, location2.latitude, location2.longitude);
 }
 
 /**
@@ -68,11 +52,7 @@ export function calculateLocationDistance(
  * @param radiusMeters Raio em metros
  * @returns true se estiver dentro do raio
  */
-export function isWithinRadius(
-	centerLocation: Location,
-	targetLocation: Location,
-	radiusMeters: number
-): boolean {
+export function isWithinRadius(centerLocation: Location, targetLocation: Location, radiusMeters: number): boolean {
 	const distance = calculateLocationDistance(centerLocation, targetLocation);
 	return distance <= radiusMeters;
 }
@@ -110,7 +90,8 @@ export function calculateBoundingBox(
 }
 
 /**
- * Raio padrão para busca de usuários próximos (2km)
+ * Raio padrão para busca de usuários próximos
+ * TODO: TEMPORÁRIO PARA TESTES - Alterado de 2km (2000m) para 500km (500000m)
+ * Reverter para 2000 após os testes
  */
-export const NEARBY_RADIUS_METERS = 2000;
-
+export const NEARBY_RADIUS_METERS = 500000; // 500km - TEMPORÁRIO PARA TESTES

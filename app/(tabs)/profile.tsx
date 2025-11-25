@@ -22,7 +22,7 @@ import {
 	ProfileEmptyText,
 	ProfileStatusBadge,
 	ProfileStatusText,
-} from "./styles";
+} from "./_styles";
 
 /**
  * Converte um Timestamp do Firestore para Date
@@ -123,7 +123,9 @@ export default function ProfileScreen() {
 	if (error) {
 		return (
 			<ProfileCenterContainer>
-				<ProfileErrorText>{t("profile.errorLoading")}: {error}</ProfileErrorText>
+				<ProfileErrorText>
+					{t("profile.errorLoading")}: {error}
+				</ProfileErrorText>
 			</ProfileCenterContainer>
 		);
 	}
@@ -234,14 +236,18 @@ export default function ProfileScreen() {
 					{createdAt && (
 						<ProfileSection>
 							<ProfileSectionTitle>{t("profile.memberSince")}</ProfileSectionTitle>
-							<ProfileSectionContent>{formatDate(createdAt, currentLanguage) || t("profile.notAvailable")}</ProfileSectionContent>
+							<ProfileSectionContent>
+								{formatDate(createdAt, currentLanguage) || t("profile.notAvailable")}
+							</ProfileSectionContent>
 						</ProfileSection>
 					)}
 
 					{updatedAt && (
 						<ProfileSection>
 							<ProfileSectionTitle>{t("profile.lastUpdate")}</ProfileSectionTitle>
-							<ProfileSectionContent>{formatDate(updatedAt, currentLanguage) || t("profile.notAvailable")}</ProfileSectionContent>
+							<ProfileSectionContent>
+								{formatDate(updatedAt, currentLanguage) || t("profile.notAvailable")}
+							</ProfileSectionContent>
 						</ProfileSection>
 					)}
 				</Card>

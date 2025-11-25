@@ -1,5 +1,13 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
-import { KeyboardAvoidingView, Platform, TextInput as RNTextInput, ActivityIndicator, FlatList } from "react-native";
+import {
+	KeyboardAvoidingView,
+	Platform,
+	TextInput as RNTextInput,
+	ActivityIndicator,
+	FlatList,
+	Keyboard,
+	View,
+} from "react-native";
 import { useRouter, useLocalSearchParams, useFocusEffect } from "expo-router";
 import { useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -9,7 +17,13 @@ import { useMessages } from "@/modules/chat/hooks/useMessages";
 import { useAuth } from "@/modules/auth";
 import { useTranslation } from "@/core/i18n";
 import { mockContacts } from "@/modules/chat";
+import { MessageStatus } from "@/shared/components/MessageStatus";
 import type { CreateMessageData, Message } from "@/modules/chat/types";
+
+const ContainerWrapper = styled.View`
+	flex: 1;
+	background-color: ${(props) => props.theme.colors.background.primary};
+`;
 
 const Container = styled(KeyboardAvoidingView)`
 	flex: 1;
@@ -37,21 +51,40 @@ const MessageText = styled.Text<{ isOwn: boolean }>`
 	line-height: 20px;
 `;
 
+const MessageFooter = styled.View<{ isOwn: boolean }>`
+	flex-direction: row;
+	align-items: center;
+	justify-content: ${(props) => (props.isOwn ? "flex-end" : "flex-start")};
+	margin-top: 4px;
+	gap: 4px;
+`;
+
 const MessageTime = styled.Text<{ isOwn: boolean }>`
 	font-size: 11px;
 	color: ${(props) => (props.isOwn ? props.theme.colors.text.secondary : props.theme.colors.text.tertiary)};
-	margin-top: 4px;
 	opacity: 0.7;
 `;
 
-const InputContainer = styled.View<{ bottomInset: number }>`
+const InputContainer = styled.View<{ bottomInset: number; keyboardHeight: number }>`
 	flex-direction: row;
 	padding: ${(props) => props.theme.spacing.md}px;
-	padding-bottom: ${(props) => Math.max(props.theme.spacing.md, props.bottomInset)}px;
+	padding-bottom: ${(props) => {
+		const basePadding = Math.max(props.theme.spacing.md, props.bottomInset);
+		return basePadding;
+	}}px;
 	background-color: ${(props) => props.theme.colors.background.secondary};
 	border-top-width: 1px;
 	border-top-color: ${(props) => props.theme.colors.border.secondary};
 	align-items: center;
+	${(props) =>
+		Platform.OS === "android" && props.keyboardHeight > 0
+			? `
+		position: absolute;
+		bottom: ${props.keyboardHeight + 10}px;
+		left: 0;
+		right: 0;
+	`
+			: ""}
 `;
 
 const TextInput = styled.TextInput.attrs(() => ({
@@ -112,13 +145,23 @@ export default function ChatScreen() {
 	const { firebaseUser } = useAuth();
 	const insets = useSafeAreaInsets();
 
-	// Esconder tab bar quando a tela de chat estiver em foco
+	const { messages, isLoading, error, sendMessage, loadMoreMessages, hasMore, isLoadingMore, markAsViewed } =
+		useMessages(contactId || "");
+
+	// Esconder tab bar e marcar mensagens como visualizadas quando a tela de chat estiver em foco
 	useFocusEffect(
 		React.useCallback(() => {
 			// Esconder tab bar
 			navigation.getParent()?.setOptions({
 				tabBarStyle: { display: "none" },
 			});
+
+			// Marcar mensagens como visualizadas quando a tela recebe foco
+			if (contactId) {
+				setTimeout(() => {
+					markAsViewed();
+				}, 300);
+			}
 
 			// Mostrar tab bar quando sair da tela
 			return () => {
@@ -129,27 +172,52 @@ export default function ChatScreen() {
 					},
 				});
 			};
-		}, [navigation, theme])
-	);
-
-	const { messages, isLoading, error, sendMessage, loadMoreMessages, hasMore, isLoadingMore } = useMessages(
-		contactId || ""
+		}, [navigation, theme, contactId, markAsViewed])
 	);
 	const [messageText, setMessageText] = useState("");
 	const [isSending, setIsSending] = useState(false);
+	const [keyboardHeight, setKeyboardHeight] = useState(0);
 	const flatListRef = useRef<FlatList<Message>>(null);
 	const inputRef = useRef<RNTextInput>(null);
 
 	// Encontrar informações do contato
 	const contact = mockContacts.find((c) => c.id === contactId);
 
-	// Rolar para o final quando novas mensagens chegarem
+	// Rolar para o topo (mensagem mais recente) quando a tela carregar ou novas mensagens chegarem
 	useEffect(() => {
-		if (messages.length > 0) {
+		if (messages.length > 0 && !isLoading) {
 			setTimeout(() => {
-				flatListRef.current?.scrollToEnd({ animated: true });
-			}, 100);
+				flatListRef.current?.scrollToIndex({ index: 0, animated: false, viewPosition: 0 });
+			}, 200);
 		}
+	}, [messages.length, isLoading]);
+
+	// Detectar altura do teclado para ajustar o layout
+	useEffect(() => {
+		const keyboardWillShowListener = Keyboard.addListener(
+			Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
+			(e) => {
+				setKeyboardHeight(e.endCoordinates.height);
+				// Rolar para o topo (mensagem mais recente) quando o teclado abrir
+				setTimeout(() => {
+					if (messages.length > 0) {
+						flatListRef.current?.scrollToIndex({ index: 0, animated: true, viewPosition: 0 });
+					}
+				}, 100);
+			}
+		);
+
+		const keyboardWillHideListener = Keyboard.addListener(
+			Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
+			() => {
+				setKeyboardHeight(0);
+			}
+		);
+
+		return () => {
+			keyboardWillShowListener.remove();
+			keyboardWillHideListener.remove();
+		};
 	}, [messages.length]);
 
 	// Formatar hora da mensagem
@@ -164,10 +232,15 @@ export default function ChatScreen() {
 	const renderMessage = useCallback(
 		({ item: message }: { item: Message }) => {
 			const isOwn = message.senderId === firebaseUser?.uid;
+			const isViewed = message.viewedAt !== null && message.viewedAt !== undefined;
+
 			return (
 				<MessageBubble isOwn={isOwn}>
 					<MessageText isOwn={isOwn}>{message.text}</MessageText>
-					<MessageTime isOwn={isOwn}>{formatTime(message.timestamp)}</MessageTime>
+					<MessageFooter isOwn={isOwn}>
+						<MessageTime isOwn={isOwn}>{formatTime(message.timestamp)}</MessageTime>
+						{isOwn && <MessageStatus isRead={message.read} isViewed={isViewed} />}
+					</MessageFooter>
 				</MessageBubble>
 			);
 		},
@@ -177,10 +250,10 @@ export default function ChatScreen() {
 	// Key extractor para FlatList
 	const keyExtractor = useCallback((item: Message) => item.id, []);
 
-	// Lista invertida (mensagens mais recentes no final)
-	const reversedMessages = useMemo(() => [...messages].reverse(), [messages]);
+	// Lista com mensagens mais recentes no topo (inverter ordem)
+	const sortedMessages = useMemo(() => [...messages].reverse(), [messages]);
 
-	// Carregar mais mensagens ao fazer scroll para o topo
+	// Carregar mais mensagens antigas ao fazer scroll para o final da lista
 	const handleLoadMore = useCallback(() => {
 		if (hasMore && !isLoadingMore && !isLoading) {
 			loadMoreMessages();
@@ -199,17 +272,27 @@ export default function ChatScreen() {
 
 	// Enviar mensagem
 	const handleSendMessage = async () => {
-		if (!messageText.trim() || !contactId || isSending) return;
+		if (!messageText.trim() || !contactId || isSending) {
+			return;
+		}
 
+		const textToSend = messageText.trim();
 		setIsSending(true);
+
 		try {
 			const messageData: CreateMessageData = {
-				text: messageText.trim(),
+				text: textToSend,
 				receiverId: contactId,
 			};
 
 			await sendMessage(messageData);
 			setMessageText("");
+			// Rolar para o topo após enviar mensagem
+			setTimeout(() => {
+				if (sortedMessages.length > 0) {
+					flatListRef.current?.scrollToIndex({ index: 0, animated: true, viewPosition: 0 });
+				}
+			}, 100);
 			inputRef.current?.blur();
 		} catch (err: any) {
 			console.error("Erro ao enviar mensagem:", err);
@@ -229,41 +312,119 @@ export default function ChatScreen() {
 		);
 	}
 
-	if (isLoading) {
+	// Header será configurado no _layout.tsx
+
+	// No Android, usar wrapper customizado; no iOS, usar KeyboardAvoidingView
+	if (Platform.OS === "android") {
 		return (
-			<Container>
-				<LoadingContainer>
-					<LoadingText>{t("chat.loadingMessages")}</LoadingText>
-				</LoadingContainer>
-			</Container>
+			<ContainerWrapper>
+				<MessagesListContainer>
+					{isLoading && sortedMessages.length === 0 ? (
+						<LoadingContainer>
+							<ActivityIndicator size="large" color={theme.colors.button.primary} />
+							<LoadingText>{t("chat.loadingMessages")}</LoadingText>
+						</LoadingContainer>
+					) : (
+						<FlatList
+							ref={flatListRef}
+							data={sortedMessages}
+							renderItem={renderMessage}
+							keyExtractor={keyExtractor}
+							onEndReached={handleLoadMore}
+							onEndReachedThreshold={0.5}
+							ListFooterComponent={renderFooter}
+							contentContainerStyle={{
+								paddingTop: insets.top > 0 ? insets.top : 0,
+								paddingBottom: insets.bottom > 0 ? insets.bottom : 0,
+								flexGrow: sortedMessages.length === 0 ? 1 : 0,
+							}}
+							keyboardShouldPersistTaps="handled"
+							removeClippedSubviews={true}
+							maxToRenderPerBatch={10}
+							windowSize={10}
+							initialNumToRender={20}
+							getItemLayout={
+								sortedMessages.length > 0
+									? (data, index) => ({
+											length: 80, // Altura estimada de cada mensagem
+											offset: 80 * index,
+											index,
+									  })
+									: undefined
+							}
+							onScrollToIndexFailed={() => {
+								// Fallback se scrollToIndex falhar
+								setTimeout(() => {
+									flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+								}, 100);
+							}}
+							ListEmptyComponent={
+								!isLoading ? (
+									<EmptyContainer>
+										<EmptyText>{t("chat.noMessages")}</EmptyText>
+									</EmptyContainer>
+								) : null
+							}
+						/>
+					)}
+				</MessagesListContainer>
+
+				<InputContainer bottomInset={insets.bottom} keyboardHeight={keyboardHeight}>
+					<TextInput
+						ref={inputRef as any}
+						value={messageText}
+						onChangeText={setMessageText}
+						placeholder={t("chat.messagePlaceholder")}
+						multiline
+						maxLength={1000}
+						editable={!isSending}
+						onFocus={() => {
+							// Garantir que a lista role para o topo (mensagem mais recente) quando o input receber foco
+							setTimeout(() => {
+								if (messages.length > 0) {
+									flatListRef.current?.scrollToIndex({ index: 0, animated: true, viewPosition: 0 });
+								}
+							}, 300);
+						}}
+					/>
+					<SendButton
+						onPress={handleSendMessage}
+						disabled={!messageText.trim() || isSending}
+						activeOpacity={0.7}
+					>
+						{isSending ? (
+							<ActivityIndicator size="small" color={theme.colors.text.primary} />
+						) : (
+							<Ionicons name="send" size={20} color={theme.colors.text.primary} />
+						)}
+					</SendButton>
+				</InputContainer>
+			</ContainerWrapper>
 		);
 	}
 
-	// Header será configurado no _layout.tsx
-
+	// iOS usa KeyboardAvoidingView
 	return (
-		<Container
-			behavior={Platform.OS === "ios" ? "padding" : "height"}
-			keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
-		>
-			{messages.length === 0 && !isLoading ? (
-				<EmptyContainer>
-					<EmptyText>{t("chat.noMessages")}</EmptyText>
-				</EmptyContainer>
-			) : (
-				<MessagesListContainer>
+		<Container behavior="padding" keyboardVerticalOffset={insets.top + 100}>
+			<MessagesListContainer>
+				{isLoading && sortedMessages.length === 0 ? (
+					<LoadingContainer>
+						<ActivityIndicator size="large" color={theme.colors.button.primary} />
+						<LoadingText>{t("chat.loadingMessages")}</LoadingText>
+					</LoadingContainer>
+				) : (
 					<FlatList
 						ref={flatListRef}
-						data={reversedMessages}
+						data={sortedMessages}
 						renderItem={renderMessage}
 						keyExtractor={keyExtractor}
-						inverted
 						onEndReached={handleLoadMore}
 						onEndReachedThreshold={0.5}
 						ListFooterComponent={renderFooter}
 						contentContainerStyle={{
+							paddingTop: insets.top > 0 ? insets.top : 0,
 							paddingBottom: insets.bottom > 0 ? insets.bottom : 0,
-							flexGrow: 1,
+							flexGrow: sortedMessages.length === 0 ? 1 : 0,
 						}}
 						keyboardShouldPersistTaps="handled"
 						removeClippedSubviews={true}
@@ -275,11 +436,24 @@ export default function ChatScreen() {
 							offset: 80 * index,
 							index,
 						})}
+						onScrollToIndexFailed={(info) => {
+							// Fallback se scrollToIndex falhar
+							setTimeout(() => {
+								flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+							}, 100);
+						}}
+						ListEmptyComponent={
+							!isLoading ? (
+								<EmptyContainer>
+									<EmptyText>{t("chat.noMessages")}</EmptyText>
+								</EmptyContainer>
+							) : null
+						}
 					/>
-				</MessagesListContainer>
-			)}
+				)}
+			</MessagesListContainer>
 
-			<InputContainer bottomInset={insets.bottom}>
+			<InputContainer bottomInset={insets.bottom} keyboardHeight={0}>
 				<TextInput
 					ref={inputRef as any}
 					value={messageText}
@@ -288,9 +462,21 @@ export default function ChatScreen() {
 					multiline
 					maxLength={1000}
 					editable={!isSending}
+					onFocus={() => {
+						// Garantir que a lista role para o topo (mensagem mais recente) quando o input receber foco
+						setTimeout(() => {
+							if (messages.length > 0) {
+								flatListRef.current?.scrollToIndex({ index: 0, animated: true, viewPosition: 0 });
+							}
+						}, 300);
+					}}
 				/>
 				<SendButton onPress={handleSendMessage} disabled={!messageText.trim() || isSending} activeOpacity={0.7}>
-					<Ionicons name="send" size={20} color={theme.colors.text.primary} />
+					{isSending ? (
+						<ActivityIndicator size="small" color={theme.colors.text.primary} />
+					) : (
+						<Ionicons name="send" size={20} color={theme.colors.text.primary} />
+					)}
 				</SendButton>
 			</InputContainer>
 		</Container>

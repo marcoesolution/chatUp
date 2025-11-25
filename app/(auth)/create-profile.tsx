@@ -49,11 +49,13 @@ const Slogan = styled.Text`
 
 export default function CreateProfileScreen() {
 	const router = useRouter();
-	const { firebaseUser, createProfile, isLoading, error, refreshProfile } = useAuth();
+	const { firebaseUser, userProfile, createProfile, isLoading, error, refreshProfile } = useAuth();
 
 	// Garantir que temos os dados do usuário
-	const userEmail = firebaseUser?.email || "";
-	const userName = firebaseUser?.displayName || "";
+	const userEmail = firebaseUser?.email || userProfile?.email || "";
+	const userName = firebaseUser?.displayName || userProfile?.displayName || "";
+	const userPhoneNumber = userProfile?.phoneNumber || "";
+	const userBio = userProfile?.bio || "";
 
 	// Atualizar perfil quando a tela for montada para garantir que temos os dados mais recentes
 	React.useEffect(() => {
@@ -92,8 +94,9 @@ export default function CreateProfileScreen() {
 				error={error}
 				initialEmail={userEmail}
 				initialName={userName}
+				initialPhoneNumber={userPhoneNumber}
+				initialBio={userBio}
 			/>
 		</Container>
 	);
 }
-

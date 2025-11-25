@@ -13,6 +13,8 @@ interface CreateProfileFormProps {
 	error?: string | null;
 	initialEmail?: string;
 	initialName?: string;
+	initialPhoneNumber?: string;
+	initialBio?: string;
 }
 
 const FormContainer = styled(KeyboardAvoidingView)`
@@ -75,6 +77,8 @@ export const CreateProfileForm: React.FC<CreateProfileFormProps> = ({
 	error,
 	initialEmail = "",
 	initialName = "",
+	initialPhoneNumber = "",
+	initialBio = "",
 }) => {
 	const theme = useTheme();
 	const { t } = useTranslation();
@@ -87,8 +91,8 @@ export const CreateProfileForm: React.FC<CreateProfileFormProps> = ({
 		defaultValues: {
 			email: initialEmail,
 			displayName: initialName,
-			phoneNumber: "",
-			bio: "",
+			phoneNumber: initialPhoneNumber,
+			bio: initialBio,
 		},
 	});
 
@@ -97,10 +101,10 @@ export const CreateProfileForm: React.FC<CreateProfileFormProps> = ({
 		reset({
 			email: initialEmail || "",
 			displayName: initialName || "",
-			phoneNumber: "",
-			bio: "",
+			phoneNumber: initialPhoneNumber || "",
+			bio: initialBio || "",
 		});
-	}, [initialEmail, initialName, reset]);
+	}, [initialEmail, initialName, initialPhoneNumber, initialBio, reset]);
 
 	const handleFormSubmit = (data: CreateProfileData) => {
 		onSubmit(data);
@@ -117,8 +121,6 @@ export const CreateProfileForm: React.FC<CreateProfileFormProps> = ({
 					<Subtitle>{t("auth.completeProfileSubtitle")}</Subtitle>
 
 					{error && <ErrorText>{error}</ErrorText>}
-
-					<InfoText>{t("auth.canUpdateLater")}</InfoText>
 
 					<Controller
 						control={control}
@@ -173,10 +175,16 @@ export const CreateProfileForm: React.FC<CreateProfileFormProps> = ({
 
 					<Controller
 						control={control}
-						rules={{}}
+						rules={{
+							required: t("auth.phoneRequired"),
+							minLength: {
+								value: 10,
+								message: t("auth.phoneMinLength"),
+							},
+						}}
 						render={({ field: { onChange, onBlur, value } }) => (
 							<Input
-								label={t("auth.phoneOptional")}
+								label={t("auth.phoneNumber")}
 								placeholder={t("auth.phoneNumberPlaceholder")}
 								icon={<Ionicons name="call" size={20} color={theme.colors.icon.secondary} />}
 								keyboardType="phone-pad"
@@ -194,6 +202,11 @@ export const CreateProfileForm: React.FC<CreateProfileFormProps> = ({
 					<Controller
 						control={control}
 						rules={{
+							required: t("auth.bioRequired"),
+							minLength: {
+								value: 10,
+								message: t("auth.bioMinLength"),
+							},
 							maxLength: {
 								value: 200,
 								message: t("auth.bioMaxLength"),
@@ -201,7 +214,7 @@ export const CreateProfileForm: React.FC<CreateProfileFormProps> = ({
 						}}
 						render={({ field: { onChange, onBlur, value } }) => (
 							<Input
-								label={t("auth.bioOptional")}
+								label={t("auth.bio")}
 								placeholder={t("auth.bioPlaceholder")}
 								icon={<Ionicons name="document-text" size={20} color={theme.colors.icon.secondary} />}
 								multiline

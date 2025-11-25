@@ -9,7 +9,7 @@ module.exports = {
 	expo: {
 		name: "chatUp",
 		slug: "chatUp",
-		version: "1.0.0",
+		version: "1.0.1",
 		orientation: "portrait",
 		icon: "./assets/icon.png",
 		userInterfaceStyle: "light",
@@ -36,6 +36,7 @@ module.exports = {
 				backgroundColor: "#ffffff",
 			},
 			package: "com.chatup.app",
+			versionCode: 2,
 			edgeToEdgeEnabled: true,
 			predictiveBackGestureEnabled: false,
 			permissions: [
@@ -44,9 +45,9 @@ module.exports = {
 				"android.permission.ACCESS_COARSE_LOCATION",
 				"android.permission.ACCESS_FINE_LOCATION",
 			],
-			// Otimizações de build
-			enableProguardInReleaseBuilds: true,
-			enableShrinkResourcesInReleaseBuilds: true,
+			// Otimizações de build - desabilitadas temporariamente para debug
+			enableProguardInReleaseBuilds: false,
+			enableShrinkResourcesInReleaseBuilds: false,
 		},
 		web: {
 			favicon: "./assets/favicon.png",
@@ -64,6 +65,15 @@ module.exports = {
 			],
 			"expo-font",
 		],
+		updates: {
+			enabled: true,
+			checkAutomatically: "ON_LOAD",
+			fallbackToCacheTimeout: 0,
+			url: "https://u.expo.dev/d662ef19-e2a8-4cf3-b18a-564a4faa4a3d",
+		},
+		runtimeVersion: {
+			policy: "appVersion",
+		},
 		extra: {
 			router: {},
 			eas: {

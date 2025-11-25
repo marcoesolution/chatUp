@@ -2,7 +2,7 @@
   "expo": {
     "name": "chatUp",
     "slug": "chatUp",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -55,6 +55,14 @@
       ],
       "expo-font"
     ],
+    "updates": {
+      "enabled": true,
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
     "extra": {
       "router": {},
       "eas": {

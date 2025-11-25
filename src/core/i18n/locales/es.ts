@@ -45,7 +45,11 @@ export const es = {
 		phoneNumber: "Teléfono",
 		phoneNumberPlaceholder: "Ingrese su teléfono",
 		phoneOptional: "Teléfono (Opcional)",
+		phoneRequired: "El teléfono es obligatorio",
+		phoneMinLength: "El teléfono debe tener al menos 10 caracteres",
 		bioOptional: "Biografía (Opcional)",
+		bioRequired: "La biografía es obligatoria",
+		bioMinLength: "La biografía debe tener al menos 10 caracteres",
 		photoURL: "Foto de Perfil",
 		saving: "Guardando...",
 		error: "Error de autenticación",
@@ -71,7 +75,8 @@ export const es = {
 		notFound: "Perfil no encontrado",
 		errorLoading: "Error al cargar el perfil",
 		user: "Usuario",
-		googlePhotoHint: "Para ver su foto de Google, cierre sesión e inicie sesión nuevamente usando \"Iniciar sesión con Google\"",
+		googlePhotoHint:
+			'Para ver su foto de Google, cierre sesión e inicie sesión nuevamente usando "Iniciar sesión con Google"',
 	},
 
 	// Conversaciones
@@ -101,7 +106,9 @@ export const es = {
 		language: "Idioma",
 		languageDescription: "Elija el idioma de la aplicación",
 		appVersion: "Versión de la Aplicación",
+		versionCode: "Version Code",
 		runtimeVersion: "Versión del Runtime",
+		channel: "Canal",
 		selectLanguage: "Seleccionar Idioma",
 		portuguese: "Português (Brasil)",
 		english: "English",
@@ -122,5 +129,17 @@ export const es = {
 		unknownError: "Error desconocido",
 		checkLogs: "Verifique los registros para más detalles",
 	},
-};
 
+	// Actualizaciones OTA
+	updates: {
+		availableTitle: "Actualización disponible",
+		availableMessage: "Hay una nueva versión de la aplicación disponible. ¿Desea actualizar ahora?",
+		updateNow: "Actualizar ahora",
+		later: "Después",
+		downloading: "Descargando actualización...",
+		downloadErrorTitle: "Error al descargar actualización",
+		downloadErrorMessage: "No se pudo descargar la actualización. Intente nuevamente más tarde.",
+		reloadErrorTitle: "Error al actualizar",
+		reloadErrorMessage: "No se pudo aplicar la actualización. La aplicación se reiniciará.",
+	},
+};

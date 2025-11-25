@@ -3,6 +3,7 @@ import { ActivityIndicator, Alert, ScrollView } from "react-native";
 import { useTheme } from "styled-components/native";
 import { Ionicons } from "@expo/vector-icons";
 import Constants from "expo-constants";
+import * as Updates from "expo-updates";
 import styled from "styled-components/native";
 import { Card } from "@/shared/components";
 import { useTranslation } from "@/core/i18n";
@@ -43,8 +44,7 @@ const LanguageOption = styled.TouchableOpacity<{ isSelected: boolean }>`
 	justify-content: space-between;
 	padding: ${(props) => props.theme.spacing.md}px;
 	margin-bottom: ${(props) => props.theme.spacing.sm}px;
-	background-color: ${(props) =>
-		props.isSelected ? props.theme.colors.background.input : "transparent"};
+	background-color: ${(props) => (props.isSelected ? props.theme.colors.background.input : "transparent")};
 	border-radius: ${(props) => props.theme.borderRadius.md}px;
 	border-width: 1px;
 	border-color: ${(props) =>
@@ -120,10 +120,17 @@ export default function SettingsScreen() {
 		}
 	};
 
-	// Obter versão do app
-	const appVersion = Constants.expoConfig?.version || Constants.manifest?.version || "1.0.0";
-	// Obter versão do runtime EAS
-	const runtimeVersion = Constants.expoConfig?.runtimeVersion || Constants.expoConfig?.sdkVersion || Constants.manifest?.sdkVersion || "N/A";
+	// Obter informações de versão
+	const appVersion = Constants.expoConfig?.version || "1.0.0";
+	const versionCode = Constants.expoConfig?.android?.versionCode || 1;
+
+	// Obter runtime version do expo-updates (mais confiável que Constants)
+	// Em desenvolvimento, Updates pode não estar disponível
+	const runtimeVersion =
+		Updates.isEnabled && Updates.runtimeVersion ? Updates.runtimeVersion : __DEV__ ? "Development" : "N/A";
+
+	// Obter channel do expo-updates
+	const channel = Updates.isEnabled && Updates.channel ? Updates.channel : __DEV__ ? "Development" : "N/A";
 
 	return (
 		<Container>
@@ -162,8 +169,16 @@ export default function SettingsScreen() {
 							<VersionValue>{appVersion}</VersionValue>
 						</VersionRow>
 						<VersionRow>
+							<VersionLabel>{t("settings.versionCode")}</VersionLabel>
+							<VersionValue>{versionCode}</VersionValue>
+						</VersionRow>
+						<VersionRow>
 							<VersionLabel>{t("settings.runtimeVersion")}</VersionLabel>
 							<VersionValue>{runtimeVersion}</VersionValue>
+						</VersionRow>
+						<VersionRow>
+							<VersionLabel>{t("settings.channel")}</VersionLabel>
+							<VersionValue>{channel}</VersionValue>
 						</VersionRow>
 					</VersionInfo>
 				</Section>
@@ -171,4 +186,3 @@ export default function SettingsScreen() {
 		</Container>
 	);
 }
-

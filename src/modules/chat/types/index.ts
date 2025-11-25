@@ -19,6 +19,7 @@ export interface Message {
 	text: string;
 	timestamp: Date;
 	read: boolean;
+	viewedAt?: Date | any | null; // Timestamp do Firestore - quando a mensagem foi visualizada
 	createdAt: any; // Timestamp do Firestore
 	updatedAt?: any; // Timestamp do Firestore
 }

@@ -7,7 +7,6 @@ import {
 	collection,
 	query,
 	where,
-	orderBy,
 	limit,
 	getDocs,
 	onSnapshot,
@@ -16,6 +15,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/core/firebase';
 import { useAuth } from '@/modules/auth';
+import { decryptMessage } from '@/core/security';
 import type { Contact } from '../types';
 import type { NearbyUser } from '@/modules/location/types';
 
@@ -67,11 +67,12 @@ export function useContacts(nearbyUsers: NearbyUser[]): {
 			const chatId = generateChatId(currentUserId, nearbyUser.id);
 
 			// Buscar última mensagem
+			// NOTA: Removemos orderBy para evitar necessidade de índice composto
+			// Ordenaremos manualmente no cliente
 			const lastMessageQuery = query(
 				collection(db, 'messages'),
 				where('chatId', '==', chatId),
-				orderBy('timestamp', 'desc'),
-				limit(1)
+				limit(50) // Buscar últimas 50 mensagens e ordenar no cliente
 			);
 
 			// Buscar mensagens não lidas
@@ -85,12 +86,48 @@ export function useContacts(nearbyUsers: NearbyUser[]): {
 			// Escutar última mensagem
 			const unsubscribeLastMessage = onSnapshot(
 				lastMessageQuery,
-				(snapshot: QuerySnapshot<DocumentData>) => {
+				async (snapshot: QuerySnapshot<DocumentData>) => {
 					const contact = contactsMap.get(nearbyUser.id);
 					if (!contact) return;
 
 					if (!snapshot.empty) {
-						const lastMessageDoc = snapshot.docs[0];
+						// Ordenar mensagens por timestamp (mais recente primeiro)
+						const sortedDocs = [...snapshot.docs].sort((a, b) => {
+							const dataA = a.data();
+							const dataB = b.data();
+							
+							// Extrair timestamp de diferentes formatos
+							let timestampA = 0;
+							let timestampB = 0;
+							
+							if (dataA.timestamp) {
+								if (dataA.timestamp.toMillis) {
+									timestampA = dataA.timestamp.toMillis();
+								} else if (dataA.timestamp.toDate) {
+									timestampA = dataA.timestamp.toDate().getTime();
+								} else if (dataA.timestamp instanceof Date) {
+									timestampA = dataA.timestamp.getTime();
+								} else if (typeof dataA.timestamp === 'number') {
+									timestampA = dataA.timestamp;
+								}
+							}
+							
+							if (dataB.timestamp) {
+								if (dataB.timestamp.toMillis) {
+									timestampB = dataB.timestamp.toMillis();
+								} else if (dataB.timestamp.toDate) {
+									timestampB = dataB.timestamp.toDate().getTime();
+								} else if (dataB.timestamp instanceof Date) {
+									timestampB = dataB.timestamp.getTime();
+								} else if (typeof dataB.timestamp === 'number') {
+									timestampB = dataB.timestamp;
+								}
+							}
+							
+							return timestampB - timestampA; // Descendente (mais recente primeiro)
+						});
+						
+						const lastMessageDoc = sortedDocs[0];
 						const messageData = lastMessageDoc.data();
 						
 						// Formatar hora da última mensagem
@@ -119,7 +156,24 @@ export function useContacts(nearbyUsers: NearbyUser[]): {
 							}
 						}
 
-						contact.lastMessage = messageData.text || '';
+						// Descriptografar mensagem se estiver criptografada
+						let messageText = messageData.text || '';
+						if (messageText.startsWith('ENC:')) {
+							try {
+								const decryptedText = await decryptMessage(messageText, chatId, currentUserId);
+								// Mostrar apenas uma prévia (primeiros 50 caracteres)
+								messageText = decryptedText.length > 50 ? decryptedText.substring(0, 50) + '...' : decryptedText;
+							} catch (error) {
+								console.error('❌ Erro ao descriptografar última mensagem:', error);
+								// Em caso de erro, mostrar mensagem genérica
+								messageText = 'Mensagem criptografada';
+							}
+						} else if (messageText.length > 50) {
+							// Truncar mensagem não criptografada também se for muito longa
+							messageText = messageText.substring(0, 50) + '...';
+						}
+
+						contact.lastMessage = messageText;
 						contact.lastMessageTime = lastMessageTime;
 					} else {
 						contact.lastMessage = undefined;
@@ -130,7 +184,12 @@ export function useContacts(nearbyUsers: NearbyUser[]): {
 					setContacts(Array.from(contactsMap.values()));
 				},
 				(err) => {
-					console.error('Erro ao buscar última mensagem:', err);
+					// Se o erro for de índice faltando, apenas logar (não é crítico)
+					if (err.code === 'failed-precondition') {
+						console.warn('⚠️ Índice do Firestore não encontrado. A query funcionará, mas pode ser mais lenta.');
+					} else {
+						console.error('❌ Erro ao buscar última mensagem:', err);
+					}
 				}
 			);
 
