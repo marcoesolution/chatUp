@@ -9,7 +9,7 @@ module.exports = {
 	expo: {
 		name: "chatUp",
 		slug: "chatUp",
-		version: "1.0.0",
+		version: "1.0.1",
 		orientation: "portrait",
 		icon: "./assets/icon.png",
 		userInterfaceStyle: "light",
@@ -36,7 +36,7 @@ module.exports = {
 				backgroundColor: "#ffffff",
 			},
 			package: "com.chatup.app",
-			versionCode: 1,
+			versionCode: 2,
 			edgeToEdgeEnabled: true,
 			predictiveBackGestureEnabled: false,
 			permissions: [
