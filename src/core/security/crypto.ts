@@ -17,8 +17,12 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { storage } from "@/services/storage";
 
 // Constantes de segurança
-const PBKDF2_ITERATIONS = 50000; // Balanceamento entre segurança e performance (~100-200ms)
-const PBKDF2_ITERATIONS_STORAGE = 100000; // Mais iterações para chave mestre do storage
+// Otimizado para fase de desenvolvimento - balanceamento entre segurança e performance
+// 5k iterações: ~3-5s no S22, adequado para desenvolvimento (pode aumentar em produção)
+// 10k iterações (chave mestre): ~4-5s no S22
+// NOTA: Em produção, considere aumentar para 10k/20k ou mais conforme necessário
+const PBKDF2_ITERATIONS = 5000; // Otimizado para desenvolvimento (~3-5s no S22)
+const PBKDF2_ITERATIONS_STORAGE = 10000; // Chave mestre otimizada para desenvolvimento (~4-5s no S22)
 const SALT_LENGTH = 32; // 256 bits
 const IV_LENGTH = 16; // 128 bits para CBC
 const KEY_LENGTH = 32; // 256 bits para AES-256
@@ -429,12 +433,16 @@ async function generateChatHash(chatId: string): Promise<string> {
  * A chave mestre é derivada do userId usando PBKDF2
  */
 async function getOrCreateMasterKey(userId: string): Promise<ArrayBuffer> {
+	const startTime = Date.now();
 	// Verificar cache em memória primeiro
 	const cached = masterKeyCache.get(userId);
 	if (cached && Date.now() - cached.timestamp < MASTER_KEY_CACHE_TTL_MS) {
+		const elapsed = Date.now() - startTime;
+		console.log(`🔑 Chave mestre recuperada do cache em ${elapsed}ms`, { userId });
 		return cached.key;
 	}
 
+	console.log(`🔑 Chave mestre não encontrada no cache, gerando...`, { userId });
 	const masterSaltKey = `${STORAGE_KEY_MASTER_SALT_PREFIX}${userId}`;
 
 	// Tentar recuperar salt existente ou criar novo
@@ -451,11 +459,17 @@ async function getOrCreateMasterKey(userId: string): Promise<ArrayBuffer> {
 
 	// Derivar chave mestre do userId
 	const userIdHash = await sha256(userId);
+	console.log(`🔐 Gerando chave mestre com PBKDF2 (${PBKDF2_ITERATIONS_STORAGE} iterações)...`, { userId });
+	const pbkdf2StartTime = Date.now();
 	const masterKey = await pbkdf2(userIdHash, salt, PBKDF2_ITERATIONS_STORAGE, KEY_LENGTH);
+	const pbkdf2Elapsed = Date.now() - pbkdf2StartTime;
+	console.log(`🔐 Chave mestre gerada em ${pbkdf2Elapsed}ms`, { userId });
 
 	// Armazenar no cache
 	masterKeyCache.set(userId, { key: masterKey, timestamp: Date.now() });
 
+	const totalElapsed = Date.now() - startTime;
+	console.log(`✅ Chave mestre gerada e armazenada no cache em ${totalElapsed}ms`, { userId });
 	return masterKey;
 }
 
@@ -550,6 +564,7 @@ async function decryptStorageKey(encryptedKey: string, userId: string): Promise<
  * (baseada apenas no chatId), permitindo E2E encryption
  */
 async function getOrCreateChatKey(chatId: string, userId: string): Promise<ArrayBuffer> {
+	const startTime = Date.now();
 	try {
 		// Limpar cache expirado periodicamente (10% das vezes para não impactar performance)
 		if (Math.random() < 0.1) {
@@ -559,19 +574,29 @@ async function getOrCreateChatKey(chatId: string, userId: string): Promise<Array
 		// Verificar cache em memória primeiro
 		const cached = keyCache.get(chatId);
 		if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+			const elapsed = Date.now() - startTime;
+			console.log(`🔑 Chave do chat recuperada do cache em ${elapsed}ms`, { chatId });
 			return cached.key;
 		}
+
+		console.log(`🔑 Chave não encontrada no cache, buscando/gerando...`, { chatId });
 
 		// Usar apenas chatId para a chave de armazenamento
 		// Isso garante que ambos os usuários compartilhem a mesma chave
 		const storageKey = `${STORAGE_KEY_ENCRYPTED_PREFIX}${chatId}`;
 
 		// Tentar recuperar chave existente (criptografada)
+		const storageStartTime = Date.now();
 		const storedEncryptedKey = await storage.getItem<string>(storageKey);
 		if (storedEncryptedKey) {
 			try {
+				console.log(`🔓 Descriptografando chave do storage...`, { chatId });
+				const decryptStartTime = Date.now();
 				// Descriptografar chave
 				const key = await decryptStorageKey(storedEncryptedKey, userId);
+				const decryptElapsed = Date.now() - decryptStartTime;
+				console.log(`🔓 Chave descriptografada do storage em ${decryptElapsed}ms`, { chatId });
+
 				// Validar tamanho da chave
 				if (key.byteLength !== KEY_LENGTH) {
 					console.warn(
@@ -583,14 +608,27 @@ async function getOrCreateChatKey(chatId: string, userId: string): Promise<Array
 				} else {
 					// Armazenar no cache antes de retornar
 					keyCache.set(chatId, { key, timestamp: Date.now() });
+					const totalElapsed = Date.now() - startTime;
+					console.log(`✅ Chave recuperada e armazenada no cache em ${totalElapsed}ms`, { chatId });
 					return key;
 				}
-			} catch (keyError) {
+			} catch (keyError: any) {
 				console.error("❌ Erro ao recuperar/descriptografar chave armazenada:", keyError);
-				// Remover chave corrompida e regenerar
+
+				// Se for erro de autenticação, a chave pode ter sido criptografada com versão antiga
+				// ou a chave mestre mudou. Remover e regenerar.
+				if (keyError.message?.includes("Autenticação falhou") || keyError.message?.includes("tag inválida")) {
+					console.warn(
+						"⚠️ Chave armazenada incompatível (pode ter sido criptografada com versão antiga). Regenerando..."
+					);
+				}
+
+				// Remover chave corrompida/incompatível e regenerar
 				await storage.removeItem(storageKey);
 				await storage.removeItem(`${storageKey}_salt`);
 			}
+		} else {
+			console.log(`🔑 Chave não encontrada no storage, gerando nova...`, { chatId });
 		}
 
 		// Gerar nova chave compartilhada
@@ -606,7 +644,11 @@ async function getOrCreateChatKey(chatId: string, userId: string): Promise<Array
 		// Usar chatHash como password para PBKDF2
 		// Isso garante que ambos os usuários gerem a mesma chave
 		const password = chatHash;
+		console.log(`🔐 Gerando chave com PBKDF2 (${PBKDF2_ITERATIONS} iterações)...`, { chatId });
+		const pbkdf2StartTime = Date.now();
 		const key = await pbkdf2(password, salt, PBKDF2_ITERATIONS, KEY_LENGTH);
+		const pbkdf2Elapsed = Date.now() - pbkdf2StartTime;
+		console.log(`🔐 PBKDF2 concluído em ${pbkdf2Elapsed}ms`, { chatId });
 
 		// Validar tamanho da chave gerada
 		if (key.byteLength !== KEY_LENGTH) {
@@ -614,13 +656,20 @@ async function getOrCreateChatKey(chatId: string, userId: string): Promise<Array
 		}
 
 		// Criptografar e armazenar chave (será a mesma para ambos os usuários)
+		console.log(`🔐 Criptografando chave para armazenamento...`, { chatId });
+		const encryptStartTime = Date.now();
 		const encryptedKey = await encryptStorageKey(key, userId);
+		const encryptElapsed = Date.now() - encryptStartTime;
+		console.log(`🔐 Chave criptografada em ${encryptElapsed}ms`, { chatId });
+
 		await storage.setItem(storageKey, encryptedKey);
 		await storage.setItem(`${storageKey}_salt`, salt);
 
 		// Armazenar no cache
 		keyCache.set(chatId, { key, timestamp: Date.now() });
 
+		const totalElapsed = Date.now() - startTime;
+		console.log(`✅ Nova chave gerada e armazenada em ${totalElapsed}ms`, { chatId });
 		return key;
 	} catch (error) {
 		console.error("❌ Erro ao obter/criar chave do chat:", error);
@@ -829,10 +878,25 @@ export async function verifyMessageHMAC(
  */
 export async function preloadChatKey(chatId: string, userId: string): Promise<void> {
 	try {
+		// Verificar cache primeiro - se já estiver em cache, retornar imediatamente
+		const cached = keyCache.get(chatId);
+		if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+			console.log("✅ Chave já está em cache, pré-carregamento desnecessário", { chatId });
+			return;
+		}
+
+		console.log("🔄 Pré-carregando chave do chat...", { chatId, userId });
+		const startTime = Date.now();
+
+		// Pré-carregar chave (e chave mestre se necessário)
 		await getOrCreateChatKey(chatId, userId);
+
+		const elapsed = Date.now() - startTime;
+		console.log(`✅ Chave pré-carregada com sucesso em ${elapsed}ms`, { chatId });
 	} catch (error) {
 		console.warn("⚠️ Erro ao pré-carregar chave do chat:", error);
 		// Não propagar erro - é apenas otimização
+		// A chave será gerada quando necessário (na primeira mensagem)
 	}
 }
 

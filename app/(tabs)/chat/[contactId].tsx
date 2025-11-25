@@ -392,7 +392,11 @@ export default function ChatScreen() {
 						disabled={!messageText.trim() || isSending}
 						activeOpacity={0.7}
 					>
-						<Ionicons name="send" size={20} color={theme.colors.text.primary} />
+						{isSending ? (
+							<ActivityIndicator size="small" color={theme.colors.text.primary} />
+						) : (
+							<Ionicons name="send" size={20} color={theme.colors.text.primary} />
+						)}
 					</SendButton>
 				</InputContainer>
 			</ContainerWrapper>
@@ -468,7 +472,11 @@ export default function ChatScreen() {
 					}}
 				/>
 				<SendButton onPress={handleSendMessage} disabled={!messageText.trim() || isSending} activeOpacity={0.7}>
-					<Ionicons name="send" size={20} color={theme.colors.text.primary} />
+					{isSending ? (
+						<ActivityIndicator size="small" color={theme.colors.text.primary} />
+					) : (
+						<Ionicons name="send" size={20} color={theme.colors.text.primary} />
+					)}
 				</SendButton>
 			</InputContainer>
 		</Container>

@@ -59,6 +59,9 @@
     "update:production": "eas update --branch production --message \"Atualização automática\" --platform android",
     "update:preview:interactive": "eas update --branch preview --platform android",
     "update:production:interactive": "eas update --branch production --platform android",
+    "firebase:login": "firebase login",
+    "firebase:deploy:indexes": "./scripts/deploy-firestore-indexes.sh",
+    "firebase:use": "firebase use chatup-ddcf8",
     "clear:messages": "npx ts-node scripts/clear-firestore-messages.ts",
     "clear:messages:confirm": "npx ts-node scripts/clear-firestore-messages.ts --confirm"
   },
