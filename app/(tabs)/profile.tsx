@@ -1,9 +1,10 @@
 import React, { useState } from "react";
-import { ActivityIndicator } from "react-native";
+import { ActivityIndicator, TouchableOpacity, Text, Alert } from "react-native";
 import { useTheme } from "styled-components/native";
 import { useAuth } from "@/modules/auth";
 import { Card } from "@/shared/components";
 import { useTranslation } from "@/core/i18n";
+import { clearAllLocalMessages } from "@/core/database/utils";
 import {
 	ProfileContainer,
 	ProfileCenterContainer,
@@ -248,6 +249,45 @@ export default function ProfileScreen() {
 							<ProfileSectionContent>
 								{formatDate(updatedAt, currentLanguage) || t("profile.notAvailable")}
 							</ProfileSectionContent>
+						</ProfileSection>
+					)}
+
+					{__DEV__ && (
+						<ProfileSection>
+							<TouchableOpacity
+								onPress={() => {
+									Alert.alert(
+										"Limpar Mensagens Locais",
+										"Tem certeza que deseja apagar todas as mensagens do banco local?",
+										[
+											{ text: "Cancelar", style: "cancel" },
+											{
+												text: "Limpar",
+												style: "destructive",
+												onPress: async () => {
+													try {
+														await clearAllLocalMessages();
+														Alert.alert("Sucesso", "Mensagens locais foram removidas!");
+													} catch (error: any) {
+														Alert.alert("Erro", `Erro ao limpar mensagens: ${error.message}`);
+													}
+												},
+											},
+										]
+									);
+								}}
+								style={{
+									backgroundColor: theme.colors.button.danger || "#ff4444",
+									padding: 12,
+									borderRadius: 8,
+									marginTop: 16,
+									alignItems: "center",
+								}}
+							>
+								<Text style={{ color: "#fff", fontWeight: "bold" }}>
+									🗑️ Limpar Mensagens Locais (DEV)
+								</Text>
+							</TouchableOpacity>
 						</ProfileSection>
 					)}
 				</Card>

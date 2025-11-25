@@ -136,13 +136,43 @@ export async function insertMessage(
 			: timestamp;
 		const viewedAt = message.viewedAt ? (message.viewedAt instanceof Date ? message.viewedAt.getTime() : null) : null;
 
-		await db.runAsync(
-			`
-			INSERT OR REPLACE INTO messages (
-				id, chatId, senderId, receiverId, text, encryptedText,
-				timestamp, read, viewedAt, createdAt, updatedAt, syncedAt, isLocal
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		`,
+		// Verificar se mensagem já existe antes de inserir
+		const existing = await db.getFirstAsync<{ id: string }>("SELECT id FROM messages WHERE id = ?", [messageId]);
+		
+		if (existing) {
+			// Se já existe, fazer UPDATE ao invés de INSERT
+			await db.runAsync(
+				`
+				UPDATE messages SET
+					chatId = ?, senderId = ?, receiverId = ?, text = ?, encryptedText = ?,
+					timestamp = ?, read = ?, viewedAt = ?, createdAt = ?, updatedAt = ?, syncedAt = ?, isLocal = ?
+				WHERE id = ?
+			`,
+				[
+					message.chatId,
+					message.senderId,
+					message.receiverId,
+					message.text,
+					message.encryptedText || null,
+					timestamp,
+					message.read ? 1 : 0,
+					viewedAt,
+					createdAt,
+					updatedAt,
+					message.isLocal ? null : Date.now(),
+					message.isLocal ? 1 : 0,
+					messageId,
+				]
+			);
+		} else {
+			// Inserir nova mensagem
+			await db.runAsync(
+				`
+				INSERT INTO messages (
+					id, chatId, senderId, receiverId, text, encryptedText,
+					timestamp, read, viewedAt, createdAt, updatedAt, syncedAt, isLocal
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			`,
 			[
 				messageId,
 				message.chatId,
@@ -201,12 +231,22 @@ export async function updateMessage(id: string, updates: Partial<MessageRow>): P
 			// Se o ID mudou, precisamos fazer DELETE + INSERT
 			const oldResult = await db.getFirstAsync<MessageRow>("SELECT * FROM messages WHERE id = ?", [id]);
 			if (oldResult) {
+				// Verificar se já existe uma mensagem com o novo ID
+				const existingMessage = await db.getFirstAsync<MessageRow>("SELECT * FROM messages WHERE id = ?", [updates.id]);
+				
+				if (existingMessage) {
+					// Se já existe, apenas deletar a mensagem antiga (a nova já está no banco)
+					await db.runAsync("DELETE FROM messages WHERE id = ?", [id]);
+					console.log(`✅ Mensagem antiga (${id}) removida, nova mensagem (${updates.id}) já existe`);
+					return;
+				}
+				
 				// Deletar antiga
 				await db.runAsync("DELETE FROM messages WHERE id = ?", [id]);
-				// Inserir com novo ID
+				// Inserir com novo ID usando INSERT OR IGNORE para evitar conflitos
 				await db.runAsync(
 					`
-					INSERT INTO messages (
+					INSERT OR IGNORE INTO messages (
 						id, chatId, senderId, receiverId, text, encryptedText,
 						timestamp, read, viewedAt, createdAt, updatedAt, syncedAt, isLocal
 					) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -349,6 +389,21 @@ export async function clearAllMessages(): Promise<void> {
 		console.log("✅ Todas as mensagens foram removidas do banco local");
 	} catch (error) {
 		console.error("❌ Erro ao limpar mensagens:", error);
+		throw error;
+	}
+}
+
+/**
+ * Limpa mensagens de um chat específico
+ */
+export async function clearChatMessages(chatId: string): Promise<void> {
+	const db = await getDb();
+
+	try {
+		await db.runAsync("DELETE FROM messages WHERE chatId = ?;", [chatId]);
+		console.log(`✅ Mensagens do chat ${chatId} foram removidas do banco local`);
+	} catch (error) {
+		console.error("❌ Erro ao limpar mensagens do chat:", error);
 		throw error;
 	}
 }

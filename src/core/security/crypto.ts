@@ -680,8 +680,15 @@ async function getOrCreateChatKey(chatId: string, userId: string): Promise<Array
 
 /**
  * Criptografa uma mensagem
+ * Tenta usar E2EE real (ECDH) se ambos usuários tiverem chaves públicas
+ * Caso contrário, usa método antigo (PBKDF2) para compatibilidade
  */
-export async function encryptMessage(plaintext: string, chatId: string, userId: string): Promise<string> {
+export async function encryptMessage(
+	plaintext: string,
+	chatId: string,
+	userId: string,
+	receiverId?: string
+): Promise<string> {
 	try {
 		// Validar entrada
 		if (!plaintext || !plaintext.trim()) {
@@ -692,6 +699,26 @@ export async function encryptMessage(plaintext: string, chatId: string, userId: 
 			throw new Error("chatId e userId são obrigatórios");
 		}
 
+		// Tentar usar E2EE real se receiverId for fornecido
+		if (receiverId) {
+			try {
+				const { hasPublicKey } = await import("./keyManagement");
+				const senderHasKey = await hasPublicKey(userId);
+				const receiverHasKey = await hasPublicKey(receiverId);
+
+				if (senderHasKey && receiverHasKey) {
+					// Ambos têm chaves públicas, usar E2EE real
+					const { encryptMessageE2EE } = await import("./e2ee");
+					console.log("🔐 Usando E2EE real (ECDH) para criptografar mensagem");
+					return await encryptMessageE2EE(plaintext, chatId, userId, receiverId);
+				}
+			} catch (e2eeError: any) {
+				console.warn("⚠️ Erro ao tentar usar E2EE, usando método antigo:", e2eeError.message);
+				// Continuar com método antigo
+			}
+		}
+
+		// Método antigo (compatibilidade)
 		// Obter chave e gerar IV/nonce em paralelo para melhor performance
 		const [key, ivBase64, nonce] = await Promise.all([
 			getOrCreateChatKey(chatId, userId),
@@ -763,15 +790,39 @@ export async function decryptMessage(encryptedText: string, chatId: string, user
 			throw new Error("Payload inválido: versão não especificada");
 		}
 
-		// Suportar versão 3 (AES-GCM) e rejeitar versões antigas
+		// Suportar versão 4 (E2EE com ECDH) e versão 3 (método antigo)
 		if (payload.v === "2") {
 			throw new Error(
 				"Versão de criptografia não suportada: v2 (formato antigo com XOR). Todas as mensagens antigas devem ser apagadas."
 			);
 		}
 
+		// Versão 4: E2EE com ECDH
+		if (payload.v === "4") {
+			// Extrair senderId e receiverId do chatId (formato: userId1_userId2)
+			const chatParts = chatId.split("_");
+			if (chatParts.length !== 2) {
+				throw new Error("ChatId inválido para E2EE");
+			}
+
+			// Determinar senderId e receiverId
+			// O senderId é o que não é o userId atual
+			const senderId = chatParts[0] === userId ? chatParts[1] : chatParts[0];
+			const receiverId = userId;
+
+			try {
+				const { decryptMessageE2EE } = await import("./e2ee");
+				console.log("🔓 Usando E2EE real (ECDH) para descriptografar mensagem");
+				return await decryptMessageE2EE(encryptedText, chatId, senderId, receiverId);
+			} catch (e2eeError: any) {
+				console.error("❌ Erro ao descriptografar com E2EE:", e2eeError);
+				throw new Error(`Falha ao descriptografar mensagem E2EE: ${e2eeError.message}`);
+			}
+		}
+
+		// Versão 3: Método antigo (PBKDF2 + AES-256)
 		if (payload.v !== "3") {
-			throw new Error(`Versão de criptografia não suportada: ${payload.v} (esperado: 3)`);
+			throw new Error(`Versão de criptografia não suportada: ${payload.v} (esperado: 3 ou 4)`);
 		}
 
 		// Validar campos obrigatórios para v3
@@ -908,6 +959,12 @@ export async function clearAllKeys(): Promise<void> {
 		// Limpar caches em memória
 		keyCache.clear();
 		masterKeyCache.clear();
+
+		// Limpar caches E2EE
+		const { clearSharedSecretCache } = await import("./e2ee");
+		const { clearPublicKeyCache } = await import("./keyManagement");
+		clearSharedSecretCache();
+		clearPublicKeyCache();
 
 		// Limpar chaves do storage
 		const keys = await AsyncStorage.getAllKeys();

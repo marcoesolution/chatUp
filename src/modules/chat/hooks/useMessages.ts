@@ -205,7 +205,7 @@ export function useMessages(contactId: string) {
 				console.log("🔐 Iniciando criptografia da mensagem...", { chatId, messageLength: plaintext.length });
 
 				encryptedText = await Promise.race([
-					encryptMessage(plaintext, chatId, currentUserId),
+					encryptMessage(plaintext, chatId, currentUserId, messageData.receiverId),
 					new Promise<string>((_, reject) =>
 						setTimeout(() => {
 							reject(new Error("Timeout: Criptografia demorou mais de 10 segundos"));

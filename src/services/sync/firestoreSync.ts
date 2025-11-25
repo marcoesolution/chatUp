@@ -39,8 +39,10 @@ export async function syncChat(chatId: string, userId: string): Promise<number> 
 		throw new Error("Firestore não inicializado");
 	}
 
+	// Obter lastSync antes do try para estar disponível no catch
+	let lastSync: number | null = null;
 	try {
-		const lastSync = await getLastSyncTimestamp(chatId);
+		lastSync = await getLastSyncTimestamp(chatId);
 		const lastSyncDate = lastSync ? new Date(lastSync) : new Date(0);
 
 		// Buscar mensagens novas do Firestore
@@ -65,6 +67,7 @@ export async function syncChat(chatId: string, userId: string): Promise<number> 
 			const data = docSnapshot.data();
 
 			// Tentar descriptografar a mensagem
+			// decryptMessage detecta automaticamente a versão (v3 ou v4)
 			let decryptedText = data.text;
 			try {
 				decryptedText = await decryptMessage(data.text, chatId, userId);
@@ -146,6 +149,7 @@ async function syncChatWithoutOrderBy(chatId: string, userId: string, lastSync: 
 		for (const docSnapshot of newMessages) {
 			const data = docSnapshot.data();
 
+			// decryptMessage detecta automaticamente a versão (v3 ou v4)
 			let decryptedText = data.text;
 			try {
 				decryptedText = await decryptMessage(data.text, chatId, userId);

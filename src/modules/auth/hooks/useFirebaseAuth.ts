@@ -16,7 +16,7 @@ import * as Linking from "expo-linking";
 import * as Crypto from "expo-crypto";
 import { Platform } from "react-native";
 import { auth, db } from "@/core/firebase";
-import { clearAllKeys } from "@/core/security";
+import { clearAllKeys, getOrCreateKeyPair } from "@/core/security";
 import { useLocation } from "@/modules/location";
 import type { UserProfile, CreateProfileData } from "../types";
 
@@ -51,6 +51,12 @@ export function useFirebaseAuth() {
 			setIsLoading(true);
 
 			if (firebaseUser) {
+				// Gerar par de chaves E2EE se não existir (em background, não bloquear)
+				getOrCreateKeyPair(firebaseUser.uid).catch((err) => {
+					console.warn("⚠️ Erro ao gerar par de chaves E2EE:", err);
+					// Não bloquear login se falhar
+				});
+
 				// Buscar perfil do usuário no Firestore
 				try {
 					let profile = await getUserProfile(firebaseUser.uid);
