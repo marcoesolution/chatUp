@@ -58,7 +58,9 @@
     "update:preview": "eas update --branch preview --message \"Atualização automática\" --platform android",
     "update:production": "eas update --branch production --message \"Atualização automática\" --platform android",
     "update:preview:interactive": "eas update --branch preview --platform android",
-    "update:production:interactive": "eas update --branch production --platform android"
+    "update:production:interactive": "eas update --branch production --platform android",
+    "clear:messages": "npx ts-node scripts/clear-firestore-messages.ts",
+    "clear:messages:confirm": "npx ts-node scripts/clear-firestore-messages.ts --confirm"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
@@ -69,6 +71,7 @@
     "axios": "^1.7.9",
     "babel-plugin-module-resolver": "^5.0.0",
     "babel-plugin-styled-components": "^2.1.4",
+    "crypto-js": "^4.2.0",
     "expo": "~54.0.0",
     "expo-auth-session": "~7.0.9",
     "expo-constants": "~18.0.10",
@@ -97,6 +100,7 @@
     "@gannonh/firebase-mcp": "^1.4.9",
     "@testing-library/jest-native": "^5.4.3",
     "@testing-library/react-native": "^12.8.1",
+    "@types/crypto-js": "^4.2.2",
     "@types/jest": "^29.5.14",
     "@types/react": "~19.1.10",
     "@types/styled-components": "^5.1.34",

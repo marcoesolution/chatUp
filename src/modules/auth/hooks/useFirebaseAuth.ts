@@ -223,7 +223,7 @@ export function useFirebaseAuth() {
 		try {
 			// Buscar o usuário atual do Firebase Auth para preservar o photoURL
 			const currentUser = auth.currentUser;
-			
+
 			// Buscar perfil existente para preservar dados que não foram alterados
 			const existingProfile = await getUserProfile(userId);
 
@@ -384,7 +384,7 @@ export function useFirebaseAuth() {
 			// que são considerados navegadores seguros pelo Google
 			// Usar proxy do Expo para garantir URI https:// válido
 			console.log("🔗 Iniciando promptAsync com proxy do Expo");
-			
+
 			const result = await request.promptAsync(discovery, {
 				useProxy: true, // Usar proxy do Expo para URI https:// válido
 			});
@@ -561,16 +561,16 @@ export function useFirebaseAuth() {
 	 */
 	const hasCompleteProfile = (() => {
 		if (!userProfile) return false;
-		
+
 		// Verificar se hasProfile é true
 		if (!userProfile.hasProfile) return false;
-		
+
 		// Verificar se todos os campos obrigatórios estão preenchidos
 		const hasEmail = !!userProfile.email && userProfile.email.trim().length > 0;
 		const hasDisplayName = !!userProfile.displayName && userProfile.displayName.trim().length > 0;
 		const hasPhoneNumber = !!userProfile.phoneNumber && userProfile.phoneNumber.trim().length >= 10;
 		const hasBio = !!userProfile.bio && userProfile.bio.trim().length >= 10;
-		
+
 		return hasEmail && hasDisplayName && hasPhoneNumber && hasBio;
 	})();
 
