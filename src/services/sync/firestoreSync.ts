@@ -27,6 +27,7 @@ import {
 	getLastSyncTimestamp,
 	getPendingMessages,
 	getChatIds,
+	messageExists,
 } from "@/core/database";
 import type { MessageRow } from "@/core/database/schema";
 import type { Message } from "@/modules/chat/types";
@@ -145,10 +146,19 @@ export async function syncChat(chatId: string, userId: string): Promise<number> 
 				continue;
 			}
 
+			// Verificar se mensagem já existe no banco local antes de inserir
+			const messageId = docSnapshot.id;
+			const alreadyExists = await messageExists(messageId);
+
+			if (alreadyExists) {
+				console.log("ℹ️ Mensagem já existe no banco local durante sync, ignorando:", messageId);
+				continue; // Pular mensagem duplicada
+			}
+
 			// Inserir no banco local
 			try {
 				await insertMessage({
-					id: docSnapshot.id,
+					id: messageId,
 					chatId: data.chatId,
 					senderId: data.senderId,
 					receiverId: data.receiverId,
@@ -217,6 +227,15 @@ async function syncChatWithoutOrderBy(chatId: string, userId: string, lastSync: 
 
 		for (const docSnapshot of newMessages) {
 			const data = docSnapshot.data();
+			const messageId = docSnapshot.id;
+
+			// Verificar se mensagem já existe no banco local antes de inserir
+			const alreadyExists = await messageExists(messageId);
+
+			if (alreadyExists) {
+				console.log("ℹ️ Mensagem já existe no banco local durante sync (fallback), ignorando:", messageId);
+				continue; // Pular mensagem duplicada
+			}
 
 			// decryptMessage detecta automaticamente a versão (v3 ou v4)
 			let decryptedText = data.text;
@@ -231,22 +250,27 @@ async function syncChatWithoutOrderBy(chatId: string, userId: string, lastSync: 
 			const updatedAt = data.updatedAt?.toDate() || timestamp;
 			const viewedAt = data.viewedAt?.toDate() || null;
 
-			insertMessage({
-				id: docSnapshot.id,
-				chatId: data.chatId,
-				senderId: data.senderId,
-				receiverId: data.receiverId,
-				text: decryptedText,
-				encryptedText: data.text,
-				timestamp,
-				read: data.read || false,
-				viewedAt,
-				createdAt,
-				updatedAt,
-				isLocal: false,
-			});
+			try {
+				await insertMessage({
+					id: messageId,
+					chatId: data.chatId,
+					senderId: data.senderId,
+					receiverId: data.receiverId,
+					text: decryptedText,
+					encryptedText: data.text,
+					timestamp,
+					read: data.read || false,
+					viewedAt,
+					createdAt,
+					updatedAt,
+					isLocal: false,
+				});
 
-			syncedCount++;
+				syncedCount++;
+			} catch (insertError) {
+				console.error("❌ Erro ao inserir mensagem no banco local (fallback):", insertError);
+				// Continuar com próxima mensagem
+			}
 		}
 
 		console.log(`✅ Sincronizadas ${syncedCount} mensagens (fallback) do chat ${chatId}`);
@@ -360,16 +384,37 @@ export function setupRealtimeListener(
 	}
 
 	try {
+		// Obter lastSync para ignorar mensagens antigas
+		let lastSync: number | null = null;
+		getLastSyncTimestamp(chatId)
+			.then((syncTime) => {
+				lastSync = syncTime;
+			})
+			.catch((err) => {
+				console.warn("⚠️ Erro ao obter lastSync no listener:", err);
+			});
+
 		const messagesQuery = query(
 			collection(db, "messages"),
 			where("chatId", "==", chatId),
 			orderBy("timestamp", "desc"),
-			limit(1) // Apenas novas mensagens
+			limit(50) // Aumentar limite para pegar mensagens recentes
 		);
 
 		const unsubscribe = onSnapshot(
 			messagesQuery,
 			async (snapshot) => {
+				// Atualizar lastSync se ainda não foi carregado
+				if (lastSync === null) {
+					try {
+						lastSync = await getLastSyncTimestamp(chatId);
+					} catch (err) {
+						console.warn("⚠️ Erro ao obter lastSync no listener:", err);
+					}
+				}
+
+				const lastSyncDate = lastSync ? new Date(lastSync) : new Date(0);
+
 				for (const docChange of snapshot.docChanges()) {
 					if (docChange.type === "added") {
 						const data = docChange.doc.data();
@@ -377,7 +422,7 @@ export function setupRealtimeListener(
 						// Validar dados da mensagem
 						if (!data || !data.text || typeof data.text !== "string") {
 							console.warn("⚠️ Mensagem com dados inválidos ignorada em tempo real:", data);
-							return;
+							continue;
 						}
 
 						// Descriptografar mensagem
@@ -410,6 +455,16 @@ export function setupRealtimeListener(
 							}
 						} catch (err) {
 							timestamp = new Date();
+						}
+
+						// Verificar se mensagem é mais recente que lastSync (antes de processar)
+						const messageTimestamp = timestamp.getTime();
+						if (lastSync && messageTimestamp <= lastSyncDate.getTime()) {
+							console.log(
+								"ℹ️ Mensagem antiga ignorada pelo listener (já sincronizada):",
+								docChange.doc.id
+							);
+							continue; // Ignorar mensagens já sincronizadas
 						}
 
 						let createdAt: Date;
@@ -447,13 +502,22 @@ export function setupRealtimeListener(
 						// Validar campos obrigatórios
 						if (!data.chatId || !data.senderId || !data.receiverId) {
 							console.warn("⚠️ Mensagem com campos obrigatórios faltando ignorada em tempo real:", data);
-							return;
+							continue;
+						}
+
+						// Verificar se mensagem já existe no banco local antes de inserir
+						const messageId = docChange.doc.id;
+						const alreadyExists = await messageExists(messageId);
+
+						if (alreadyExists) {
+							console.log("ℹ️ Mensagem já existe no banco local, ignorando:", messageId);
+							continue; // Não processar mensagem duplicada
 						}
 
 						// Inserir no banco local
 						try {
 							await insertMessage({
-								id: docChange.doc.id,
+								id: messageId,
 								chatId: data.chatId,
 								senderId: data.senderId,
 								receiverId: data.receiverId,
@@ -469,12 +533,13 @@ export function setupRealtimeListener(
 						} catch (insertError) {
 							console.error("❌ Erro ao inserir mensagem no banco local em tempo real:", insertError);
 							// Continuar mesmo se inserção falhar
+							continue;
 						}
 
-						// Notificar UI
+						// Notificar UI apenas se mensagem foi inserida com sucesso
 						try {
 							onNewMessage({
-								id: docChange.doc.id,
+								id: messageId,
 								chatId: data.chatId,
 								senderId: data.senderId,
 								receiverId: data.receiverId,
@@ -530,6 +595,16 @@ function setupRealtimeListenerWithoutOrderBy(
 					if (docChange.type === "added") {
 						const data = docChange.doc.data();
 
+						const messageId = docChange.doc.id;
+
+						// Verificar se mensagem já existe no banco local antes de inserir
+						const alreadyExists = await messageExists(messageId);
+
+						if (alreadyExists) {
+							console.log("ℹ️ Mensagem já existe no banco local (fallback), ignorando:", messageId);
+							continue; // Não processar mensagem duplicada
+						}
+
 						let decryptedText = data.text;
 						try {
 							decryptedText = await decryptMessage(data.text, chatId, userId);
@@ -542,33 +617,37 @@ function setupRealtimeListenerWithoutOrderBy(
 						const updatedAt = data.updatedAt?.toDate() || timestamp;
 						const viewedAt = data.viewedAt?.toDate() || null;
 
-						insertMessage({
-							id: docChange.doc.id,
-							chatId: data.chatId,
-							senderId: data.senderId,
-							receiverId: data.receiverId,
-							text: decryptedText,
-							encryptedText: data.text,
-							timestamp,
-							read: data.read || false,
-							viewedAt,
-							createdAt,
-							updatedAt,
-							isLocal: false,
-						});
+						try {
+							await insertMessage({
+								id: messageId,
+								chatId: data.chatId,
+								senderId: data.senderId,
+								receiverId: data.receiverId,
+								text: decryptedText,
+								encryptedText: data.text,
+								timestamp,
+								read: data.read || false,
+								viewedAt,
+								createdAt,
+								updatedAt,
+								isLocal: false,
+							});
 
-						onNewMessage({
-							id: docChange.doc.id,
-							chatId: data.chatId,
-							senderId: data.senderId,
-							receiverId: data.receiverId,
-							text: decryptedText,
-							timestamp,
-							read: data.read || false,
-							viewedAt,
-							createdAt,
-							updatedAt,
-						});
+							onNewMessage({
+								id: messageId,
+								chatId: data.chatId,
+								senderId: data.senderId,
+								receiverId: data.receiverId,
+								text: decryptedText,
+								timestamp,
+								read: data.read || false,
+								viewedAt,
+								createdAt,
+								updatedAt,
+							});
+						} catch (insertError) {
+							console.error("❌ Erro ao inserir mensagem no banco local (fallback):", insertError);
+						}
 					}
 				}
 			},

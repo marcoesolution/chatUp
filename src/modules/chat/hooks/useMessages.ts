@@ -99,8 +99,10 @@ export function useMessages(contactId: string) {
 				unsubscribeRef.current = setupRealtimeListener(chatId, currentUserId, (newMessage) => {
 					// Atualizar mensagens quando nova mensagem chegar
 					setMessages((prev) => {
-						// Verificar se mensagem já existe
-						if (prev.some((m) => m.id === newMessage.id)) {
+						// Verificar se mensagem já existe (verificação dupla para garantir)
+						const exists = prev.some((m) => m.id === newMessage.id);
+						if (exists) {
+							console.log("ℹ️ Mensagem já existe no estado, ignorando:", newMessage.id);
 							return prev;
 						}
 						// Adicionar nova mensagem e reordenar

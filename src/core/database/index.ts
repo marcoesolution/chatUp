@@ -75,6 +75,24 @@ async function getDb(): Promise<SQLite.SQLiteDatabase> {
 }
 
 /**
+ * Verifica se uma mensagem já existe no banco local
+ */
+export async function messageExists(messageId: string): Promise<boolean> {
+	const db = await getDb();
+
+	try {
+		const result = await db.getFirstAsync<{ count: number }>(
+			`SELECT COUNT(*) as count FROM messages WHERE id = ?`,
+			[messageId]
+		);
+		return (result?.count || 0) > 0;
+	} catch (error) {
+		console.error("❌ Erro ao verificar se mensagem existe:", error);
+		return false;
+	}
+}
+
+/**
  * Busca mensagens de um chat específico
  */
 export async function getMessages(chatId: string, limit: number = 15, offset: number = 0): Promise<Message[]> {
