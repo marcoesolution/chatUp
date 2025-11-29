@@ -7,12 +7,9 @@ import { I18nProvider } from "@/core/i18n/I18nProvider";
 import { UpdateDialog } from "@/shared/components";
 import React, { Suspense, useEffect } from "react";
 import { View, Text, StyleSheet, ActivityIndicator } from "react-native";
-// Inicializa o Firebase quando o app inicia
 import "@/core/firebase";
-// Inicializa o banco de dados local
 import { initDatabase } from "@/core/database";
 
-// Error Boundary para capturar erros de inicialização
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean; error: Error | null }> {
 	constructor(props: { children: React.ReactNode }) {
 		super(props);
@@ -27,7 +24,6 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
 		console.error("❌ Erro capturado pelo ErrorBoundary:", error);
 		console.error("❌ Stack trace:", error.stack);
 		console.error("❌ Component stack:", errorInfo.componentStack);
-		// Em produção, você pode enviar isso para um serviço de crash reporting
 		if (__DEV__) {
 			console.error("❌ Error info completo:", errorInfo);
 		}
@@ -35,7 +31,6 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
 
 	render() {
 		if (this.state.hasError) {
-			// Usar textos hardcoded aqui pois o i18n pode não estar inicializado ainda
 			return (
 				<View style={styles.errorContainer}>
 					<Text style={styles.errorTitle}>Erro ao carregar o app</Text>
@@ -82,7 +77,6 @@ const styles = StyleSheet.create({
 	},
 });
 
-// Loading fallback para lazy loading
 const LoadingFallback = () => (
 	<View style={styles.loadingContainer}>
 		<ActivityIndicator size="large" color="#007AFF" />
@@ -90,7 +84,6 @@ const LoadingFallback = () => (
 );
 
 function AppContent() {
-	// Inicializar banco de dados local quando o app inicia
 	useEffect(() => {
 		(async () => {
 			try {
@@ -112,7 +105,6 @@ function AppContent() {
 					headerTitleStyle: {
 						fontWeight: "bold",
 					},
-					// Expo Router já faz lazy loading automático de rotas
 				}}
 			>
 				<Stack.Screen

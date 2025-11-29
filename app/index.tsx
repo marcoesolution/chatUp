@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { View, ActivityIndicator, Text } from "react-native";
+import { ActivityIndicator } from "react-native";
 import { useRouter } from "expo-router";
 import styled, { useTheme } from "styled-components/native";
 import { useAuth } from "@/modules/auth";
@@ -32,7 +32,6 @@ export default function IndexScreen() {
 	const { isAuthenticated, hasCompleteProfile, isLoading, error } = useAuth();
 	const theme = useTheme();
 
-	// Log de debug para identificar problemas
 	useEffect(() => {
 		console.log("🔍 IndexScreen: Inicializando...");
 		console.log("🔍 IndexScreen: isLoading =", isLoading);

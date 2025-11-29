@@ -177,20 +177,35 @@ export default function ChatScreen() {
 	const [messageText, setMessageText] = useState("");
 	const [isSending, setIsSending] = useState(false);
 	const [keyboardHeight, setKeyboardHeight] = useState(0);
-	const flashListRef = useRef<FlashList<Message>>(null);
+	const flashListRef = useRef<any>(null);
 	const inputRef = useRef<RNTextInput>(null);
 
 	// Encontrar informações do contato
 	const contact = mockContacts.find((c) => c.id === contactId);
 
+	// Lista com mensagens mais recentes no topo (inverter ordem)
+	// IMPORTANTE: Declarar ANTES dos useEffects que o usam
+	const sortedMessages = useMemo(() => {
+		if (!messages || !Array.isArray(messages)) {
+			return [];
+		}
+		return [...messages].reverse();
+	}, [messages]);
+
 	// Rolar para o topo (mensagem mais recente) quando a tela carregar ou novas mensagens chegarem
 	useEffect(() => {
-		if (messages.length > 0 && !isLoading) {
+		if (sortedMessages && sortedMessages.length > 0 && !isLoading) {
 			setTimeout(() => {
-				flashListRef.current?.scrollToIndex({ index: 0, animated: false });
+				try {
+					flashListRef.current?.scrollToIndex({ index: 0, animated: false });
+				} catch (err) {
+					// Se scrollToIndex falhar, usar scrollToOffset como fallback
+					console.warn("⚠️ Erro ao fazer scrollToIndex, usando scrollToOffset:", err);
+					flashListRef.current?.scrollToOffset({ offset: 0, animated: false });
+				}
 			}, 200);
 		}
-	}, [messages.length, isLoading]);
+	}, [sortedMessages.length, isLoading]);
 
 	// Detectar altura do teclado para ajustar o layout
 	useEffect(() => {
@@ -200,8 +215,14 @@ export default function ChatScreen() {
 				setKeyboardHeight(e.endCoordinates.height);
 				// Rolar para o topo (mensagem mais recente) quando o teclado abrir
 				setTimeout(() => {
-					if (messages.length > 0) {
-						flashListRef.current?.scrollToIndex({ index: 0, animated: true });
+					if (sortedMessages && sortedMessages.length > 0) {
+						try {
+							flashListRef.current?.scrollToIndex({ index: 0, animated: true });
+						} catch (err) {
+							// Se scrollToIndex falhar, usar scrollToOffset como fallback
+							console.warn("⚠️ Erro ao fazer scrollToIndex, usando scrollToOffset:", err);
+							flashListRef.current?.scrollToOffset({ offset: 0, animated: true });
+						}
 					}
 				}, 100);
 			}
@@ -218,7 +239,7 @@ export default function ChatScreen() {
 			keyboardWillShowListener.remove();
 			keyboardWillHideListener.remove();
 		};
-	}, [messages.length]);
+	}, [sortedMessages.length]);
 
 	// Formatar hora da mensagem
 	const formatTime = useCallback((date: Date) => {
@@ -231,6 +252,18 @@ export default function ChatScreen() {
 	// Renderizar item da lista
 	const renderMessage = useCallback(
 		({ item: message }: { item: Message }) => {
+			// Validação de segurança para evitar crashes
+			if (!message || !message.id || !message.text) {
+				console.warn("⚠️ Tentativa de renderizar mensagem inválida:", message);
+				return null;
+			}
+
+			// Validar timestamp
+			if (!message.timestamp || !(message.timestamp instanceof Date)) {
+				console.warn("⚠️ Timestamp inválido na mensagem:", message);
+				return null;
+			}
+
 			const isOwn = message.senderId === firebaseUser?.uid;
 			const isViewed = message.viewedAt !== null && message.viewedAt !== undefined;
 
@@ -247,11 +280,14 @@ export default function ChatScreen() {
 		[firebaseUser?.uid, formatTime]
 	);
 
-	// Key extractor para FlatList
-	const keyExtractor = useCallback((item: Message) => item.id, []);
-
-	// Lista com mensagens mais recentes no topo (inverter ordem)
-	const sortedMessages = useMemo(() => [...messages].reverse(), [messages]);
+	// Key extractor para FlashList com fallback
+	const keyExtractor = useCallback((item: Message) => {
+		if (!item || !item.id) {
+			// Fallback para evitar keys duplicadas ou inválidas
+			return `msg_${item?.timestamp?.getTime() || Date.now()}_${Math.random()}`;
+		}
+		return item.id;
+	}, []);
 
 	// Carregar mais mensagens antigas ao fazer scroll para o final da lista
 	const handleLoadMore = useCallback(() => {
@@ -289,8 +325,14 @@ export default function ChatScreen() {
 			setMessageText("");
 			// Rolar para o topo após enviar mensagem
 			setTimeout(() => {
-				if (sortedMessages.length > 0) {
-					flashListRef.current?.scrollToIndex({ index: 0, animated: true });
+				if (sortedMessages && sortedMessages.length > 0) {
+					try {
+						flashListRef.current?.scrollToIndex({ index: 0, animated: true });
+					} catch (err) {
+						// Se scrollToIndex falhar, usar scrollToOffset como fallback
+						console.warn("⚠️ Erro ao fazer scrollToIndex, usando scrollToOffset:", err);
+						flashListRef.current?.scrollToOffset({ offset: 0, animated: true });
+					}
 				}
 			}, 100);
 			inputRef.current?.blur();
@@ -319,7 +361,7 @@ export default function ChatScreen() {
 		return (
 			<ContainerWrapper>
 				<MessagesListContainer>
-					{isLoading && sortedMessages.length === 0 ? (
+					{isLoading && (!sortedMessages || sortedMessages.length === 0) ? (
 						<LoadingContainer>
 							<ActivityIndicator size="large" color={theme.colors.button.primary} />
 							<LoadingText>{t("chat.loadingMessages")}</LoadingText>
@@ -327,17 +369,16 @@ export default function ChatScreen() {
 					) : (
 						<FlashList
 							ref={flashListRef}
-							data={sortedMessages}
+							data={sortedMessages || []}
 							renderItem={renderMessage}
 							keyExtractor={keyExtractor}
-							estimatedItemSize={80}
 							onEndReached={handleLoadMore}
 							onEndReachedThreshold={0.5}
 							ListFooterComponent={renderFooter}
 							contentContainerStyle={{
 								paddingTop: insets.top > 0 ? insets.top : 0,
 								paddingBottom: insets.bottom > 0 ? insets.bottom : 0,
-								flexGrow: sortedMessages.length === 0 ? 1 : 0,
+								flexGrow: !sortedMessages || sortedMessages.length === 0 ? 1 : 0,
 							}}
 							keyboardShouldPersistTaps="handled"
 							ListEmptyComponent={
@@ -363,8 +404,14 @@ export default function ChatScreen() {
 						onFocus={() => {
 							// Garantir que a lista role para o topo (mensagem mais recente) quando o input receber foco
 							setTimeout(() => {
-								if (messages.length > 0) {
-									flashListRef.current?.scrollToIndex({ index: 0, animated: true });
+								if (sortedMessages && sortedMessages.length > 0) {
+									try {
+										flashListRef.current?.scrollToIndex({ index: 0, animated: true });
+									} catch (err) {
+										// Se scrollToIndex falhar, usar scrollToOffset como fallback
+										console.warn("⚠️ Erro ao fazer scrollToIndex, usando scrollToOffset:", err);
+										flashListRef.current?.scrollToOffset({ offset: 0, animated: true });
+									}
 								}
 							}, 300);
 						}}
@@ -389,7 +436,7 @@ export default function ChatScreen() {
 	return (
 		<Container behavior="padding" keyboardVerticalOffset={insets.top + 100}>
 			<MessagesListContainer>
-				{isLoading && sortedMessages.length === 0 ? (
+				{isLoading && (!sortedMessages || sortedMessages.length === 0) ? (
 					<LoadingContainer>
 						<ActivityIndicator size="large" color={theme.colors.button.primary} />
 						<LoadingText>{t("chat.loadingMessages")}</LoadingText>
@@ -397,17 +444,16 @@ export default function ChatScreen() {
 				) : (
 					<FlashList
 						ref={flashListRef}
-						data={sortedMessages}
+						data={sortedMessages || []}
 						renderItem={renderMessage}
 						keyExtractor={keyExtractor}
-						estimatedItemSize={80}
 						onEndReached={handleLoadMore}
 						onEndReachedThreshold={0.5}
 						ListFooterComponent={renderFooter}
 						contentContainerStyle={{
 							paddingTop: insets.top > 0 ? insets.top : 0,
 							paddingBottom: insets.bottom > 0 ? insets.bottom : 0,
-							flexGrow: sortedMessages.length === 0 ? 1 : 0,
+							flexGrow: !sortedMessages || sortedMessages.length === 0 ? 1 : 0,
 						}}
 						keyboardShouldPersistTaps="handled"
 						ListEmptyComponent={
@@ -433,8 +479,14 @@ export default function ChatScreen() {
 					onFocus={() => {
 						// Garantir que a lista role para o topo (mensagem mais recente) quando o input receber foco
 						setTimeout(() => {
-							if (messages.length > 0) {
-								flashListRef.current?.scrollToIndex({ index: 0, animated: true });
+							if (sortedMessages.length > 0) {
+								try {
+									flashListRef.current?.scrollToIndex({ index: 0, animated: true });
+								} catch (err) {
+									// Se scrollToIndex falhar, usar scrollToOffset como fallback
+									console.warn("⚠️ Erro ao fazer scrollToIndex, usando scrollToOffset:", err);
+									flashListRef.current?.scrollToOffset({ offset: 0, animated: true });
+								}
 							}
 						}, 300);
 					}}

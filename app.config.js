@@ -13,10 +13,10 @@ module.exports = {
 		orientation: "portrait",
 		icon: "./assets/icon.png",
 		userInterfaceStyle: "light",
-		newArchEnabled: false,
+		newArchEnabled: true,
 		scheme: "chatup",
 		splash: {
-			image: "./assets/splash-icon.png",
+			image: "./assets/logoIcon.png",
 			resizeMode: "contain",
 			backgroundColor: "#ffffff",
 		},

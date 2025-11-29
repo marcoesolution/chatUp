@@ -15,10 +15,6 @@ interface UseConversationsReturn {
 	handleContactPress: (contactId: string) => void;
 }
 
-/**
- * Hook customizado para gerenciar a lógica de negócio da tela de conversas
- * Encapsula a busca de usuários próximos, contatos e navegação
- */
 export function useConversations(): UseConversationsReturn {
 	const router = useRouter();
 	const { firebaseUser } = useAuth();

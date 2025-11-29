@@ -66,37 +66,106 @@ export async function syncChat(chatId: string, userId: string): Promise<number> 
 		for (const docSnapshot of snapshot.docs) {
 			const data = docSnapshot.data();
 
+			// Validar dados da mensagem
+			if (!data || !data.text || typeof data.text !== "string") {
+				console.warn("⚠️ Mensagem com dados inválidos ignorada:", data);
+				continue;
+			}
+
 			// Tentar descriptografar a mensagem
 			// decryptMessage detecta automaticamente a versão (v3 ou v4)
 			let decryptedText = data.text;
 			try {
-				decryptedText = await decryptMessage(data.text, chatId, userId);
+				// Verificar se é mensagem criptografada (começa com "ENC:")
+				if (data.text.startsWith("ENC:")) {
+					decryptedText = await decryptMessage(data.text, chatId, userId);
+				} else {
+					// Mensagem não criptografada (legado ou erro)
+					decryptedText = data.text;
+				}
 			} catch (error) {
 				console.warn("⚠️ Erro ao descriptografar mensagem durante sync:", error);
-				// Continuar com texto criptografado se falhar
+				// Tentar usar texto original se descriptografia falhar
+				decryptedText = data.text;
 			}
 
-			// Converter timestamps
-			const timestamp = data.timestamp?.toDate() || new Date();
-			const createdAt = data.createdAt?.toDate() || timestamp;
-			const updatedAt = data.updatedAt?.toDate() || timestamp;
-			const viewedAt = data.viewedAt?.toDate() || null;
+			// Validar texto descriptografado
+			if (!decryptedText || typeof decryptedText !== "string") {
+				console.warn("⚠️ Texto descriptografado inválido, usando texto original");
+				decryptedText = data.text || "";
+			}
+
+			// Converter timestamps com validação
+			let timestamp: Date;
+			try {
+				timestamp = data.timestamp?.toDate() || new Date();
+				if (isNaN(timestamp.getTime())) {
+					timestamp = new Date();
+				}
+			} catch (err) {
+				console.warn("⚠️ Erro ao converter timestamp, usando data atual:", err);
+				timestamp = new Date();
+			}
+
+			let createdAt: Date;
+			try {
+				createdAt = data.createdAt?.toDate() || timestamp;
+				if (isNaN(createdAt.getTime())) {
+					createdAt = timestamp;
+				}
+			} catch (err) {
+				createdAt = timestamp;
+			}
+
+			let updatedAt: Date;
+			try {
+				updatedAt = data.updatedAt?.toDate() || timestamp;
+				if (isNaN(updatedAt.getTime())) {
+					updatedAt = timestamp;
+				}
+			} catch (err) {
+				updatedAt = timestamp;
+			}
+
+			let viewedAt: Date | null = null;
+			try {
+				if (data.viewedAt) {
+					const viewedAtDate = data.viewedAt.toDate();
+					if (!isNaN(viewedAtDate.getTime())) {
+						viewedAt = viewedAtDate;
+					}
+				}
+			} catch (err) {
+				viewedAt = null;
+			}
+
+			// Validar campos obrigatórios antes de inserir
+			if (!data.chatId || !data.senderId || !data.receiverId) {
+				console.warn("⚠️ Mensagem com campos obrigatórios faltando ignorada:", data);
+				continue;
+			}
 
 			// Inserir no banco local
-			await insertMessage({
-				id: docSnapshot.id,
-				chatId: data.chatId,
-				senderId: data.senderId,
-				receiverId: data.receiverId,
-				text: decryptedText,
-				encryptedText: data.text, // Manter backup criptografado
-				timestamp,
-				read: data.read || false,
-				viewedAt,
-				createdAt,
-				updatedAt,
-				isLocal: false,
-			});
+			try {
+				await insertMessage({
+					id: docSnapshot.id,
+					chatId: data.chatId,
+					senderId: data.senderId,
+					receiverId: data.receiverId,
+					text: decryptedText,
+					encryptedText: data.text, // Manter backup criptografado
+					timestamp,
+					read: data.read || false,
+					viewedAt,
+					createdAt,
+					updatedAt,
+					isLocal: false,
+				});
+			} catch (insertError) {
+				console.error("❌ Erro ao inserir mensagem no banco local:", insertError);
+				// Continuar com próxima mensagem
+				continue;
+			}
 
 			syncedCount++;
 		}
@@ -305,48 +374,120 @@ export function setupRealtimeListener(
 					if (docChange.type === "added") {
 						const data = docChange.doc.data();
 
+						// Validar dados da mensagem
+						if (!data || !data.text || typeof data.text !== "string") {
+							console.warn("⚠️ Mensagem com dados inválidos ignorada em tempo real:", data);
+							return;
+						}
+
 						// Descriptografar mensagem
 						let decryptedText = data.text;
 						try {
-							decryptedText = await decryptMessage(data.text, chatId, userId);
+							// Verificar se é mensagem criptografada (começa com "ENC:")
+							if (data.text.startsWith("ENC:")) {
+								decryptedText = await decryptMessage(data.text, chatId, userId);
+							} else {
+								// Mensagem não criptografada (legado ou erro)
+								decryptedText = data.text;
+							}
 						} catch (error) {
 							console.warn("⚠️ Erro ao descriptografar mensagem em tempo real:", error);
+							decryptedText = data.text;
 						}
 
-						const timestamp = data.timestamp?.toDate() || new Date();
-						const createdAt = data.createdAt?.toDate() || timestamp;
-						const updatedAt = data.updatedAt?.toDate() || timestamp;
-						const viewedAt = data.viewedAt?.toDate() || null;
+						// Validar texto descriptografado
+						if (!decryptedText || typeof decryptedText !== "string") {
+							console.warn("⚠️ Texto descriptografado inválido em tempo real, usando texto original");
+							decryptedText = data.text || "";
+						}
+
+						// Converter timestamps com validação
+						let timestamp: Date;
+						try {
+							timestamp = data.timestamp?.toDate() || new Date();
+							if (isNaN(timestamp.getTime())) {
+								timestamp = new Date();
+							}
+						} catch (err) {
+							timestamp = new Date();
+						}
+
+						let createdAt: Date;
+						try {
+							createdAt = data.createdAt?.toDate() || timestamp;
+							if (isNaN(createdAt.getTime())) {
+								createdAt = timestamp;
+							}
+						} catch (err) {
+							createdAt = timestamp;
+						}
+
+						let updatedAt: Date;
+						try {
+							updatedAt = data.updatedAt?.toDate() || timestamp;
+							if (isNaN(updatedAt.getTime())) {
+								updatedAt = timestamp;
+							}
+						} catch (err) {
+							updatedAt = timestamp;
+						}
+
+						let viewedAt: Date | null = null;
+						try {
+							if (data.viewedAt) {
+								const viewedAtDate = data.viewedAt.toDate();
+								if (!isNaN(viewedAtDate.getTime())) {
+									viewedAt = viewedAtDate;
+								}
+							}
+						} catch (err) {
+							viewedAt = null;
+						}
+
+						// Validar campos obrigatórios
+						if (!data.chatId || !data.senderId || !data.receiverId) {
+							console.warn("⚠️ Mensagem com campos obrigatórios faltando ignorada em tempo real:", data);
+							return;
+						}
 
 						// Inserir no banco local
-						await insertMessage({
-							id: docChange.doc.id,
-							chatId: data.chatId,
-							senderId: data.senderId,
-							receiverId: data.receiverId,
-							text: decryptedText,
-							encryptedText: data.text,
-							timestamp,
-							read: data.read || false,
-							viewedAt,
-							createdAt,
-							updatedAt,
-							isLocal: false,
-						});
+						try {
+							await insertMessage({
+								id: docChange.doc.id,
+								chatId: data.chatId,
+								senderId: data.senderId,
+								receiverId: data.receiverId,
+								text: decryptedText,
+								encryptedText: data.text,
+								timestamp,
+								read: data.read || false,
+								viewedAt,
+								createdAt,
+								updatedAt,
+								isLocal: false,
+							});
+						} catch (insertError) {
+							console.error("❌ Erro ao inserir mensagem no banco local em tempo real:", insertError);
+							// Continuar mesmo se inserção falhar
+						}
 
 						// Notificar UI
-						onNewMessage({
-							id: docChange.doc.id,
-							chatId: data.chatId,
-							senderId: data.senderId,
-							receiverId: data.receiverId,
-							text: decryptedText,
-							timestamp,
-							read: data.read || false,
-							viewedAt,
-							createdAt,
-							updatedAt,
-						});
+						try {
+							onNewMessage({
+								id: docChange.doc.id,
+								chatId: data.chatId,
+								senderId: data.senderId,
+								receiverId: data.receiverId,
+								text: decryptedText,
+								timestamp,
+								read: data.read || false,
+								viewedAt,
+								createdAt,
+								updatedAt,
+							});
+						} catch (notifyError) {
+							console.error("❌ Erro ao notificar UI sobre nova mensagem:", notifyError);
+						}
 					}
 				}
 			},
@@ -442,4 +583,3 @@ function setupRealtimeListenerWithoutOrderBy(
 		return () => {};
 	}
 }
-
