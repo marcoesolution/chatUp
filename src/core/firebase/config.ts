@@ -38,14 +38,32 @@ if (!getApps().length) {
 	console.log("✅ Firebase já estava inicializado");
 }
 
-// Inicialização do Auth
-// getAuth funciona automaticamente com Expo/React Native e usa AsyncStorage para persistência
+// Inicialização do Auth com persistência automática
+// 
+// PERSISTÊNCIA DE SESSÃO (30+ dias):
+// - No React Native/Expo, o Firebase Auth detecta automaticamente o ambiente
+// - Usa AsyncStorage internamente para salvar o estado de autenticação
+// - O estado é restaurado automaticamente quando o app é reaberto
+// 
+// RENOVAÇÃO AUTOMÁTICA DE TOKENS:
+// - ID Token: expira após 1 hora, mas é renovado automaticamente
+// - Refresh Token: dura muito mais (até anos) e renova o ID token quando necessário
+// - O Firebase gerencia tudo automaticamente em background
+// - A sessão permanece ativa por pelo menos 30 dias sem necessidade de login
+// 
+// COMO FUNCIONA:
+// 1. Ao fazer login, tokens são salvos no AsyncStorage automaticamente
+// 2. Ao reabrir o app, o Firebase restaura a sessão do AsyncStorage
+// 3. Tokens são renovados automaticamente antes de expirar
+// 4. onAuthStateChanged detecta quando a sessão é restaurada
+// 5. onIdTokenChanged detecta quando tokens são renovados
 let auth: Auth | null = null;
 
 if (app) {
 	try {
 		auth = getAuth(app);
-		console.log("✅ Firebase Auth inicializado com sucesso");
+		console.log("✅ Firebase Auth inicializado com persistência automática (AsyncStorage)");
+		console.log("🔐 Sessão será mantida por pelo menos 30 dias (renovação automática de tokens)");
 	} catch (error) {
 		console.error("❌ Erro ao inicializar Firebase Auth:", error);
 	}

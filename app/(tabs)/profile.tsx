@@ -269,7 +269,10 @@ export default function ProfileScreen() {
 														await clearAllLocalMessages();
 														Alert.alert("Sucesso", "Mensagens locais foram removidas!");
 													} catch (error: any) {
-														Alert.alert("Erro", `Erro ao limpar mensagens: ${error.message}`);
+														Alert.alert(
+															"Erro",
+															`Erro ao limpar mensagens: ${error.message}`
+														);
 													}
 												},
 											},
@@ -277,7 +280,7 @@ export default function ProfileScreen() {
 									);
 								}}
 								style={{
-									backgroundColor: theme.colors.button.danger || "#ff4444",
+									backgroundColor: theme.colors.button.delete,
 									padding: 12,
 									borderRadius: 8,
 									marginTop: 16,

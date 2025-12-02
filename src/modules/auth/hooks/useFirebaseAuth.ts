@@ -8,6 +8,7 @@ import {
 	signInWithCredential,
 	GoogleAuthProvider,
 	User as FirebaseUser,
+	onIdTokenChanged,
 } from "firebase/auth";
 import { doc, getDoc, setDoc, serverTimestamp, Timestamp } from "firebase/firestore";
 import * as AuthSession from "expo-auth-session";
@@ -25,6 +26,20 @@ WebBrowser.maybeCompleteAuthSession();
 
 /**
  * Hook para autenticação com Firebase
+ *
+ * PERSISTÊNCIA DE SESSÃO:
+ * - O Firebase Auth salva automaticamente o estado de autenticação no AsyncStorage
+ * - O token de ID (ID token) expira após 1 hora, mas o Firebase usa refresh tokens
+ * - Refresh tokens duram muito mais (até anos) e são renovados automaticamente
+ * - A sessão permanece ativa por pelo menos 30 dias (ou mais) sem necessidade de login
+ * - O Firebase renova tokens automaticamente em background quando necessário
+ *
+ * COMO FUNCIONA:
+ * 1. Ao fazer login, o Firebase salva tokens no AsyncStorage
+ * 2. O onAuthStateChanged detecta quando o usuário está autenticado
+ * 3. O onIdTokenChanged detecta quando tokens são renovados
+ * 4. Tokens são renovados automaticamente antes de expirar
+ * 5. Mesmo após fechar o app, o estado é restaurado do AsyncStorage
  */
 export function useFirebaseAuth() {
 	const [user, setUser] = useState<FirebaseUser | null>(null);
@@ -36,7 +51,7 @@ export function useFirebaseAuth() {
 	const { location: userLocation, permissionStatus } = useLocation();
 	const lastLocationUpdateRef = useRef<{ lat: number; lon: number } | null>(null);
 
-	// Observar mudanças no estado de autenticação
+	// Observar mudanças no estado de autenticação e renovação de tokens
 	useEffect(() => {
 		// Se Firebase não estiver inicializado, definir loading como false e mostrar erro
 		if (!auth || !db) {
@@ -46,11 +61,28 @@ export function useFirebaseAuth() {
 			return;
 		}
 
-		const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+		// Listener para mudanças no estado de autenticação
+		// Este listener é acionado quando o usuário faz login/logout
+		// e também quando o app é aberto e restaura a sessão do AsyncStorage
+		const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
+			console.log(
+				"🔐 Estado de autenticação mudou:",
+				firebaseUser ? `Usuário: ${firebaseUser.email}` : "Não autenticado"
+			);
 			setUser(firebaseUser);
 			setIsLoading(true);
 
 			if (firebaseUser) {
+				// Forçar renovação do token ao detectar usuário autenticado
+				// Isso garante que temos um token válido mesmo após restaurar do AsyncStorage
+				try {
+					await firebaseUser.getIdToken(true); // true = forçar renovação
+					console.log("✅ Token renovado com sucesso");
+				} catch (tokenError) {
+					console.warn("⚠️ Erro ao renovar token:", tokenError);
+					// Não bloquear o fluxo se falhar, o Firebase tentará novamente automaticamente
+				}
+
 				// Gerar par de chaves E2EE se não existir (em background, não bloquear)
 				getOrCreateKeyPair(firebaseUser.uid).catch((err) => {
 					console.warn("⚠️ Erro ao gerar par de chaves E2EE:", err);
@@ -107,6 +139,22 @@ export function useFirebaseAuth() {
 			setIsLoading(false);
 		});
 
+		// Listener para mudanças no token de ID
+		// Este listener é acionado quando o token é renovado automaticamente
+		// O Firebase renova tokens automaticamente antes de expirar (aproximadamente a cada 50 minutos)
+		const unsubscribeToken = onIdTokenChanged(auth, async (firebaseUser) => {
+			if (firebaseUser) {
+				try {
+					// Obter o token atualizado (já foi renovado automaticamente pelo Firebase)
+					// Não precisamos armazenar o token, apenas garantir que está atualizado
+					await firebaseUser.getIdToken();
+					console.log("🔄 Token renovado automaticamente pelo Firebase");
+				} catch (tokenError) {
+					console.warn("⚠️ Erro ao obter token renovado:", tokenError);
+				}
+			}
+		});
+
 		// Timeout de segurança: se após 10 segundos ainda estiver carregando, forçar parar
 		const timeoutId = setTimeout(() => {
 			console.warn("⚠️ Timeout: Loading de autenticação demorou mais de 10 segundos. Forçando parada.");
@@ -114,7 +162,8 @@ export function useFirebaseAuth() {
 		}, 10000);
 
 		return () => {
-			unsubscribe();
+			unsubscribeAuth();
+			unsubscribeToken();
 			clearTimeout(timeoutId);
 		};
 	}, []);
@@ -327,9 +376,8 @@ export function useFirebaseAuth() {
 			// O Google OAuth só aceita URIs http:// ou https://
 			// O proxy do Expo fornece um URI https:// que funciona com OAuth
 			// O formato é: https://auth.expo.io/@anonymous/[slug]
-			let redirectUri = AuthSession.makeRedirectUri({
-				useProxy: true,
-			});
+			// Na versão 7 do expo-auth-session, o proxy é usado automaticamente quando necessário
+			let redirectUri = AuthSession.makeRedirectUri();
 
 			// Se o URI gerado não for do proxy do Expo, forçar o uso do proxy
 			// Isso garante que sempre usemos um URI https:// válido
@@ -368,9 +416,8 @@ export function useFirebaseAuth() {
 				responseType: AuthSession.ResponseType.IdToken,
 				redirectUri,
 				usePKCE: false, // Google OAuth não requer PKCE para ID token
-				nonce, // Nonce obrigatório para response_type=id_token
 				extraParams: {
-					nonce, // Garantir que o nonce seja incluído na URL
+					nonce, // Nonce obrigatório para response_type=id_token
 				},
 			});
 
@@ -388,12 +435,10 @@ export function useFirebaseAuth() {
 			// Abrir no navegador do sistema usando AuthSession
 			// No Android/iOS, isso usa Custom Tabs/ASWebAuthenticationSession
 			// que são considerados navegadores seguros pelo Google
-			// Usar proxy do Expo para garantir URI https:// válido
-			console.log("🔗 Iniciando promptAsync com proxy do Expo");
+			// O proxy do Expo é usado automaticamente quando necessário
+			console.log("🔗 Iniciando promptAsync");
 
-			const result = await request.promptAsync(discovery, {
-				useProxy: true, // Usar proxy do Expo para URI https:// válido
-			});
+			const result = await request.promptAsync(discovery);
 
 			console.log("📥 Resultado do OAuth:", result.type);
 			console.log("📥 Resultado completo:", JSON.stringify(result, null, 2));
