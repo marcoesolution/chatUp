@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { collection, addDoc, serverTimestamp, updateDoc, doc } from "firebase/firestore";
 import { db } from "@/core/firebase";
 import { useAuth } from "@/modules/auth";
-import { encryptMessage, preloadChatKey } from "@/core/security";
+import { encryptMessage, ensureSignalSession } from "@/core/security";
 import { getMessages, insertMessage, markAsRead as markAsReadLocal, updateMessage } from "@/core/database";
 import { syncChat, setupRealtimeListener, uploadPendingMessages } from "@/services/sync/firestoreSync";
 import type { Message, CreateMessageData } from "../types";
@@ -68,13 +68,13 @@ export function useMessages(contactId: string) {
 		const chatId = generateChatId(currentUserId, contactId);
 		chatIdRef.current = chatId;
 
-		// Pré-carregar chave de criptografia
-		preloadChatKey(chatId, currentUserId)
+		// Pré-estabelecer sessão Signal
+		ensureSignalSession(currentUserId, contactId)
 			.then(() => {
-				console.log("✅ Chave pré-carregada com sucesso", { chatId });
+				console.log("✅ Sessão Signal pronta", { chatId });
 			})
 			.catch((err) => {
-				console.warn("⚠️ Erro ao pré-carregar chave:", err);
+				console.warn("⚠️ Erro ao preparar sessão Signal:", err);
 			});
 
 		// Sincronizar e carregar mensagens
@@ -202,10 +202,8 @@ export function useMessages(contactId: string) {
 
 			// 1. Criptografar mensagem
 			let encryptedText: string;
+			const startTime = Date.now();
 			try {
-				const startTime = Date.now();
-				console.log("🔐 Iniciando criptografia da mensagem...", { chatId, messageLength: plaintext.length });
-
 				encryptedText = await Promise.race([
 					encryptMessage(plaintext, chatId, currentUserId, messageData.receiverId),
 					new Promise<string>((_, reject) =>
@@ -214,13 +212,11 @@ export function useMessages(contactId: string) {
 						}, 10000)
 					),
 				]);
-
-				const elapsed = Date.now() - startTime;
-				console.log(`✅ Mensagem criptografada com sucesso em ${elapsed}ms`);
-			} catch (encryptError: any) {
-				console.error("❌ Erro ao criptografar mensagem:", encryptError);
-				// Fallback: enviar sem criptografia
-				encryptedText = plaintext;
+			} catch (encryptError) {
+				const duration = Date.now() - startTime;
+				console.error("❌ Erro ao criptografar mensagem:", encryptError, { duration });
+				setError("Falha ao criptografar mensagem. Tente novamente.");
+				throw encryptError;
 			}
 
 			// 2. Criar mensagem temporária (otimistic update)

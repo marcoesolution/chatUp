@@ -40,7 +40,8 @@ export function useContacts(nearbyUsers: NearbyUser[]): {
 	const [isLoading, setIsLoading] = useState(true);
 
 	useEffect(() => {
-		if (!firebaseUser || !db || nearbyUsers.length === 0) {
+		const firestoreDb = db;
+		if (!firebaseUser || !firestoreDb || nearbyUsers.length === 0) {
 			setContacts([]);
 			setIsLoading(false);
 			return;
@@ -70,14 +71,14 @@ export function useContacts(nearbyUsers: NearbyUser[]): {
 			// NOTA: Removemos orderBy para evitar necessidade de índice composto
 			// Ordenaremos manualmente no cliente
 			const lastMessageQuery = query(
-				collection(db, 'messages'),
+				collection(firestoreDb, 'messages'),
 				where('chatId', '==', chatId),
 				limit(50) // Buscar últimas 50 mensagens e ordenar no cliente
 			);
 
 			// Buscar mensagens não lidas
 			const unreadQuery = query(
-				collection(db, 'messages'),
+				collection(firestoreDb, 'messages'),
 				where('chatId', '==', chatId),
 				where('receiverId', '==', currentUserId),
 				where('read', '==', false)
@@ -160,7 +161,13 @@ export function useContacts(nearbyUsers: NearbyUser[]): {
 						let messageText = messageData.text || '';
 						if (messageText.startsWith('ENC:')) {
 							try {
-								const decryptedText = await decryptMessage(messageText, chatId, currentUserId);
+								const decryptedText = await decryptMessage(
+									messageText,
+									chatId,
+									currentUserId,
+									messageData.senderId ?? "",
+									messageData.receiverId ?? ""
+								);
 								// Mostrar apenas uma prévia (primeiros 50 caracteres)
 								messageText = decryptedText.length > 50 ? decryptedText.substring(0, 50) + '...' : decryptedText;
 							} catch (error) {

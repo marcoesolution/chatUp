@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package chatup.signal;
+
+message MessageEnvelope {
+  uint32 version = 1;
+  uint32 cipher_type = 2;
+  bytes payload = 3;
+  string chat_id = 4;
+  string sender_id = 5;
+  string receiver_id = 6;
+  uint64 timestamp = 7;
+  uint32 registration_id = 8;
+}
+

@@ -585,7 +585,7 @@ export function useFirebaseAuth() {
 		try {
 			// Limpar chaves de criptografia antes de fazer logout
 			try {
-				await clearAllKeys();
+				await clearAllKeys(user?.uid);
 				console.log("🔒 Chaves de criptografia removidas");
 			} catch (keyError) {
 				console.warn("⚠️ Erro ao limpar chaves de criptografia:", keyError);

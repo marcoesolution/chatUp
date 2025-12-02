@@ -3,7 +3,7 @@ import { useLocation } from "@/modules/location";
 import { useNearbyUsers } from "@/modules/location";
 import { useContacts } from "@/modules/chat/hooks/useContacts";
 import { useAuth } from "@/modules/auth";
-import { preloadChatKey } from "@/core/security";
+import { ensureSignalSession } from "@/core/security";
 import type { Contact } from "@/modules/chat/types";
 
 interface UseConversationsReturn {
@@ -42,16 +42,9 @@ export function useConversations(): UseConversationsReturn {
 	const handleContactPress = (contactId: string) => {
 		console.log("Navegando para chat do contato:", contactId);
 
-		// Pré-carregar chave ANTES de navegar para o chat
-		// Isso garante que a chave esteja pronta quando o usuário abrir o chat
+		// Pré-estabelecer sessão ANTES de navegar para o chat
 		if (firebaseUser) {
-			const generateChatId = (userId1: string, userId2: string) => {
-				const sorted = [userId1, userId2].sort();
-				return `${sorted[0]}_${sorted[1]}`;
-			};
-			const chatId = generateChatId(firebaseUser.uid, contactId);
-			// Iniciar pré-carregamento imediatamente (não aguardar)
-			preloadChatKey(chatId, firebaseUser.uid).catch(() => {
+			ensureSignalSession(firebaseUser.uid, contactId).catch(() => {
 				// Ignorar erros - é apenas otimização
 			});
 		}

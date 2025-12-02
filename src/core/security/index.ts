@@ -10,7 +10,6 @@ export {
 	clearAllKeys,
 	exportChatKey,
 	importChatKey,
-	preloadChatKey,
 } from './crypto';
 
 // E2EE com ECDH
@@ -33,4 +32,6 @@ export {
 	removePrivateKey,
 	clearPublicKeyCache,
 } from './keyManagement';
+
+export { ensureSignalSession } from './signal';
 

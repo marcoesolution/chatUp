@@ -79,7 +79,13 @@ export async function syncChat(chatId: string, userId: string): Promise<number> 
 			try {
 				// Verificar se é mensagem criptografada (começa com "ENC:")
 				if (data.text.startsWith("ENC:")) {
-					decryptedText = await decryptMessage(data.text, chatId, userId);
+					decryptedText = await decryptMessage(
+						data.text,
+						chatId,
+						userId,
+						data.senderId ?? "",
+						data.receiverId ?? ""
+					);
 				} else {
 					// Mensagem não criptografada (legado ou erro)
 					decryptedText = data.text;
@@ -240,7 +246,13 @@ async function syncChatWithoutOrderBy(chatId: string, userId: string, lastSync: 
 			// decryptMessage detecta automaticamente a versão (v3 ou v4)
 			let decryptedText = data.text;
 			try {
-				decryptedText = await decryptMessage(data.text, chatId, userId);
+				decryptedText = await decryptMessage(
+					data.text,
+					chatId,
+					userId,
+					data.senderId ?? "",
+					data.receiverId ?? ""
+				);
 			} catch (error) {
 				console.warn("⚠️ Erro ao descriptografar mensagem durante sync:", error);
 			}
@@ -430,7 +442,13 @@ export function setupRealtimeListener(
 						try {
 							// Verificar se é mensagem criptografada (começa com "ENC:")
 							if (data.text.startsWith("ENC:")) {
-								decryptedText = await decryptMessage(data.text, chatId, userId);
+								decryptedText = await decryptMessage(
+									data.text,
+									chatId,
+									userId,
+									data.senderId ?? "",
+									data.receiverId ?? ""
+								);
 							} else {
 								// Mensagem não criptografada (legado ou erro)
 								decryptedText = data.text;
@@ -607,7 +625,13 @@ function setupRealtimeListenerWithoutOrderBy(
 
 						let decryptedText = data.text;
 						try {
-							decryptedText = await decryptMessage(data.text, chatId, userId);
+							decryptedText = await decryptMessage(
+								data.text,
+								chatId,
+								userId,
+								data.senderId ?? "",
+								data.receiverId ?? ""
+							);
 						} catch (error) {
 							console.warn("⚠️ Erro ao descriptografar mensagem:", error);
 						}

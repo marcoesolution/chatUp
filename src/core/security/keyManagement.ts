@@ -6,6 +6,7 @@
  * - Chave pública: Armazenada no Firestore (users/{userId}/publicKey)
  */
 
+import "react-native-get-random-values";
 import * as Keychain from "react-native-keychain";
 import { x25519 } from "@noble/curves/ed25519";
 import { randomBytes } from "@noble/hashes/utils";
@@ -13,7 +14,7 @@ import { bytesToHex, hexToBytes } from "@noble/hashes/utils";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/core/firebase";
 import * as Crypto from "expo-crypto";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as SecureStore from "expo-secure-store";
 
 /**
  * Converte Uint8Array para base64 (compatível com React Native)
@@ -35,56 +36,6 @@ function base64ToUint8Array(base64: string): Uint8Array {
 	return bytes;
 }
 
-// Polyfill para crypto.getRandomValues (necessário para @noble/curves)
-// @noble/curves requer crypto.getRandomValues síncrono
-if (typeof global.crypto === "undefined" || !global.crypto.getRandomValues) {
-	// Buffer para armazenar bytes aleatórios pré-gerados
-	let randomBuffer: Uint8Array | null = null;
-	let randomBufferIndex = 0;
-	const BUFFER_SIZE = 1024; // Tamanho do buffer de bytes aleatórios
-	
-	// Pré-gerar buffer de bytes aleatórios
-	const prefillRandomBuffer = async () => {
-		try {
-			const bytes = await Crypto.getRandomBytesAsync(BUFFER_SIZE);
-			randomBuffer = new Uint8Array(bytes);
-			randomBufferIndex = 0;
-		} catch (error) {
-			console.warn("⚠️ Erro ao pré-gerar buffer aleatório, usando Math.random:", error);
-			randomBuffer = null;
-		}
-	};
-	
-	// Inicializar buffer
-	prefillRandomBuffer();
-	
-	// Implementação síncrona de getRandomValues
-	global.crypto = {
-		...global.crypto,
-		getRandomValues: (arr: Uint8Array): Uint8Array => {
-			if (randomBuffer && randomBufferIndex + arr.length <= randomBuffer.length) {
-				// Usar buffer pré-gerado
-				arr.set(randomBuffer.subarray(randomBufferIndex, randomBufferIndex + arr.length));
-				randomBufferIndex += arr.length;
-				
-				// Se buffer está quase vazio, pré-gerar novo em background
-				if (randomBufferIndex > BUFFER_SIZE * 0.8) {
-					prefillRandomBuffer();
-				}
-			} else {
-				// Fallback: usar Math.random (menos seguro, mas funcional)
-				console.warn("⚠️ Usando Math.random como fallback para getRandomValues");
-				for (let i = 0; i < arr.length; i++) {
-					arr[i] = Math.floor(Math.random() * 256);
-				}
-				// Tentar reabastecer buffer em background
-				prefillRandomBuffer();
-			}
-			return arr;
-		},
-	} as any;
-}
-
 // Verificar se Keychain está disponível
 let isKeychainAvailable = true;
 try {
@@ -94,7 +45,7 @@ try {
 	}
 } catch (error) {
 	isKeychainAvailable = false;
-	console.warn("⚠️ Keychain não disponível, usando AsyncStorage como fallback");
+	console.warn("⚠️ Keychain não disponível, usando SecureStore como fallback");
 }
 
 const KEYCHAIN_SERVICE = "com.chatup.e2ee";
@@ -128,7 +79,7 @@ export async function generateKeyPair(): Promise<{ privateKey: Uint8Array; publi
 }
 
 /**
- * Armazena chave privada no Keychain do sistema (ou AsyncStorage como fallback)
+ * Armazena chave privada no Keychain do sistema (ou SecureStore como fallback)
  */
 export async function storePrivateKey(userId: string, privateKey: Uint8Array): Promise<void> {
 	try {
@@ -150,14 +101,14 @@ export async function storePrivateKey(userId: string, privateKey: Uint8Array): P
 				console.log("✅ Chave privada armazenada no Keychain");
 				return;
 			} catch (keychainError) {
-				console.warn("⚠️ Erro ao usar Keychain, tentando AsyncStorage:", keychainError);
+				console.warn("⚠️ Erro ao usar Keychain, tentando SecureStore:", keychainError);
 				isKeychainAvailable = false;
 			}
 		}
 		
-		// Fallback: usar AsyncStorage (menos seguro, mas funcional)
-		await AsyncStorage.setItem(storageKey, privateKeyBase64);
-		console.log("✅ Chave privada armazenada no AsyncStorage (fallback)");
+		// Fallback: usar SecureStore
+		await SecureStore.setItemAsync(storageKey, privateKeyBase64);
+		console.log("✅ Chave privada armazenada no SecureStore (fallback)");
 	} catch (error) {
 		console.error("❌ Erro ao armazenar chave privada:", error);
 		throw new Error("Falha ao armazenar chave privada");
@@ -165,7 +116,7 @@ export async function storePrivateKey(userId: string, privateKey: Uint8Array): P
 }
 
 /**
- * Recupera chave privada do Keychain (ou AsyncStorage como fallback)
+ * Recupera chave privada do Keychain (ou SecureStore como fallback)
  */
 export async function getPrivateKey(userId: string): Promise<Uint8Array | null> {
 	try {
@@ -184,13 +135,13 @@ export async function getPrivateKey(userId: string): Promise<Uint8Array | null> 
 					return privateKey;
 				}
 			} catch (keychainError) {
-				console.warn("⚠️ Erro ao usar Keychain, tentando AsyncStorage:", keychainError);
+				console.warn("⚠️ Erro ao usar Keychain, tentando SecureStore:", keychainError);
 				isKeychainAvailable = false;
 			}
 		}
 		
-		// Fallback: usar AsyncStorage
-		const storedKey = await AsyncStorage.getItem(storageKey);
+		// Fallback: usar SecureStore
+		const storedKey = await SecureStore.getItemAsync(storageKey);
 		if (!storedKey) {
 			return null;
 		}
@@ -289,32 +240,31 @@ export async function getPublicKey(userId: string): Promise<Uint8Array | null> {
  */
 export async function getOrCreateKeyPair(userId: string): Promise<{ privateKey: Uint8Array; publicKey: Uint8Array }> {
 	try {
-		// Tentar recuperar chave privada do Keychain/AsyncStorage
+		// Tentar recuperar chave privada do Keychain/SecureStore
 		let privateKey = await getPrivateKey(userId);
-		let publicKey: Uint8Array | null = null;
 		
 		if (privateKey) {
 			// Chave privada existe, derivar chave pública
-			publicKey = x25519.getPublicKey(privateKey);
+			let resolvedPublicKey = x25519.getPublicKey(privateKey);
 			
 			// Verificar se chave pública está no Firestore
 			const storedPublicKey = await getPublicKey(userId);
 			if (!storedPublicKey) {
 				// Chave pública não está no Firestore, fazer upload
-				await storePublicKey(userId, publicKey);
+				await storePublicKey(userId, resolvedPublicKey);
 			} else {
 				// Usar chave pública do Firestore (pode ser mais recente)
-				publicKey = storedPublicKey;
+				resolvedPublicKey = storedPublicKey;
 			}
 			
-			return { privateKey, publicKey };
+			return { privateKey, publicKey: resolvedPublicKey };
 		}
 		
 		// Chave privada não existe, gerar novo par
 		console.log("🔄 Gerando novo par de chaves para usuário", { userId });
 		const keyPair = await generateKeyPair();
 		
-		// Armazenar chave privada no Keychain/AsyncStorage
+		// Armazenar chave privada no Keychain/SecureStore
 		await storePrivateKey(userId, keyPair.privateKey);
 		
 		// Armazenar chave pública no Firestore
@@ -344,7 +294,7 @@ export function clearPublicKeyCache(): void {
 }
 
 /**
- * Remove chave privada do Keychain/AsyncStorage (útil para logout)
+ * Remove chave privada do Keychain/SecureStore (útil para logout)
  */
 export async function removePrivateKey(userId: string): Promise<void> {
 	try {
@@ -357,13 +307,13 @@ export async function removePrivateKey(userId: string): Promise<void> {
 				});
 				console.log("✅ Chave privada removida do Keychain");
 			} catch (keychainError) {
-				console.warn("⚠️ Erro ao remover do Keychain, tentando AsyncStorage:", keychainError);
-				await AsyncStorage.removeItem(storageKey);
-				console.log("✅ Chave privada removida do AsyncStorage");
+				console.warn("⚠️ Erro ao remover do Keychain, tentando SecureStore:", keychainError);
+				await SecureStore.deleteItemAsync(storageKey);
+				console.log("✅ Chave privada removida do SecureStore");
 			}
 		} else {
-			await AsyncStorage.removeItem(storageKey);
-			console.log("✅ Chave privada removida do AsyncStorage");
+			await SecureStore.deleteItemAsync(storageKey);
+			console.log("✅ Chave privada removida do SecureStore");
 		}
 	} catch (error) {
 		console.error("❌ Erro ao remover chave privada:", error);

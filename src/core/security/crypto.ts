@@ -15,6 +15,11 @@ import * as Crypto from "expo-crypto";
 import CryptoJS from "crypto-js";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { storage } from "@/services/storage";
+import { arrayBufferToBase64, arrayBufferToString, base64ToArrayBuffer, stringToArrayBuffer, ensureArrayBuffer } from "./utils";
+import { MessageEnvelopeCodec, type MessageEnvelope } from "@/modules/chat/proto/messageEnvelope";
+import { encryptWithSignal, decryptWithSignal, clearSignalSessions } from "./signal";
+import { trackEncryptionError, trackEncryptionEvent } from "./telemetry";
+import { removePrivateKey } from "./keyManagement";
 
 // Constantes de segurança
 // Otimizado para fase de desenvolvimento - balanceamento entre segurança e performance
@@ -36,6 +41,7 @@ const STORAGE_KEY_ENCRYPTED_PREFIX = "encrypted_chat_key_";
 
 // Prefixo para identificar mensagens criptografadas
 const ENCRYPTED_PREFIX = "ENC:";
+const SIGNAL_ENVELOPE_VERSION = 5;
 
 // Cache em memória de chaves descriptografadas (por chatId)
 const keyCache = new Map<string, { key: ArrayBuffer; timestamp: number }>();
@@ -68,46 +74,6 @@ function cleanExpiredCache() {
 }
 
 /**
- * Converte ArrayBuffer para string base64
- */
-function arrayBufferToBase64(buffer: ArrayBuffer): string {
-	const bytes = new Uint8Array(buffer);
-	let binary = "";
-	for (let i = 0; i < bytes.byteLength; i++) {
-		binary += String.fromCharCode(bytes[i]);
-	}
-	return btoa(binary);
-}
-
-/**
- * Converte string base64 para ArrayBuffer
- */
-function base64ToArrayBuffer(base64: string): ArrayBuffer {
-	const binary = atob(base64);
-	const bytes = new Uint8Array(binary.length);
-	for (let i = 0; i < binary.length; i++) {
-		bytes[i] = binary.charCodeAt(i);
-	}
-	return bytes.buffer;
-}
-
-/**
- * Converte string para ArrayBuffer
- */
-function stringToArrayBuffer(str: string): ArrayBuffer {
-	const encoder = new TextEncoder();
-	return encoder.encode(str).buffer;
-}
-
-/**
- * Converte ArrayBuffer para string
- */
-function arrayBufferToString(buffer: ArrayBuffer): string {
-	const decoder = new TextDecoder();
-	return decoder.decode(buffer);
-}
-
-/**
  * Gera bytes aleatórios usando expo-crypto
  */
 async function getRandomBytes(length: number): Promise<Uint8Array> {
@@ -126,7 +92,7 @@ async function generateSalt(): Promise<string> {
 /**
  * Gera um IV (Initialization Vector) aleatório para GCM
  */
-async function generateIV(): Promise<string> {
+export async function generateIV(): Promise<string> {
 	const ivBytes = await getRandomBytes(IV_LENGTH);
 	return arrayBufferToBase64(new Uint8Array(ivBytes).buffer);
 }
@@ -418,6 +384,15 @@ function decodePayload(encoded: string): any {
 	}
 }
 
+function tryDecodeSignalEnvelope(encoded: string): MessageEnvelope | null {
+	try {
+		const bytes = new Uint8Array(base64ToArrayBuffer(encoded));
+		return MessageEnvelopeCodec.decode(bytes);
+	} catch (error) {
+		return null;
+	}
+}
+
 /**
  * Gera um hash único para o chat (usado como parte da chave)
  * IMPORTANTE: Usa apenas o chatId para garantir que ambos os usuários
@@ -689,75 +664,73 @@ export async function encryptMessage(
 	userId: string,
 	receiverId?: string
 ): Promise<string> {
+	if (!receiverId) {
+		throw new Error("receiverId é obrigatório para criptografia E2EE");
+	}
+	if (!plaintext.trim()) {
+		throw new Error("Mensagem não pode estar vazia");
+	}
+
+	const startedAt = Date.now();
+
 	try {
-		// Validar entrada
-		if (!plaintext || !plaintext.trim()) {
-			throw new Error("Mensagem não pode estar vazia");
-		}
+		const result = await encryptWithSignal({
+			currentUserId: userId,
+			contactId: receiverId,
+			plaintext,
+		});
 
-		if (!chatId || !userId) {
-			throw new Error("chatId e userId são obrigatórios");
-		}
+		const envelopeBytes = MessageEnvelopeCodec.encode({
+			version: SIGNAL_ENVELOPE_VERSION,
+			cipherType: result.type,
+			payload: result.ciphertext,
+			chatId,
+			senderId: userId,
+			receiverId,
+			timestamp: Date.now(),
+			registrationId: result.registrationId,
+		}).finish();
 
-		// Tentar usar E2EE real se receiverId for fornecido
-		if (receiverId) {
-			try {
-				const { hasPublicKey } = await import("./keyManagement");
-				const senderHasKey = await hasPublicKey(userId);
-				const receiverHasKey = await hasPublicKey(receiverId);
+		const envelopeBuffer = ensureArrayBuffer(
+			envelopeBytes.buffer.slice(envelopeBytes.byteOffset, envelopeBytes.byteOffset + envelopeBytes.byteLength)
+		);
+		const encoded = arrayBufferToBase64(envelopeBuffer);
 
-				if (senderHasKey && receiverHasKey) {
-					// Ambos têm chaves públicas, usar E2EE real
-					const { encryptMessageE2EE } = await import("./e2ee");
-					console.log("🔐 Usando E2EE real (ECDH) para criptografar mensagem");
-					return await encryptMessageE2EE(plaintext, chatId, userId, receiverId);
-				}
-			} catch (e2eeError: any) {
-				console.warn("⚠️ Erro ao tentar usar E2EE, usando método antigo:", e2eeError.message);
-				// Continuar com método antigo
-			}
-		}
+		trackEncryptionEvent({
+			stage: "encrypt",
+			result: "success",
+			userId,
+			chatId,
+			receiverId,
+			durationMs: Date.now() - startedAt,
+		});
 
-		// Método antigo (compatibilidade)
-		// Obter chave e gerar IV/nonce em paralelo para melhor performance
-		const [key, ivBase64, nonce] = await Promise.all([
-			getOrCreateChatKey(chatId, userId),
-			generateIV(),
-			generateNonce(),
-		]);
-
-		const iv = base64ToArrayBuffer(ivBase64);
-
-		// Criptografar mensagem usando AES-256-GCM
-		const { ciphertext, tag } = await encryptAES(plaintext, key, iv);
-
-		// Criar payload criptografado
-		const payload = {
-			iv: ivBase64,
-			ciphertext,
-			tag,
-			nonce,
-			t: Date.now(), // timestamp para validação
-			v: "3", // versão 3: AES-256-GCM com nonce e timestamp
-		};
-
-		// Codificar em base64
-		const encoded = encodePayload(payload);
-
-		const finalResult = ENCRYPTED_PREFIX + encoded;
-
-		// Retornar com prefixo
-		return finalResult;
+		return ENCRYPTED_PREFIX + encoded;
 	} catch (error) {
-		console.error("Erro ao criptografar mensagem:", error);
-		throw new Error("Falha ao criptografar mensagem");
+		trackEncryptionError(
+			{
+				stage: "encrypt",
+				userId,
+				chatId,
+				receiverId,
+				durationMs: Date.now() - startedAt,
+			},
+			error
+		);
+		throw error instanceof Error ? error : new Error("Falha ao criptografar mensagem");
 	}
 }
 
 /**
  * Descriptografa uma mensagem
  */
-export async function decryptMessage(encryptedText: string, chatId: string, userId: string): Promise<string> {
+export async function decryptMessage(
+	encryptedText: string,
+	chatId: string,
+	userId: string,
+	senderId: string,
+	receiverId: string
+): Promise<string> {
 	try {
 		// Verificar se é uma mensagem criptografada
 		if (!encryptedText.startsWith(ENCRYPTED_PREFIX)) {
@@ -771,7 +744,56 @@ export async function decryptMessage(encryptedText: string, chatId: string, user
 			throw new Error("Mensagem criptografada vazia após remover prefixo");
 		}
 
-		// Decodificar payload (base64)
+		// Tentar novo formato (envelope protobuf)
+		const envelope = tryDecodeSignalEnvelope(withoutPrefix);
+		if (envelope?.version === SIGNAL_ENVELOPE_VERSION) {
+			const remoteParticipant = senderId === userId ? receiverId : senderId;
+			if (!remoteParticipant) {
+				throw new Error("Participante remoto não identificado para descriptografia");
+			}
+
+			if (envelope.timestamp) {
+				const messageAge = Date.now() - envelope.timestamp;
+				if (messageAge > MAX_MESSAGE_AGE_MS) {
+					throw new Error("Mensagem muito antiga");
+				}
+			}
+
+			const startedAt = Date.now();
+			try {
+				const plaintext = await decryptWithSignal({
+					currentUserId: userId,
+					contactId: remoteParticipant,
+					payload: envelope.payload ?? new Uint8Array(),
+					type: envelope.cipherType,
+				});
+
+				trackEncryptionEvent({
+					stage: "decrypt",
+					result: "success",
+					userId,
+					chatId,
+					receiverId: remoteParticipant,
+					durationMs: Date.now() - startedAt,
+				});
+
+				return plaintext;
+			} catch (error) {
+				trackEncryptionError(
+					{
+						stage: "decrypt",
+						userId,
+						chatId,
+						receiverId: remoteParticipant,
+						durationMs: Date.now() - startedAt,
+					},
+					error
+				);
+				throw error instanceof Error ? error : new Error("Falha ao descriptografar envelope Signal");
+			}
+		}
+
+		// Decodificar payload JSON legado (base64)
 		let payload: any;
 		try {
 			payload = decodePayload(withoutPrefix);
@@ -797,25 +819,14 @@ export async function decryptMessage(encryptedText: string, chatId: string, user
 			);
 		}
 
-		// Versão 4: E2EE com ECDH
+		// Versão 4: E2EE com ECDH legado
 		if (payload.v === "4") {
-			// Extrair senderId e receiverId do chatId (formato: userId1_userId2)
-			const chatParts = chatId.split("_");
-			if (chatParts.length !== 2) {
-				throw new Error("ChatId inválido para E2EE");
-			}
-
-			// Determinar senderId e receiverId
-			// O senderId é o que não é o userId atual
-			const senderId = chatParts[0] === userId ? chatParts[1] : chatParts[0];
-			const receiverId = userId;
-
 			try {
 				const { decryptMessageE2EE } = await import("./e2ee");
-				console.log("🔓 Usando E2EE real (ECDH) para descriptografar mensagem");
-				return await decryptMessageE2EE(encryptedText, chatId, senderId, receiverId);
+				const legacySender = senderId === userId ? receiverId : senderId;
+				return await decryptMessageE2EE(encryptedText, chatId, legacySender, userId);
 			} catch (e2eeError: any) {
-				console.error("❌ Erro ao descriptografar com E2EE:", e2eeError);
+				console.error("❌ Erro ao descriptografar com E2EE (legado):", e2eeError);
 				throw new Error(`Falha ao descriptografar mensagem E2EE: ${e2eeError.message}`);
 			}
 		}
@@ -924,37 +935,9 @@ export async function verifyMessageHMAC(
 }
 
 /**
- * Pré-carrega a chave de criptografia para um chat específico
- * Isso evita o delay na primeira mensagem do chat
- */
-export async function preloadChatKey(chatId: string, userId: string): Promise<void> {
-	try {
-		// Verificar cache primeiro - se já estiver em cache, retornar imediatamente
-		const cached = keyCache.get(chatId);
-		if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
-			console.log("✅ Chave já está em cache, pré-carregamento desnecessário", { chatId });
-			return;
-		}
-
-		console.log("🔄 Pré-carregando chave do chat...", { chatId, userId });
-		const startTime = Date.now();
-
-		// Pré-carregar chave (e chave mestre se necessário)
-		await getOrCreateChatKey(chatId, userId);
-
-		const elapsed = Date.now() - startTime;
-		console.log(`✅ Chave pré-carregada com sucesso em ${elapsed}ms`, { chatId });
-	} catch (error) {
-		console.warn("⚠️ Erro ao pré-carregar chave do chat:", error);
-		// Não propagar erro - é apenas otimização
-		// A chave será gerada quando necessário (na primeira mensagem)
-	}
-}
-
-/**
  * Limpa todas as chaves de criptografia (útil para logout)
  */
-export async function clearAllKeys(): Promise<void> {
+export async function clearAllKeys(userId?: string): Promise<void> {
 	try {
 		// Limpar caches em memória
 		keyCache.clear();
@@ -976,6 +959,10 @@ export async function clearAllKeys(): Promise<void> {
 				key.startsWith("chat_key_") // Compatibilidade com chaves antigas
 		);
 		await Promise.all(chatKeys.map((key) => AsyncStorage.removeItem(key)));
+
+		if (userId) {
+			await Promise.all([removePrivateKey(userId), clearSignalSessions(userId)]);
+		}
 	} catch (error) {
 		console.error("Erro ao limpar chaves:", error);
 		throw error;

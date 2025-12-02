@@ -6,8 +6,8 @@ import {
 	ActivityIndicator,
 	Keyboard,
 	View,
+	FlatList,
 } from "react-native";
-import { FlashList } from "@shopify/flash-list";
 import { useRouter, useLocalSearchParams, useFocusEffect } from "expo-router";
 import { useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -177,7 +177,7 @@ export default function ChatScreen() {
 	const [messageText, setMessageText] = useState("");
 	const [isSending, setIsSending] = useState(false);
 	const [keyboardHeight, setKeyboardHeight] = useState(0);
-	const flashListRef = useRef<any>(null);
+	const listRef = useRef<FlatList<Message> | null>(null);
 	const inputRef = useRef<RNTextInput>(null);
 
 	// Encontrar informações do contato
@@ -197,11 +197,11 @@ export default function ChatScreen() {
 		if (sortedMessages && sortedMessages.length > 0 && !isLoading) {
 			setTimeout(() => {
 				try {
-					flashListRef.current?.scrollToIndex({ index: 0, animated: false });
+					listRef.current?.scrollToIndex({ index: 0, animated: false });
 				} catch (err) {
 					// Se scrollToIndex falhar, usar scrollToOffset como fallback
 					console.warn("⚠️ Erro ao fazer scrollToIndex, usando scrollToOffset:", err);
-					flashListRef.current?.scrollToOffset({ offset: 0, animated: false });
+					listRef.current?.scrollToOffset({ offset: 0, animated: false });
 				}
 			}, 200);
 		}
@@ -217,11 +217,11 @@ export default function ChatScreen() {
 				setTimeout(() => {
 					if (sortedMessages && sortedMessages.length > 0) {
 						try {
-							flashListRef.current?.scrollToIndex({ index: 0, animated: true });
+							listRef.current?.scrollToIndex({ index: 0, animated: true });
 						} catch (err) {
 							// Se scrollToIndex falhar, usar scrollToOffset como fallback
 							console.warn("⚠️ Erro ao fazer scrollToIndex, usando scrollToOffset:", err);
-							flashListRef.current?.scrollToOffset({ offset: 0, animated: true });
+							listRef.current?.scrollToOffset({ offset: 0, animated: true });
 						}
 					}
 				}, 100);
@@ -280,7 +280,7 @@ export default function ChatScreen() {
 		[firebaseUser?.uid, formatTime]
 	);
 
-	// Key extractor para FlashList com fallback
+	// Key extractor para FlatList com fallback
 	const keyExtractor = useCallback((item: Message) => {
 		if (!item || !item.id) {
 			// Fallback para evitar keys duplicadas ou inválidas
@@ -327,11 +327,11 @@ export default function ChatScreen() {
 			setTimeout(() => {
 				if (sortedMessages && sortedMessages.length > 0) {
 					try {
-						flashListRef.current?.scrollToIndex({ index: 0, animated: true });
+						listRef.current?.scrollToIndex({ index: 0, animated: true });
 					} catch (err) {
 						// Se scrollToIndex falhar, usar scrollToOffset como fallback
 						console.warn("⚠️ Erro ao fazer scrollToIndex, usando scrollToOffset:", err);
-						flashListRef.current?.scrollToOffset({ offset: 0, animated: true });
+						listRef.current?.scrollToOffset({ offset: 0, animated: true });
 					}
 				}
 			}, 100);
@@ -367,8 +367,8 @@ export default function ChatScreen() {
 							<LoadingText>{t("chat.loadingMessages")}</LoadingText>
 						</LoadingContainer>
 					) : (
-						<FlashList
-							ref={flashListRef}
+						<FlatList
+							ref={listRef}
 							data={sortedMessages || []}
 							renderItem={renderMessage}
 							keyExtractor={keyExtractor}
@@ -388,6 +388,10 @@ export default function ChatScreen() {
 									</EmptyContainer>
 								) : null
 							}
+							initialNumToRender={20}
+							maxToRenderPerBatch={10}
+							windowSize={10}
+							maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
 						/>
 					)}
 				</MessagesListContainer>
@@ -406,11 +410,11 @@ export default function ChatScreen() {
 							setTimeout(() => {
 								if (sortedMessages && sortedMessages.length > 0) {
 									try {
-										flashListRef.current?.scrollToIndex({ index: 0, animated: true });
+										listRef.current?.scrollToIndex({ index: 0, animated: true });
 									} catch (err) {
 										// Se scrollToIndex falhar, usar scrollToOffset como fallback
 										console.warn("⚠️ Erro ao fazer scrollToIndex, usando scrollToOffset:", err);
-										flashListRef.current?.scrollToOffset({ offset: 0, animated: true });
+										listRef.current?.scrollToOffset({ offset: 0, animated: true });
 									}
 								}
 							}, 300);
@@ -442,8 +446,8 @@ export default function ChatScreen() {
 						<LoadingText>{t("chat.loadingMessages")}</LoadingText>
 					</LoadingContainer>
 				) : (
-					<FlashList
-						ref={flashListRef}
+					<FlatList
+						ref={listRef}
 						data={sortedMessages || []}
 						renderItem={renderMessage}
 						keyExtractor={keyExtractor}
@@ -463,6 +467,10 @@ export default function ChatScreen() {
 								</EmptyContainer>
 							) : null
 						}
+						initialNumToRender={20}
+						maxToRenderPerBatch={10}
+						windowSize={10}
+						maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
 					/>
 				)}
 			</MessagesListContainer>
@@ -481,11 +489,11 @@ export default function ChatScreen() {
 						setTimeout(() => {
 							if (sortedMessages.length > 0) {
 								try {
-									flashListRef.current?.scrollToIndex({ index: 0, animated: true });
+					listRef.current?.scrollToIndex({ index: 0, animated: true });
 								} catch (err) {
 									// Se scrollToIndex falhar, usar scrollToOffset como fallback
 									console.warn("⚠️ Erro ao fazer scrollToIndex, usando scrollToOffset:", err);
-									flashListRef.current?.scrollToOffset({ offset: 0, animated: true });
+					listRef.current?.scrollToOffset({ offset: 0, animated: true });
 								}
 							}
 						}, 300);

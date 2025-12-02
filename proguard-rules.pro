@@ -75,9 +75,6 @@
 # NetInfo
 -keep class com.reactnativecommunity.netinfo.** { *; }
 
-# FlashList
--keep class com.shopify.reactnative.flash_list.** { *; }
-
 # Styled Components
 -keep class com.styledcomponents.** { *; }
 
