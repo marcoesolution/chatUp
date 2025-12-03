@@ -1,8 +1,20 @@
 import "react-native-get-random-values";
 import { SignalProtocolAddress, SessionBuilder, SessionCipher } from "libsignal-protocol-typescript";
-import { stringToArrayBuffer, arrayBufferToString, ensureArrayBuffer } from "@/core/security/utils";
-import { bootstrapSignalAccount, consumeRemotePreKey, fetchRemotePreKeyBundle } from "./preKeyService";
+import { onSnapshot, doc } from "firebase/firestore";
+import {
+	stringToArrayBuffer,
+	arrayBufferToString,
+	ensureArrayBuffer,
+	base64ToArrayBuffer,
+} from "@/core/security/utils";
+import {
+	bootstrapSignalAccount,
+	consumeRemotePreKey,
+	fetchRemotePreKeyBundle,
+	type RemotePreKeyBundle,
+} from "./preKeyService";
 import { getSignalStorage } from "./SignalStorage";
+import { db } from "@/core/firebase";
 
 const DEVICE_ID = 1;
 
@@ -14,18 +26,155 @@ const binaryStringToUint8Array = (value: string): Uint8Array => {
 	return bytes;
 };
 
+/**
+ * Aguarda o bundle de prekeys do contato ser publicado usando listener em tempo real
+ * @param contactId ID do contato
+ * @param timeoutMs Timeout em milissegundos (padrão: 10 segundos)
+ * @returns Bundle de prekeys ou null se timeout
+ */
+async function waitForRemoteBundle(contactId: string, timeoutMs: number = 10000): Promise<RemotePreKeyBundle | null> {
+	if (!db) {
+		throw new Error("Firestore não está inicializado");
+	}
+
+	// Verificar se já existe antes de começar a ouvir
+	const existingBundle = await fetchRemotePreKeyBundle(contactId);
+	if (existingBundle) {
+		return existingBundle;
+	}
+
+	// Garantir que db não é null para o TypeScript (já verificado acima, mas necessário para type narrowing)
+	const firestoreDb = db;
+	if (!firestoreDb) {
+		return null;
+	}
+
+	return new Promise((resolve) => {
+		const bundleRef = doc(firestoreDb, "users", contactId, "prekeys", "bundle");
+
+		let resolved = false;
+		const timeoutId = setTimeout(() => {
+			if (!resolved) {
+				resolved = true;
+				unsubscribe();
+				console.warn("⏱️ Timeout aguardando bundle de prekeys do contato:", contactId);
+				resolve(null);
+			}
+		}, timeoutMs);
+
+		const unsubscribe = onSnapshot(
+			bundleRef,
+			(snapshot) => {
+				if (resolved) return;
+
+				if (snapshot.exists()) {
+					const data = snapshot.data();
+					if (data?.identityKey && data?.registrationId && data?.signedPreKey) {
+						const preKeyEntry = data.preKeys?.[0];
+						const bundle: RemotePreKeyBundle = {
+							identityKey: base64ToArrayBuffer(data.identityKey),
+							registrationId: data.registrationId,
+							signedPreKey: {
+								keyId: data.signedPreKey.keyId,
+								publicKey: base64ToArrayBuffer(data.signedPreKey.publicKey),
+								signature: base64ToArrayBuffer(data.signedPreKey.signature),
+							},
+							preKey: preKeyEntry
+								? {
+										keyId: preKeyEntry.keyId,
+										publicKey: base64ToArrayBuffer(preKeyEntry.publicKey),
+										rawEntry: preKeyEntry,
+								  }
+								: undefined,
+						};
+
+						resolved = true;
+						clearTimeout(timeoutId);
+						unsubscribe();
+						console.log("✅ Bundle de prekeys encontrado via listener em tempo real");
+						resolve(bundle);
+					}
+				}
+			},
+			(error) => {
+				console.warn("⚠️ Erro no listener de bundle:", error);
+				if (!resolved) {
+					resolved = true;
+					clearTimeout(timeoutId);
+					unsubscribe();
+					resolve(null);
+				}
+			}
+		);
+	});
+}
+
+/**
+ * Busca bundle com retry e backoff exponencial
+ * @param contactId ID do contato
+ * @param maxRetries Número máximo de tentativas (padrão: 3)
+ * @param initialDelayMs Delay inicial em milissegundos (padrão: 500)
+ * @returns Bundle de prekeys ou null se não encontrado após todas as tentativas
+ */
+async function fetchRemoteBundleWithRetry(
+	contactId: string,
+	maxRetries: number = 3,
+	initialDelayMs: number = 500
+): Promise<RemotePreKeyBundle | null> {
+	let delay = initialDelayMs;
+
+	for (let attempt = 0; attempt < maxRetries; attempt++) {
+		const bundle = await fetchRemotePreKeyBundle(contactId);
+		if (bundle) {
+			return bundle;
+		}
+
+		if (attempt < maxRetries - 1) {
+			console.log(
+				`🔄 Bundle não encontrado, tentando novamente em ${delay}ms... (tentativa ${attempt + 1}/${maxRetries})`
+			);
+			await new Promise((resolve) => setTimeout(resolve, delay));
+			delay *= 2; // Backoff exponencial
+		}
+	}
+
+	return null;
+}
+
 export async function ensureSignalSession(currentUserId: string, contactId: string): Promise<void> {
+	const sessionStartTime = Date.now();
+	console.log("🔐 [Signal] Iniciando ensureSignalSession", { currentUserId, contactId });
+
 	const storage = await bootstrapSignalAccount(currentUserId);
 	const address = new SignalProtocolAddress(contactId, DEVICE_ID);
 	const cipher = new SessionCipher(storage, address);
 
 	if (await cipher.hasOpenSession()) {
+		console.log("✅ [Signal] Sessão já existe, retornando", { duration: Date.now() - sessionStartTime });
 		return;
 	}
 
-	const remoteBundle = await fetchRemotePreKeyBundle(contactId);
+	console.log("🔄 [Signal] Sessão não existe, buscando bundle...");
+	// Tentar buscar bundle com retry
+	const retryStartTime = Date.now();
+	let remoteBundle = await fetchRemoteBundleWithRetry(contactId);
+	console.log("📦 [Signal] Resultado do retry:", { found: !!remoteBundle, duration: Date.now() - retryStartTime });
+
+	// Se ainda não encontrou, aguardar com listener em tempo real (timeout reduzido para 7s)
 	if (!remoteBundle) {
-		throw new Error("Contato não possui bundle de prekeys publicado");
+		console.log("⏳ [Signal] Bundle não encontrado após retries, aguardando publicação em tempo real...");
+		const listenerStartTime = Date.now();
+		remoteBundle = await waitForRemoteBundle(contactId, 7000);
+		console.log("👂 [Signal] Resultado do listener:", {
+			found: !!remoteBundle,
+			duration: Date.now() - listenerStartTime,
+		});
+	}
+
+	if (!remoteBundle) {
+		throw new Error(
+			"Contato não possui bundle de prekeys publicado. O contato precisa estar online e ter feito login recentemente."
+		);
 	}
 
 	const builder = new SessionBuilder(storage, address);
@@ -54,13 +203,21 @@ export async function encryptWithSignal(options: {
 	plaintext: string;
 }): Promise<{ ciphertext: Uint8Array; type: number; registrationId?: number }> {
 	const { currentUserId, contactId, plaintext } = options;
+	const encryptStartTime = Date.now();
+	console.log("🔒 [Signal] Iniciando encryptWithSignal", { currentUserId, contactId, textLength: plaintext.length });
 
 	await ensureSignalSession(currentUserId, contactId);
+	console.log("✅ [Signal] Sessão garantida, iniciando criptografia", { duration: Date.now() - encryptStartTime });
 
 	const storage = await bootstrapSignalAccount(currentUserId);
 	const address = new SignalProtocolAddress(contactId, DEVICE_ID);
 	const cipher = new SessionCipher(storage, address);
+	const cipherStartTime = Date.now();
 	const message = await cipher.encrypt(stringToArrayBuffer(plaintext));
+	console.log("✅ [Signal] Mensagem criptografada", {
+		duration: Date.now() - cipherStartTime,
+		totalDuration: Date.now() - encryptStartTime,
+	});
 
 	if (!message.body) {
 		throw new Error("Cipher retornou payload vazio");
@@ -102,4 +259,3 @@ export async function clearSignalSessions(userId: string): Promise<void> {
 	const storage = getSignalStorage(userId);
 	await storage.clearAll();
 }
-

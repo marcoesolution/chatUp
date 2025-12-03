@@ -342,9 +342,27 @@ export async function uploadPendingMessages(userId: string): Promise<number> {
 
 		for (const msg of pendingMessages) {
 			try {
-				// A mensagem já deve estar criptografada (encryptedText)
-				// Se não estiver, precisamos criptografar agora
-				const textToSend = msg.encryptedText || msg.text;
+				// Tentar criptografar se não estiver criptografada
+				let textToSend = msg.encryptedText;
+				
+				if (!textToSend) {
+					// Tentar criptografar a mensagem
+					try {
+						const { encryptMessage } = await import("@/core/security");
+						textToSend = await encryptMessage(msg.text, msg.chatId, msg.senderId, msg.receiverId);
+						
+						// Atualizar mensagem local com texto criptografado
+						await updateMessage(msg.id, {
+							encryptedText: textToSend,
+						});
+						
+						console.log(`✅ Mensagem ${msg.id} criptografada com sucesso`);
+					} catch (encryptError) {
+						console.warn(`⚠️ Erro ao criptografar mensagem pendente ${msg.id}:`, encryptError);
+						// Se não conseguir criptografar, pular esta mensagem (será tentada depois)
+						continue;
+					}
+				}
 
 				// Enviar para Firestore
 				const docRef = await addDoc(collection(db, "messages"), {

@@ -18,6 +18,7 @@ import * as Crypto from "expo-crypto";
 import { Platform } from "react-native";
 import { auth, db } from "@/core/firebase";
 import { clearAllKeys, getOrCreateKeyPair } from "@/core/security";
+import { bootstrapSignalAccount } from "@/core/security/signal";
 import { useLocation } from "@/modules/location";
 import type { UserProfile, CreateProfileData } from "../types";
 
@@ -88,6 +89,17 @@ export function useFirebaseAuth() {
 					console.warn("⚠️ Erro ao gerar par de chaves E2EE:", err);
 					// Não bloquear login se falhar
 				});
+
+				// Publicar bundle de prekeys Signal (em background, não bloquear)
+				// Isso garante que o bundle esteja disponível para outros usuários
+				bootstrapSignalAccount(firebaseUser.uid)
+					.then(() => {
+						console.log("✅ Bundle de prekeys Signal publicado com sucesso");
+					})
+					.catch((err) => {
+						console.warn("⚠️ Erro ao publicar bundle de prekeys Signal:", err);
+						// Não bloquear login se falhar
+					});
 
 				// Buscar perfil do usuário no Firestore
 				try {

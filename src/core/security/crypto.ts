@@ -15,7 +15,7 @@ import * as Crypto from "expo-crypto";
 import CryptoJS from "crypto-js";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { storage } from "@/services/storage";
-import { arrayBufferToBase64, arrayBufferToString, base64ToArrayBuffer, stringToArrayBuffer, ensureArrayBuffer } from "./utils";
+import { arrayBufferToBase64, arrayBufferToString, base64ToArrayBuffer, stringToArrayBuffer, ensureArrayBuffer, arrayBufferToBase64URL, base64URLToArrayBuffer } from "./utils";
 import { MessageEnvelopeCodec, type MessageEnvelope } from "@/modules/chat/proto/messageEnvelope";
 import { encryptWithSignal, decryptWithSignal, clearSignalSessions } from "./signal";
 import { trackEncryptionError, trackEncryptionEvent } from "./telemetry";
@@ -386,7 +386,14 @@ function decodePayload(encoded: string): any {
 
 function tryDecodeSignalEnvelope(encoded: string): MessageEnvelope | null {
 	try {
-		const bytes = new Uint8Array(base64ToArrayBuffer(encoded));
+		// Tentar base64url primeiro (formato otimizado)
+		let bytes: Uint8Array;
+		try {
+			bytes = new Uint8Array(base64URLToArrayBuffer(encoded));
+		} catch {
+			// Fallback para base64 padrão (compatibilidade com mensagens antigas)
+			bytes = new Uint8Array(base64ToArrayBuffer(encoded));
+		}
 		return MessageEnvelopeCodec.decode(bytes);
 	} catch (error) {
 		return null;
@@ -655,8 +662,9 @@ async function getOrCreateChatKey(chatId: string, userId: string): Promise<Array
 
 /**
  * Criptografa uma mensagem
- * Tenta usar E2EE real (ECDH) se ambos usuários tiverem chaves públicas
- * Caso contrário, usa método antigo (PBKDF2) para compatibilidade
+ * Tenta usar Signal Protocol primeiro (mais seguro)
+ * Se falhar por falta de bundle, usa E2EE legado (ECDH) como fallback
+ * Isso garante que mensagens sejam enviadas mesmo se destinatário estiver offline
  */
 export async function encryptMessage(
 	plaintext: string,
@@ -673,6 +681,7 @@ export async function encryptMessage(
 
 	const startedAt = Date.now();
 
+	// Tentar Signal Protocol primeiro (método preferido)
 	try {
 		const result = await encryptWithSignal({
 			currentUserId: userId,
@@ -694,7 +703,8 @@ export async function encryptMessage(
 		const envelopeBuffer = ensureArrayBuffer(
 			envelopeBytes.buffer.slice(envelopeBytes.byteOffset, envelopeBytes.byteOffset + envelopeBytes.byteLength)
 		);
-		const encoded = arrayBufferToBase64(envelopeBuffer);
+		// Usar base64url (mais eficiente: sem padding, URL-safe, ~10-15% menor)
+		const encoded = arrayBufferToBase64URL(envelopeBuffer);
 
 		trackEncryptionEvent({
 			stage: "encrypt",
@@ -706,7 +716,48 @@ export async function encryptMessage(
 		});
 
 		return ENCRYPTED_PREFIX + encoded;
-	} catch (error) {
+	} catch (signalError: any) {
+		// Se erro for por falta de bundle de prekeys, tentar fallback E2EE
+		const isBundleError = signalError?.message?.includes("bundle de prekeys") || 
+		                      signalError?.message?.includes("não possui bundle");
+		
+		if (isBundleError) {
+			console.log("⚠️ Signal Protocol não disponível (bundle ausente), usando fallback E2EE...");
+			
+			try {
+				// Usar método E2EE legado que só precisa de chaves públicas
+				const { encryptMessageE2EE } = await import("./e2ee");
+				const encrypted = await encryptMessageE2EE(plaintext, chatId, userId, receiverId);
+				
+				trackEncryptionEvent({
+					stage: "encrypt",
+					result: "success",
+					userId,
+					chatId,
+					receiverId,
+					durationMs: Date.now() - startedAt,
+				});
+				
+				console.log("✅ Mensagem criptografada com fallback E2EE (destinatário offline)");
+				return encrypted;
+			} catch (e2eeError) {
+				console.error("❌ Erro ao criptografar com fallback E2EE:", e2eeError);
+				// Se fallback também falhar, propagar erro original do Signal
+				trackEncryptionError(
+					{
+						stage: "encrypt",
+						userId,
+						chatId,
+						receiverId,
+						durationMs: Date.now() - startedAt,
+					},
+					signalError
+				);
+				throw signalError instanceof Error ? signalError : new Error("Falha ao criptografar mensagem");
+			}
+		}
+		
+		// Para outros erros do Signal, propagar normalmente
 		trackEncryptionError(
 			{
 				stage: "encrypt",
@@ -715,9 +766,9 @@ export async function encryptMessage(
 				receiverId,
 				durationMs: Date.now() - startedAt,
 			},
-			error
+			signalError
 		);
-		throw error instanceof Error ? error : new Error("Falha ao criptografar mensagem");
+		throw signalError instanceof Error ? signalError : new Error("Falha ao criptografar mensagem");
 	}
 }
 

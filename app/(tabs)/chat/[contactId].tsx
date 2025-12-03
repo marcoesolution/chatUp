@@ -189,7 +189,17 @@ export default function ChatScreen() {
 		if (!messages || !Array.isArray(messages)) {
 			return [];
 		}
-		return [...messages].reverse();
+		// Remover duplicatas por ID antes de ordenar
+		const unique = messages.reduce((acc, msg) => {
+			if (!acc.find((m) => m.id === msg.id)) {
+				acc.push(msg);
+			}
+			return acc;
+		}, [] as Message[]);
+		// Ordenar por timestamp (mais antigas primeiro)
+		unique.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+		// Reverter para mostrar mais recentes no topo
+		return unique.reverse();
 	}, [messages]);
 
 	// Rolar para o topo (mensagem mais recente) quando a tela carregar ou novas mensagens chegarem
@@ -280,11 +290,13 @@ export default function ChatScreen() {
 		[firebaseUser?.uid, formatTime]
 	);
 
-	// Key extractor para FlatList com fallback
+	// Key extractor para FlatList
+	// IMPORTANTE: sortedMessages já remove duplicatas, então podemos usar apenas o ID
 	const keyExtractor = useCallback((item: Message) => {
 		if (!item || !item.id) {
-			// Fallback para evitar keys duplicadas ou inválidas
-			return `msg_${item?.timestamp?.getTime() || Date.now()}_${Math.random()}`;
+			// Fallback raro (não deveria acontecer se sortedMessages está correto)
+			console.warn("⚠️ Mensagem sem ID no keyExtractor:", item);
+			return `msg_${item?.timestamp?.getTime() || Date.now()}`;
 		}
 		return item.id;
 	}, []);

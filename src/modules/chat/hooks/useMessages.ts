@@ -107,8 +107,15 @@ export function useMessages(contactId: string) {
 						}
 						// Adicionar nova mensagem e reordenar
 						const combined = [...prev, newMessage];
-						combined.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
-						return combined;
+						// Remover duplicatas por ID antes de ordenar
+						const unique = combined.reduce((acc, msg) => {
+							if (!acc.find((m) => m.id === msg.id)) {
+								acc.push(msg);
+							}
+							return acc;
+						}, [] as Message[]);
+						unique.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+						return unique;
 					});
 				});
 
@@ -200,23 +207,24 @@ export function useMessages(contactId: string) {
 			const firestoreDb = db;
 			const plaintext = messageData.text.trim();
 
-			// 1. Criptografar mensagem
-			let encryptedText: string;
+			// 1. Tentar criptografar mensagem
+			// Timeout aumentado para 20s para acomodar retries e listener em tempo real
+			let encryptedText: string | null = null;
 			const startTime = Date.now();
 			try {
 				encryptedText = await Promise.race([
 					encryptMessage(plaintext, chatId, currentUserId, messageData.receiverId),
 					new Promise<string>((_, reject) =>
 						setTimeout(() => {
-							reject(new Error("Timeout: Criptografia demorou mais de 10 segundos"));
-						}, 10000)
+							reject(new Error("Timeout: Criptografia demorou mais de 20 segundos"));
+						}, 20000)
 					),
 				]);
 			} catch (encryptError) {
 				const duration = Date.now() - startTime;
-				console.error("❌ Erro ao criptografar mensagem:", encryptError, { duration });
-				setError("Falha ao criptografar mensagem. Tente novamente.");
-				throw encryptError;
+				console.warn("⚠️ Erro ao criptografar mensagem (salvando localmente para tentar depois):", encryptError, { duration });
+				// Não lançar erro - vamos salvar a mensagem localmente e tentar criptografar depois
+				// A mensagem será salva sem encryptedText e tentaremos criptografar quando o bundle estiver disponível
 			}
 
 			// 2. Criar mensagem temporária (otimistic update)
@@ -238,50 +246,120 @@ export function useMessages(contactId: string) {
 
 			// 3. Inserir no banco local primeiro (atualização otimista)
 			// Não aguardar para não bloquear a UI
+			// Se encryptedText for null, a mensagem será salva sem criptografia e tentaremos depois
 			insertMessage({
 				...tempMessage,
-				encryptedText, // Manter versão criptografada
+				encryptedText: encryptedText || null, // Pode ser null se criptografia falhou
 				isLocal: true, // Marcar como não sincronizada
 			}).catch((err) => {
 				// Tratar erro silenciosamente (pode ser race condition)
 				console.warn("⚠️ Erro ao inserir mensagem local (pode ser race condition):", err);
 			});
 
-			// 4. Atualizar UI imediatamente
+			// 4. Atualizar UI imediatamente (evitar duplicatas)
 			setMessages((prev) => {
+				// Verificar se mensagem já existe (evitar duplicatas)
+				const exists = prev.some((m) => m.id === tempId);
+				if (exists) {
+					return prev;
+				}
 				const combined = [...prev, tempMessage];
 				combined.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
 				return combined;
 			});
 
-			// 5. Enviar para Firestore em background
-			try {
-				const newMessage = {
-					chatId,
-					senderId: currentUserId,
-					receiverId: messageData.receiverId,
-					text: encryptedText,
-					timestamp: serverTimestamp(),
-					read: false,
-					viewedAt: null,
-					createdAt: serverTimestamp(),
-					updatedAt: serverTimestamp(),
-				};
+			// 5. Enviar para Firestore em background (apenas se criptografada)
+			if (encryptedText) {
+				try {
+					const newMessage = {
+						chatId,
+						senderId: currentUserId,
+						receiverId: messageData.receiverId,
+						text: encryptedText,
+						timestamp: serverTimestamp(),
+						read: false,
+						viewedAt: null,
+						createdAt: serverTimestamp(),
+						updatedAt: serverTimestamp(),
+					};
 
-				const docRef = await addDoc(collection(firestoreDb, "messages"), newMessage);
+					const docRef = await addDoc(collection(firestoreDb, "messages"), newMessage);
 
-				// 6. Atualizar mensagem local com ID do Firestore e marcar como sincronizada
-				await updateMessage(tempId, {
-					id: docRef.id,
-					isLocal: 0,
-					syncedAt: Date.now(),
-				});
+					// 6. Atualizar mensagem local com ID do Firestore e marcar como sincronizada
+					await updateMessage(tempId, {
+						id: docRef.id,
+						isLocal: 0,
+						syncedAt: Date.now(),
+					});
 
-				// 7. Atualizar UI com ID real
-				setMessages((prev) => prev.map((msg) => (msg.id === tempId ? { ...msg, id: docRef.id } : msg)));
-			} catch (err: any) {
-				console.error("❌ Erro ao enviar mensagem para Firestore:", err);
-				// Mensagem permanece como local e será enviada depois via uploadPendingMessages
+					// 7. Atualizar UI com ID real (evitar duplicatas)
+					setMessages((prev) => {
+						// Verificar se já existe mensagem com o ID do Firestore (pode ter chegado via listener)
+						const hasFirestoreId = prev.some((m) => m.id === docRef.id);
+						if (hasFirestoreId) {
+							// Se já existe, remover a versão com tempId
+							return prev.filter((m) => m.id !== tempId);
+						}
+						// Caso contrário, atualizar o ID
+						return prev.map((msg) => (msg.id === tempId ? { ...msg, id: docRef.id } : msg));
+					});
+				} catch (err: any) {
+					console.error("❌ Erro ao enviar mensagem para Firestore:", err);
+					// Mensagem permanece como local e será enviada depois via uploadPendingMessages
+				}
+			} else {
+				// Se não foi criptografada, tentar criptografar e enviar em background
+				// encryptMessage agora tem fallback E2EE automático, então deve funcionar mesmo sem bundle
+				console.log("⏳ Mensagem salva sem criptografia, tentando criptografar e enviar em background...");
+				(async () => {
+					try {
+						// Tentar criptografar (agora com fallback E2EE automático)
+						const encrypted = await encryptMessage(plaintext, chatId, currentUserId, messageData.receiverId);
+						
+						// Atualizar mensagem local com texto criptografado
+						await updateMessage(tempId, {
+							encryptedText: encrypted,
+						});
+
+						// Enviar para Firestore imediatamente
+						const newMessage = {
+							chatId,
+							senderId: currentUserId,
+							receiverId: messageData.receiverId,
+							text: encrypted,
+							timestamp: serverTimestamp(),
+							read: false,
+							viewedAt: null,
+							createdAt: serverTimestamp(),
+							updatedAt: serverTimestamp(),
+						};
+
+						const docRef = await addDoc(collection(firestoreDb, "messages"), newMessage);
+
+						// Atualizar mensagem local com ID do Firestore
+						await updateMessage(tempId, {
+							id: docRef.id,
+							isLocal: 0,
+							syncedAt: Date.now(),
+						});
+
+						// Atualizar UI (evitar duplicatas)
+						setMessages((prev) => {
+							// Verificar se já existe mensagem com o ID do Firestore (pode ter chegado via listener)
+							const hasFirestoreId = prev.some((m) => m.id === docRef.id);
+							if (hasFirestoreId) {
+								// Se já existe, remover a versão com tempId
+								return prev.filter((m) => m.id !== tempId);
+							}
+							// Caso contrário, atualizar o ID
+							return prev.map((msg) => (msg.id === tempId ? { ...msg, id: docRef.id } : msg));
+						});
+						console.log("✅ Mensagem criptografada e enviada com sucesso em background");
+					} catch (retryError: any) {
+						console.warn("⚠️ Erro ao criptografar/enviar mensagem em background:", retryError);
+						// Mensagem permanece local e será tentada novamente via uploadPendingMessages
+					}
+				})();
 			}
 		},
 		[firebaseUser]
@@ -311,11 +389,23 @@ export function useMessages(contactId: string) {
 				return;
 			}
 
-			// Adicionar mensagens antigas no início da lista
+			// Adicionar mensagens antigas no início da lista (evitar duplicatas)
 			setMessages((prev) => {
-				const combined = [...olderMessages, ...prev];
-				combined.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
-				return combined;
+				// Filtrar mensagens antigas que já existem no estado
+				const newOlderMessages = olderMessages.filter((msg) => !prev.some((m) => m.id === msg.id));
+				if (newOlderMessages.length === 0) {
+					return prev;
+				}
+				const combined = [...newOlderMessages, ...prev];
+				// Remover duplicatas por ID
+				const unique = combined.reduce((acc, msg) => {
+					if (!acc.find((m) => m.id === msg.id)) {
+						acc.push(msg);
+					}
+					return acc;
+				}, [] as Message[]);
+				unique.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+				return unique;
 			});
 
 			loadedCountRef.current += olderMessages.length;
