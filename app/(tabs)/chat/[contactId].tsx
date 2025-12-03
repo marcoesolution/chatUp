@@ -221,7 +221,7 @@ export default function ChatScreen() {
 			const isOwnMessage = m.senderId === firebaseUser?.uid;
 			const textMatches = m.text === lastSent.text || m.text.includes(lastSent.text.substring(0, 20));
 			const isRecent = currentTime - m.timestamp.getTime() < 10000; // Últimos 10 segundos
-			
+
 			return isOwnMessage && textMatches && isRecent;
 		});
 
@@ -361,10 +361,12 @@ export default function ChatScreen() {
 		setIsSending(true);
 
 		// Iniciar medição de tempo desde o clique até aparecer na lista
-		const messageTimerLabel = `⏱️ Envio de mensagem: "${textToSend.substring(0, 30)}${textToSend.length > 30 ? '...' : ''}"`;
+		const messageTimerLabel = `⏱️ Envio de mensagem: "${textToSend.substring(0, 30)}${
+			textToSend.length > 30 ? "..." : ""
+		}"`;
 		console.time(messageTimerLabel);
 		messageTimerRef.current = messageTimerLabel;
-		
+
 		// Armazenar informações da mensagem para rastrear quando aparecer na lista
 		const sendStartTime = Date.now();
 		lastSentMessageRef.current = {
@@ -378,7 +380,9 @@ export default function ChatScreen() {
 				receiverId: contactId,
 			};
 
-			await sendMessage(messageData);
+			// sendMessage agora retorna imediatamente (atualização otimista)
+			// A mensagem já aparece na UI antes mesmo de criptografar
+			sendMessage(messageData);
 			setMessageText("");
 			// Rolar para o topo após enviar mensagem
 			setTimeout(() => {
@@ -546,11 +550,11 @@ export default function ChatScreen() {
 						setTimeout(() => {
 							if (sortedMessages.length > 0) {
 								try {
-					listRef.current?.scrollToIndex({ index: 0, animated: true });
+									listRef.current?.scrollToIndex({ index: 0, animated: true });
 								} catch (err) {
 									// Se scrollToIndex falhar, usar scrollToOffset como fallback
 									console.warn("⚠️ Erro ao fazer scrollToIndex, usando scrollToOffset:", err);
-					listRef.current?.scrollToOffset({ offset: 0, animated: true });
+									listRef.current?.scrollToOffset({ offset: 0, animated: true });
 								}
 							}
 						}, 300);

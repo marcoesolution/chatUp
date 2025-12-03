@@ -207,27 +207,11 @@ export function useMessages(contactId: string) {
 			const firestoreDb = db;
 			const plaintext = messageData.text.trim();
 
-			// 1. Tentar criptografar mensagem
-			// Timeout aumentado para 20s para acomodar retries e listener em tempo real
-			let encryptedText: string | null = null;
-			const startTime = Date.now();
-			try {
-				encryptedText = await Promise.race([
-					encryptMessage(plaintext, chatId, currentUserId, messageData.receiverId),
-					new Promise<string>((_, reject) =>
-						setTimeout(() => {
-							reject(new Error("Timeout: Criptografia demorou mais de 20 segundos"));
-						}, 20000)
-					),
-				]);
-			} catch (encryptError) {
-				const duration = Date.now() - startTime;
-				console.warn("⚠️ Erro ao criptografar mensagem (salvando localmente para tentar depois):", encryptError, { duration });
-				// Não lançar erro - vamos salvar a mensagem localmente e tentar criptografar depois
-				// A mensagem será salva sem encryptedText e tentaremos criptografar quando o bundle estiver disponível
-			}
-
-			// 2. Criar mensagem temporária (otimistic update)
+			// ============================================
+			// ATUALIZAÇÃO OTIMISTA - UX INSTANTÂNEA
+			// ============================================
+			// 1. Criar mensagem temporária e mostrar IMEDIATAMENTE na UI (texto plano)
+			//    O usuário vê a mensagem instantaneamente, sem esperar criptografia
 			const tempId = `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 			const now = new Date();
 
@@ -244,19 +228,8 @@ export function useMessages(contactId: string) {
 				updatedAt: now,
 			};
 
-			// 3. Inserir no banco local primeiro (atualização otimista)
-			// Não aguardar para não bloquear a UI
-			// Se encryptedText for null, a mensagem será salva sem criptografia e tentaremos depois
-			insertMessage({
-				...tempMessage,
-				encryptedText: encryptedText || null, // Pode ser null se criptografia falhou
-				isLocal: true, // Marcar como não sincronizada
-			}).catch((err) => {
-				// Tratar erro silenciosamente (pode ser race condition)
-				console.warn("⚠️ Erro ao inserir mensagem local (pode ser race condition):", err);
-			});
-
-			// 4. Atualizar UI imediatamente (evitar duplicatas)
+			// 2. Atualizar UI IMEDIATAMENTE (antes de qualquer processamento)
+			//    Isso dá a sensação de envio instantâneo para o usuário
 			setMessages((prev) => {
 				// Verificar se mensagem já existe (evitar duplicatas)
 				const exists = prev.some((m) => m.id === tempId);
@@ -268,8 +241,48 @@ export function useMessages(contactId: string) {
 				return combined;
 			});
 
-			// 5. Enviar para Firestore em background (apenas se criptografada)
-			if (encryptedText) {
+			// 3. Inserir no banco local (sem criptografia ainda - será atualizado depois)
+			//    Não aguardar para não bloquear a UI
+			insertMessage({
+				...tempMessage,
+				encryptedText: null, // Será atualizado quando criptografar
+				isLocal: true, // Marcar como não sincronizada
+			}).catch((err) => {
+				// Tratar erro silenciosamente (pode ser race condition)
+				console.warn("⚠️ Erro ao inserir mensagem local (pode ser race condition):", err);
+			});
+
+			// ============================================
+			// PROCESSAMENTO EM BACKGROUND
+			// ============================================
+			// 4. Criptografar e enviar em background (não bloqueia a UI)
+			//    O usuário já viu a mensagem, então pode esperar a criptografia
+			(async () => {
+				const encryptionStartTime = Date.now();
+				let encryptedText: string | null = null;
+
+				try {
+					// Criptografar mensagem (pode demorar ~3s)
+					encryptedText = await encryptMessage(plaintext, chatId, currentUserId, messageData.receiverId);
+					const encryptionDuration = Date.now() - encryptionStartTime;
+					console.log(`🔒 Mensagem criptografada em background em ${encryptionDuration}ms`);
+				} catch (encryptError) {
+					const duration = Date.now() - encryptionStartTime;
+					console.warn("⚠️ Erro ao criptografar mensagem em background:", encryptError, { duration });
+					// Mensagem permanece local e será tentada novamente via uploadPendingMessages
+					return;
+				}
+
+				// 5. Atualizar mensagem local com texto criptografado
+				try {
+					await updateMessage(tempId, {
+						encryptedText: encryptedText,
+					});
+				} catch (updateError) {
+					console.warn("⚠️ Erro ao atualizar mensagem local com texto criptografado:", updateError);
+				}
+
+				// 6. Enviar para Firestore em background
 				try {
 					const newMessage = {
 						chatId,
@@ -284,15 +297,17 @@ export function useMessages(contactId: string) {
 					};
 
 					const docRef = await addDoc(collection(firestoreDb, "messages"), newMessage);
+					const totalDuration = Date.now() - encryptionStartTime;
+					console.log(`📤 Mensagem enviada para Firestore em ${totalDuration}ms (total desde criptografia)`);
 
-					// 6. Atualizar mensagem local com ID do Firestore e marcar como sincronizada
+					// 7. Atualizar mensagem local com ID do Firestore e marcar como sincronizada
 					await updateMessage(tempId, {
 						id: docRef.id,
 						isLocal: 0,
 						syncedAt: Date.now(),
 					});
 
-					// 7. Atualizar UI com ID real (evitar duplicatas)
+					// 8. Atualizar UI com ID real (evitar duplicatas)
 					setMessages((prev) => {
 						// Verificar se já existe mensagem com o ID do Firestore (pode ter chegado via listener)
 						const hasFirestoreId = prev.some((m) => m.id === docRef.id);
@@ -304,63 +319,13 @@ export function useMessages(contactId: string) {
 						return prev.map((msg) => (msg.id === tempId ? { ...msg, id: docRef.id } : msg));
 					});
 				} catch (err: any) {
-					console.error("❌ Erro ao enviar mensagem para Firestore:", err);
+					console.error("❌ Erro ao enviar mensagem para Firestore em background:", err);
 					// Mensagem permanece como local e será enviada depois via uploadPendingMessages
 				}
-			} else {
-				// Se não foi criptografada, tentar criptografar e enviar em background
-				// encryptMessage agora tem fallback E2EE automático, então deve funcionar mesmo sem bundle
-				console.log("⏳ Mensagem salva sem criptografia, tentando criptografar e enviar em background...");
-				(async () => {
-					try {
-						// Tentar criptografar (agora com fallback E2EE automático)
-						const encrypted = await encryptMessage(plaintext, chatId, currentUserId, messageData.receiverId);
-						
-						// Atualizar mensagem local com texto criptografado
-						await updateMessage(tempId, {
-							encryptedText: encrypted,
-						});
+			})();
 
-						// Enviar para Firestore imediatamente
-						const newMessage = {
-							chatId,
-							senderId: currentUserId,
-							receiverId: messageData.receiverId,
-							text: encrypted,
-							timestamp: serverTimestamp(),
-							read: false,
-							viewedAt: null,
-							createdAt: serverTimestamp(),
-							updatedAt: serverTimestamp(),
-						};
-
-						const docRef = await addDoc(collection(firestoreDb, "messages"), newMessage);
-
-						// Atualizar mensagem local com ID do Firestore
-						await updateMessage(tempId, {
-							id: docRef.id,
-							isLocal: 0,
-							syncedAt: Date.now(),
-						});
-
-						// Atualizar UI (evitar duplicatas)
-						setMessages((prev) => {
-							// Verificar se já existe mensagem com o ID do Firestore (pode ter chegado via listener)
-							const hasFirestoreId = prev.some((m) => m.id === docRef.id);
-							if (hasFirestoreId) {
-								// Se já existe, remover a versão com tempId
-								return prev.filter((m) => m.id !== tempId);
-							}
-							// Caso contrário, atualizar o ID
-							return prev.map((msg) => (msg.id === tempId ? { ...msg, id: docRef.id } : msg));
-						});
-						console.log("✅ Mensagem criptografada e enviada com sucesso em background");
-					} catch (retryError: any) {
-						console.warn("⚠️ Erro ao criptografar/enviar mensagem em background:", retryError);
-						// Mensagem permanece local e será tentada novamente via uploadPendingMessages
-					}
-				})();
-			}
+			// Retornar imediatamente (não aguardar processamento em background)
+			// A mensagem já está visível na UI, então o usuário tem feedback instantâneo
 		},
 		[firebaseUser]
 	);
