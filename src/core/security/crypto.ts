@@ -15,7 +15,15 @@ import * as Crypto from "expo-crypto";
 import CryptoJS from "crypto-js";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { storage } from "@/services/storage";
-import { arrayBufferToBase64, arrayBufferToString, base64ToArrayBuffer, stringToArrayBuffer, ensureArrayBuffer, arrayBufferToBase64URL, base64URLToArrayBuffer } from "./utils";
+import {
+	arrayBufferToBase64,
+	arrayBufferToString,
+	base64ToArrayBuffer,
+	stringToArrayBuffer,
+	ensureArrayBuffer,
+	arrayBufferToBase64URL,
+	base64URLToArrayBuffer,
+} from "./utils";
 import { MessageEnvelopeCodec, type MessageEnvelope } from "@/modules/chat/proto/messageEnvelope";
 import { encryptWithSignal, decryptWithSignal, clearSignalSessions } from "./signal";
 import { trackEncryptionError, trackEncryptionEvent } from "./telemetry";
@@ -682,12 +690,22 @@ export async function encryptMessage(
 	const startedAt = Date.now();
 
 	// Tentar Signal Protocol primeiro (método preferido)
+	// Timeout total de 3 segundos para evitar espera longa
 	try {
-		const result = await encryptWithSignal({
+		const signalPromise = encryptWithSignal({
 			currentUserId: userId,
 			contactId: receiverId,
 			plaintext,
 		});
+
+		// Timeout total de 3 segundos para Signal Protocol
+		const timeoutPromise = new Promise<never>((_, reject) => {
+			setTimeout(() => {
+				reject(new Error("Signal Protocol timeout - usando fallback E2EE"));
+			}, 3000); // 3s timeout total (retries + listener = ~2.6s máximo)
+		});
+
+		const result = await Promise.race([signalPromise, timeoutPromise]);
 
 		const envelopeBytes = MessageEnvelopeCodec.encode({
 			version: SIGNAL_ENVELOPE_VERSION,
@@ -717,18 +735,22 @@ export async function encryptMessage(
 
 		return ENCRYPTED_PREFIX + encoded;
 	} catch (signalError: any) {
-		// Se erro for por falta de bundle de prekeys, tentar fallback E2EE
-		const isBundleError = signalError?.message?.includes("bundle de prekeys") || 
-		                      signalError?.message?.includes("não possui bundle");
-		
+		// Se erro for por falta de bundle de prekeys ou timeout, tentar fallback E2EE
+		const isBundleError =
+			signalError?.message?.includes("bundle de prekeys") ||
+			signalError?.message?.includes("não possui bundle") ||
+			signalError?.message?.includes("timeout");
+
 		if (isBundleError) {
-			console.log("⚠️ Signal Protocol não disponível (bundle ausente), usando fallback E2EE...");
-			
+			const fallbackStartTime = Date.now();
+			console.log("⚠️ Signal Protocol não disponível (bundle ausente/timeout), usando fallback E2EE...");
+
 			try {
-				// Usar método E2EE legado que só precisa de chaves públicas
+				// Usar método E2EE legado que só precisa de chaves públicas (já em cache)
 				const { encryptMessageE2EE } = await import("./e2ee");
 				const encrypted = await encryptMessageE2EE(plaintext, chatId, userId, receiverId);
-				
+
+				const fallbackDuration = Date.now() - fallbackStartTime;
 				trackEncryptionEvent({
 					stage: "encrypt",
 					result: "success",
@@ -737,8 +759,10 @@ export async function encryptMessage(
 					receiverId,
 					durationMs: Date.now() - startedAt,
 				});
-				
-				console.log("✅ Mensagem criptografada com fallback E2EE (destinatário offline)");
+
+				console.log(
+					`✅ Mensagem criptografada com fallback E2EE em ${fallbackDuration}ms (destinatário offline)`
+				);
 				return encrypted;
 			} catch (e2eeError) {
 				console.error("❌ Erro ao criptografar com fallback E2EE:", e2eeError);
@@ -756,7 +780,7 @@ export async function encryptMessage(
 				throw signalError instanceof Error ? signalError : new Error("Falha ao criptografar mensagem");
 			}
 		}
-		
+
 		// Para outros erros do Signal, propagar normalmente
 		trackEncryptionError(
 			{

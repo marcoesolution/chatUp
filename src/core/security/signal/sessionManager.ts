@@ -118,8 +118,8 @@ async function waitForRemoteBundle(contactId: string, timeoutMs: number = 10000)
  */
 async function fetchRemoteBundleWithRetry(
 	contactId: string,
-	maxRetries: number = 3,
-	initialDelayMs: number = 500
+	maxRetries: number = 2, // Reduzido de 3 para 2 (mais rápido)
+	initialDelayMs: number = 300 // Reduzido de 500ms para 300ms (mais rápido)
 ): Promise<RemotePreKeyBundle | null> {
 	let delay = initialDelayMs;
 
@@ -160,11 +160,13 @@ export async function ensureSignalSession(currentUserId: string, contactId: stri
 	let remoteBundle = await fetchRemoteBundleWithRetry(contactId);
 	console.log("📦 [Signal] Resultado do retry:", { found: !!remoteBundle, duration: Date.now() - retryStartTime });
 
-	// Se ainda não encontrou, aguardar com listener em tempo real (timeout reduzido para 7s)
+	// Se ainda não encontrou, aguardar com listener em tempo real (timeout reduzido para 2s - mais rápido)
 	if (!remoteBundle) {
-		console.log("⏳ [Signal] Bundle não encontrado após retries, aguardando publicação em tempo real...");
+		console.log(
+			"⏳ [Signal] Bundle não encontrado após retries, aguardando publicação em tempo real (timeout: 2s)..."
+		);
 		const listenerStartTime = Date.now();
-		remoteBundle = await waitForRemoteBundle(contactId, 7000);
+		remoteBundle = await waitForRemoteBundle(contactId, 2000); // Reduzido de 7s para 2s
 		console.log("👂 [Signal] Resultado do listener:", {
 			found: !!remoteBundle,
 			duration: Date.now() - listenerStartTime,

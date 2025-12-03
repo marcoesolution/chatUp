@@ -202,6 +202,39 @@ export default function ChatScreen() {
 		return unique.reverse();
 	}, [messages]);
 
+	// Rastrear última mensagem enviada para medir tempo de aparecimento
+	const lastSentMessageRef = useRef<{ text: string; timestamp: number } | null>(null);
+	const messageTimerRef = useRef<string | null>(null);
+
+	// Detectar quando mensagem aparece na lista e finalizar timer
+	useEffect(() => {
+		if (!messages || messages.length === 0 || !messageTimerRef.current || !lastSentMessageRef.current) {
+			return;
+		}
+
+		const lastSent = lastSentMessageRef.current;
+		const currentTime = Date.now();
+		const timeSinceSend = currentTime - lastSent.timestamp;
+
+		// Buscar mensagem mais recente do usuário atual que corresponda ao texto enviado
+		const matchingMessage = messages.find((m) => {
+			const isOwnMessage = m.senderId === firebaseUser?.uid;
+			const textMatches = m.text === lastSent.text || m.text.includes(lastSent.text.substring(0, 20));
+			const isRecent = currentTime - m.timestamp.getTime() < 10000; // Últimos 10 segundos
+			
+			return isOwnMessage && textMatches && isRecent;
+		});
+
+		if (matchingMessage && messageTimerRef.current) {
+			// Mensagem apareceu na lista - finalizar timer
+			const duration = (currentTime - lastSent.timestamp) / 1000;
+			console.timeEnd(messageTimerRef.current);
+			console.log(`✅ Mensagem apareceu na timeline em ${duration.toFixed(3)} segundos`);
+			messageTimerRef.current = null;
+			lastSentMessageRef.current = null;
+		}
+	}, [messages, firebaseUser?.uid]);
+
 	// Rolar para o topo (mensagem mais recente) quando a tela carregar ou novas mensagens chegarem
 	useEffect(() => {
 		if (sortedMessages && sortedMessages.length > 0 && !isLoading) {
@@ -326,6 +359,18 @@ export default function ChatScreen() {
 
 		const textToSend = messageText.trim();
 		setIsSending(true);
+
+		// Iniciar medição de tempo desde o clique até aparecer na lista
+		const messageTimerLabel = `⏱️ Envio de mensagem: "${textToSend.substring(0, 30)}${textToSend.length > 30 ? '...' : ''}"`;
+		console.time(messageTimerLabel);
+		messageTimerRef.current = messageTimerLabel;
+		
+		// Armazenar informações da mensagem para rastrear quando aparecer na lista
+		const sendStartTime = Date.now();
+		lastSentMessageRef.current = {
+			text: textToSend,
+			timestamp: sendStartTime,
+		};
 
 		try {
 			const messageData: CreateMessageData = {
