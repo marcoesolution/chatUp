@@ -232,6 +232,16 @@ export async function encryptWithSignal(options: {
 	};
 }
 
+/**
+ * Deleta a sessão Signal de um contato específico
+ */
+export async function deleteSignalSession(currentUserId: string, contactId: string): Promise<void> {
+	const storage = await bootstrapSignalAccount(currentUserId);
+	const address = new SignalProtocolAddress(contactId, DEVICE_ID);
+	await storage.deleteSession(address.toString());
+	console.log("🔄 [Signal] Sessão deletada para contato:", contactId);
+}
+
 export async function decryptWithSignal(options: {
 	currentUserId: string;
 	contactId: string;
@@ -247,14 +257,73 @@ export async function decryptWithSignal(options: {
 	const rawBuffer = payload.buffer.slice(payload.byteOffset, payload.byteOffset + payload.byteLength);
 	const normalizedPayload = ensureArrayBuffer(rawBuffer);
 
-	let plaintext: ArrayBuffer;
-	if (type === 3) {
-		plaintext = await cipher.decryptPreKeyWhisperMessage(normalizedPayload);
-	} else {
-		plaintext = await cipher.decryptWhisperMessage(normalizedPayload);
-	}
+	try {
+		let plaintext: ArrayBuffer;
+		if (type === 3) {
+			plaintext = await cipher.decryptPreKeyWhisperMessage(normalizedPayload);
+		} else {
+			plaintext = await cipher.decryptWhisperMessage(normalizedPayload);
+		}
 
-	return arrayBufferToString(plaintext);
+		return arrayBufferToString(plaintext);
+	} catch (error: any) {
+		// Detectar erro de contador de mensagens (MessageCounterError)
+		const errorMessage = error?.message || String(error);
+		const isMessageCounterError =
+			errorMessage.includes("Message key not found") ||
+			errorMessage.includes("counter was repeated") ||
+			errorMessage.includes("key was not filled") ||
+			errorMessage.includes("MessageCounterError");
+
+		// Detectar erro de "sending chain" - tentativa de descriptografar mensagem própria
+		const isSendingChainError =
+			errorMessage.includes("Tried to decrypt on a sending chain") || errorMessage.includes("sending chain");
+
+		if (isSendingChainError) {
+			console.warn("⚠️ [Signal] Erro de 'sending chain' detectado - mensagem própria ou sessão invertida", {
+				contactId,
+				error: errorMessage,
+			});
+			throw new Error("Não é possível descriptografar mensagem na cadeia de envio (mensagem própria)");
+		}
+
+		if (isMessageCounterError) {
+			console.warn("⚠️ [Signal] Erro de contador de mensagens detectado, resetando sessão...", {
+				contactId,
+				error: errorMessage,
+			});
+
+			try {
+				// Deletar sessão corrompida
+				await deleteSignalSession(currentUserId, contactId);
+
+				// Tentar descriptografar novamente (isso vai criar uma nova sessão se necessário)
+				// Mas primeiro precisamos tentar descriptografar como PreKey message
+				// já que a sessão foi deletada
+				if (type !== 3) {
+					// Se não era PreKey, tentar como PreKey agora
+					const plaintext = await cipher.decryptPreKeyWhisperMessage(normalizedPayload);
+					console.log("✅ [Signal] Mensagem descriptografada após reset de sessão (como PreKey)");
+					return arrayBufferToString(plaintext);
+				} else {
+					// Se já era PreKey, tentar novamente
+					const plaintext = await cipher.decryptPreKeyWhisperMessage(normalizedPayload);
+					console.log("✅ [Signal] Mensagem descriptografada após reset de sessão");
+					return arrayBufferToString(plaintext);
+				}
+			} catch (retryError: any) {
+				console.error("❌ [Signal] Falha ao descriptografar mesmo após reset de sessão:", retryError);
+				throw new Error(
+					`Falha ao descriptografar mensagem Signal após reset de sessão: ${
+						retryError?.message || String(retryError)
+					}`
+				);
+			}
+		}
+
+		// Re-lançar erro se não for MessageCounterError
+		throw error;
+	}
 }
 
 export async function clearSignalSessions(userId: string): Promise<void> {

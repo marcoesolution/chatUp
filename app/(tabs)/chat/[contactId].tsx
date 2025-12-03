@@ -19,6 +19,7 @@ import { useTranslation } from "@/core/i18n";
 import { mockContacts } from "@/modules/chat";
 import { MessageStatus } from "@/shared/components/MessageStatus";
 import type { CreateMessageData, Message } from "@/modules/chat/types";
+import { setCurrentChatSenderId } from "@/services/notifications";
 
 const ContainerWrapper = styled.View`
 	flex: 1;
@@ -156,6 +157,11 @@ export default function ChatScreen() {
 				tabBarStyle: { display: "none" },
 			});
 
+			// Definir remetente atual para não mostrar notificação se estiver no chat
+			if (contactId) {
+				setCurrentChatSenderId(contactId);
+			}
+
 			// Marcar mensagens como visualizadas quando a tela recebe foco
 			if (contactId) {
 				setTimeout(() => {
@@ -163,8 +169,9 @@ export default function ChatScreen() {
 				}, 300);
 			}
 
-			// Mostrar tab bar quando sair da tela
+			// Mostrar tab bar e limpar remetente atual quando sair da tela
 			return () => {
+				setCurrentChatSenderId(null);
 				navigation.getParent()?.setOptions({
 					tabBarStyle: {
 						backgroundColor: theme.colors.background.secondary,

@@ -9,6 +9,7 @@ import React, { Suspense, useEffect } from "react";
 import { View, Text, StyleSheet, ActivityIndicator } from "react-native";
 import "@/core/firebase";
 import { initDatabase } from "@/core/database";
+import { requestNotificationPermissions } from "@/services/notifications";
 
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean; error: Error | null }> {
 	constructor(props: { children: React.ReactNode }) {
@@ -88,6 +89,8 @@ function AppContent() {
 		(async () => {
 			try {
 				await initDatabase();
+				// Solicitar permissões de notificação
+				await requestNotificationPermissions();
 			} catch (error) {
 				console.error("❌ Erro ao inicializar banco de dados:", error);
 			}

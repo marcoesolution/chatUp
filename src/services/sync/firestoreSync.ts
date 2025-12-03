@@ -31,6 +31,7 @@ import {
 } from "@/core/database";
 import type { MessageRow } from "@/core/database/schema";
 import type { Message } from "@/modules/chat/types";
+import { handleNewMessage } from "@/services/notifications";
 
 /**
  * Sincroniza um chat específico do Firestore para o banco local
@@ -457,6 +458,7 @@ export function setupRealtimeListener(
 
 						// Descriptografar mensagem
 						let decryptedText = data.text;
+						let decryptionError = false;
 						try {
 							// Verificar se é mensagem criptografada (começa com "ENC:")
 							if (data.text.startsWith("ENC:")) {
@@ -467,13 +469,19 @@ export function setupRealtimeListener(
 									data.senderId ?? "",
 									data.receiverId ?? ""
 								);
+								// Verificar se descriptografia retornou erro (começa com "[")
+								if (decryptedText.startsWith("[") && decryptedText.includes("Erro")) {
+									decryptionError = true;
+									console.warn("⚠️ Mensagem não pôde ser descriptografada:", decryptedText);
+								}
 							} else {
 								// Mensagem não criptografada (legado ou erro)
 								decryptedText = data.text;
 							}
 						} catch (error) {
 							console.warn("⚠️ Erro ao descriptografar mensagem em tempo real:", error);
-							decryptedText = data.text;
+							decryptedText = "[Erro ao descriptografar mensagem]";
+							decryptionError = true;
 						}
 
 						// Validar texto descriptografado
@@ -481,6 +489,9 @@ export function setupRealtimeListener(
 							console.warn("⚠️ Texto descriptografado inválido em tempo real, usando texto original");
 							decryptedText = data.text || "";
 						}
+
+						// Ignorar mensagens próprias para notificação (mas ainda processar para UI)
+						const isOwnMessage = data.senderId === userId;
 
 						// Converter timestamps com validação
 						let timestamp: Date;
@@ -574,7 +585,7 @@ export function setupRealtimeListener(
 
 						// Notificar UI apenas se mensagem foi inserida com sucesso
 						try {
-							onNewMessage({
+							const message: Message = {
 								id: messageId,
 								chatId: data.chatId,
 								senderId: data.senderId,
@@ -585,7 +596,16 @@ export function setupRealtimeListener(
 								viewedAt,
 								createdAt,
 								updatedAt,
-							});
+							};
+							onNewMessage(message);
+
+							// Processar notificação se mensagem é para o usuário atual e não é própria
+							// Processar mesmo se houver erro de descriptografia (badge precisa funcionar)
+							if (data.receiverId === userId && !isOwnMessage) {
+								handleNewMessage(message, userId).catch((notifError) => {
+									console.warn("⚠️ Erro ao processar notificação:", notifError);
+								});
+							}
 						} catch (notifyError) {
 							console.error("❌ Erro ao notificar UI sobre nova mensagem:", notifyError);
 						}
@@ -651,8 +671,17 @@ function setupRealtimeListenerWithoutOrderBy(
 								data.receiverId ?? ""
 							);
 						} catch (error) {
-							console.warn("⚠️ Erro ao descriptografar mensagem:", error);
+							console.warn("⚠️ Erro ao descriptografar mensagem (fallback):", error);
+							decryptedText = "[Erro ao descriptografar mensagem]";
 						}
+
+						// Validar texto descriptografado
+						if (!decryptedText || typeof decryptedText !== "string") {
+							decryptedText = "[Erro ao descriptografar mensagem]";
+						}
+
+						// Ignorar mensagens próprias para notificação
+						const isOwnMessage = data.senderId === userId;
 
 						const timestamp = data.timestamp?.toDate() || new Date();
 						const createdAt = data.createdAt?.toDate() || timestamp;
@@ -675,7 +704,7 @@ function setupRealtimeListenerWithoutOrderBy(
 								isLocal: false,
 							});
 
-							onNewMessage({
+							const message: Message = {
 								id: messageId,
 								chatId: data.chatId,
 								senderId: data.senderId,
@@ -686,7 +715,15 @@ function setupRealtimeListenerWithoutOrderBy(
 								viewedAt,
 								createdAt,
 								updatedAt,
-							});
+							};
+							onNewMessage(message);
+
+							// Processar notificação se mensagem é para o usuário atual e não é própria
+							if (data.receiverId === userId && !isOwnMessage) {
+								handleNewMessage(message, userId).catch((notifError) => {
+									console.warn("⚠️ Erro ao processar notificação (fallback):", notifError);
+								});
+							}
 						} catch (insertError) {
 							console.error("❌ Erro ao inserir mensagem no banco local (fallback):", insertError);
 						}
