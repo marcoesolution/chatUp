@@ -20,7 +20,7 @@ module.exports = () => {
 		expo: {
 			name: "chatUp",
 			slug: "chatUp",
-			version: "1.0.1",
+			version: "1.0.2",
 			orientation: "portrait",
 			icon: "./assets/icon.png",
 			userInterfaceStyle: "light",
@@ -47,7 +47,7 @@ module.exports = () => {
 					backgroundColor: "#ffffff",
 				},
 				package: "com.chatup.app",
-				versionCode: 2,
+				versionCode: 3,
 				edgeToEdgeEnabled: true,
 				predictiveBackGestureEnabled: false,
 				permissions: [
@@ -78,7 +78,7 @@ module.exports = () => {
 				checkAutomatically: "ON_LOAD",
 				fallbackToCacheTimeout: 0,
 			},
-			runtimeVersion: "1.0.1",
+			runtimeVersion: "1.0.2",
 			extra: {
 				router: {},
 				eas: {
