@@ -93,6 +93,40 @@ export async function messageExists(messageId: string): Promise<boolean> {
 }
 
 /**
+ * Busca uma mensagem específica por ID
+ */
+export async function getMessageById(messageId: string): Promise<Message | null> {
+	const db = await getDb();
+
+	try {
+		const row = await db.getFirstAsync<MessageRow>(
+			`SELECT * FROM messages WHERE id = ?`,
+			[messageId]
+		);
+
+		if (!row) {
+			return null;
+		}
+
+		return {
+			id: row.id,
+			chatId: row.chatId,
+			senderId: row.senderId,
+			receiverId: row.receiverId,
+			text: row.text,
+			timestamp: new Date(row.timestamp),
+			read: row.read === 1,
+			viewedAt: row.viewedAt ? new Date(row.viewedAt) : null,
+			createdAt: row.createdAt ? new Date(row.createdAt) : null,
+			updatedAt: row.updatedAt ? new Date(row.updatedAt) : null,
+		};
+	} catch (error) {
+		console.error("❌ Erro ao buscar mensagem por ID:", error);
+		return null;
+	}
+}
+
+/**
  * Busca mensagens de um chat específico
  */
 export async function getMessages(chatId: string, limit: number = 15, offset: number = 0): Promise<Message[]> {

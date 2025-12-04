@@ -819,16 +819,18 @@ export async function decryptMessage(
 			throw new Error("Mensagem criptografada vazia após remover prefixo");
 		}
 
+		// Verificar se é mensagem própria ANTES de tentar descriptografar
+		// Mensagens próprias não devem ser descriptografadas (já estão no banco local com texto plano)
+		if (senderId === userId) {
+			console.log("ℹ️ Mensagem própria detectada - retornando placeholder (texto já está no banco local)");
+			return "[Mensagem própria]";
+		}
+
 		// Tentar novo formato (envelope protobuf)
 		const envelope = tryDecodeSignalEnvelope(withoutPrefix);
 		if (envelope?.version === SIGNAL_ENVELOPE_VERSION) {
-			// Verificar se é mensagem própria - não tentar descriptografar
-			if (senderId === userId) {
-				console.warn("⚠️ Tentativa de descriptografar mensagem própria - ignorando");
-				throw new Error("Não é possível descriptografar mensagem própria");
-			}
 
-			const remoteParticipant = senderId === userId ? receiverId : senderId;
+			const remoteParticipant = senderId;
 			if (!remoteParticipant) {
 				throw new Error("Participante remoto não identificado para descriptografia");
 			}
@@ -837,7 +839,7 @@ export async function decryptMessage(
 				// Permitir até 5 minutos no futuro para tolerar diferenças de relógio
 				const MAX_FUTURE_OFFSET_MS = 5 * 60 * 1000; // 5 minutos
 				const messageAge = Date.now() - envelope.timestamp;
-				
+
 				if (messageAge > MAX_MESSAGE_AGE_MS) {
 					throw new Error("Mensagem muito antiga");
 				}
@@ -845,17 +847,19 @@ export async function decryptMessage(
 				// Permitir pequenas diferenças de relógio (até 5 minutos no futuro)
 				if (messageAge < -MAX_FUTURE_OFFSET_MS) {
 					const futureOffset = Math.abs(messageAge) / (60 * 1000); // em minutos
-					console.warn(
-						`⚠️ Timestamp muito no futuro (Signal): ${futureOffset.toFixed(1)} minutos à frente`
+					console.warn(`⚠️ Timestamp muito no futuro (Signal): ${futureOffset.toFixed(1)} minutos à frente`);
+					throw new Error(
+						`Timestamp inválido: mensagem muito no futuro (${futureOffset.toFixed(1)} minutos)`
 					);
-					throw new Error(`Timestamp inválido: mensagem muito no futuro (${futureOffset.toFixed(1)} minutos)`);
 				}
 
 				// Se está no futuro mas dentro da tolerância, apenas logar e continuar
 				if (messageAge < 0) {
 					const futureOffset = Math.abs(messageAge) / 1000; // em segundos
 					console.log(
-						`ℹ️ Mensagem Signal com timestamp ${futureOffset.toFixed(0)}s no futuro (diferença de relógio aceita)`
+						`ℹ️ Mensagem Signal com timestamp ${futureOffset.toFixed(
+							0
+						)}s no futuro (diferença de relógio aceita)`
 					);
 				}
 			}
@@ -893,15 +897,14 @@ export async function decryptMessage(
 
 				// Tratar erros específicos do Signal
 				const errorMessage = error?.message || String(error);
-				
-				// Erro de "sending chain" - mensagem própria
+
+				// Erro de "sending chain" - mensagem própria (fallback caso verificação inicial falhe)
 				if (
 					errorMessage.includes("Tried to decrypt on a sending chain") ||
 					errorMessage.includes("sending chain") ||
 					errorMessage.includes("mensagem própria")
 				) {
-					console.warn("⚠️ Tentativa de descriptografar mensagem própria - ignorando");
-					// Retornar texto vazio ou placeholder para mensagens próprias
+					console.log("ℹ️ Mensagem própria detectada via Signal Protocol - retornando placeholder");
 					return "[Mensagem própria]";
 				}
 
@@ -972,7 +975,7 @@ export async function decryptMessage(
 		// Permitir até 5 minutos no futuro para tolerar diferenças de relógio entre dispositivos
 		const MAX_FUTURE_OFFSET_MS = 5 * 60 * 1000; // 5 minutos
 		const messageAge = Date.now() - payload.t;
-		
+
 		if (messageAge > MAX_MESSAGE_AGE_MS) {
 			throw new Error(
 				`Mensagem muito antiga: ${Math.floor(messageAge / (60 * 60 * 1000))} horas (máximo: 24 horas)`
@@ -983,7 +986,9 @@ export async function decryptMessage(
 		if (messageAge < -MAX_FUTURE_OFFSET_MS) {
 			const futureOffset = Math.abs(messageAge) / (60 * 1000); // em minutos
 			console.warn(
-				`⚠️ Timestamp muito no futuro: ${futureOffset.toFixed(1)} minutos à frente. Pode ser diferença de relógio.`
+				`⚠️ Timestamp muito no futuro: ${futureOffset.toFixed(
+					1
+				)} minutos à frente. Pode ser diferença de relógio.`
 			);
 			throw new Error(`Timestamp inválido: mensagem muito no futuro (${futureOffset.toFixed(1)} minutos)`);
 		}
@@ -1041,14 +1046,15 @@ export async function decryptMessage(
 			}
 		}
 
-		// Se for erro de "sending chain" - mensagem própria
+		// Se for erro de "sending chain" - mensagem própria (fallback)
 		if (
 			error.message &&
 			(error.message.includes("Tried to decrypt on a sending chain") ||
 				error.message.includes("sending chain") ||
-				error.message.includes("mensagem própria"))
+				error.message.includes("mensagem própria") ||
+				error.message.includes("Não é possível descriptografar mensagem própria"))
 		) {
-			console.warn("⚠️ Tentativa de descriptografar mensagem própria");
+			console.log("ℹ️ Mensagem própria detectada no catch - retornando placeholder");
 			return "[Mensagem própria]";
 		}
 

@@ -99,12 +99,41 @@ export function useMessages(contactId: string) {
 				unsubscribeRef.current = setupRealtimeListener(chatId, currentUserId, (newMessage) => {
 					// Atualizar mensagens quando nova mensagem chegar
 					setMessages((prev) => {
-						// Verificar se mensagem já existe (verificação dupla para garantir)
-						const exists = prev.some((m) => m.id === newMessage.id);
-						if (exists) {
-							console.log("ℹ️ Mensagem já existe no estado, ignorando:", newMessage.id);
+						// Verificar se mensagem já existe pelo ID do Firestore
+						const existsById = prev.some((m) => m.id === newMessage.id);
+						if (existsById) {
+							console.log("ℹ️ Mensagem já existe no estado pelo ID, ignorando:", newMessage.id);
 							return prev;
 						}
+						
+						// Para mensagens próprias, verificar se já existe pelo texto e timestamp
+						// (pode ter sido criada com tempId e ainda não atualizada com ID do Firestore)
+						if (newMessage.senderId === currentUserId) {
+							const existsByContent = prev.some(
+								(m) =>
+									m.senderId === currentUserId &&
+									m.text === newMessage.text &&
+									Math.abs(m.timestamp.getTime() - newMessage.timestamp.getTime()) < 5000
+							);
+							if (existsByContent) {
+								console.log("ℹ️ Mensagem própria já existe no estado (por conteúdo), atualizando ID se necessário");
+								// Atualizar o ID da mensagem existente se ela ainda tiver tempId
+								return prev.map((msg) => {
+									if (
+										msg.senderId === currentUserId &&
+										msg.text === newMessage.text &&
+										Math.abs(msg.timestamp.getTime() - newMessage.timestamp.getTime()) < 5000 &&
+										msg.id.startsWith("local_")
+									) {
+										// Atualizar ID da mensagem com tempId para o ID real do Firestore
+										console.log(`✅ Atualizando ID da mensagem: ${msg.id} -> ${newMessage.id}`);
+										return { ...msg, id: newMessage.id };
+									}
+									return msg;
+								});
+							}
+						}
+						
 						// Adicionar nova mensagem e reordenar
 						const combined = [...prev, newMessage];
 						// Remover duplicatas por ID antes de ordenar

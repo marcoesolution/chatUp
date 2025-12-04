@@ -50,7 +50,6 @@ const ConversationsContactName = styled.Text`
 	font-size: 16px;
 	font-weight: 600;
 	color: ${(props) => props.theme.colors.text.primary};
-	margin-bottom: 4px;
 `;
 
 const ConversationsLastMessage = styled.Text`

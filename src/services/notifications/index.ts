@@ -120,7 +120,7 @@ async function scheduleAccumulativeNotification(): Promise<void> {
 
 	const appState = AppState.currentState;
 	const inForeground = isAppInForeground();
-	
+
 	console.log("🔔 [Notificação] Agendando notificação", {
 		appState,
 		inForeground,
@@ -160,16 +160,12 @@ async function scheduleAccumulativeNotification(): Promise<void> {
 /**
  * Mostra uma notificação
  */
-async function showNotification(
-	senderName: string,
-	messageCount: number,
-	contactCount?: number
-): Promise<void> {
+async function showNotification(senderName: string, messageCount: number, contactCount?: number): Promise<void> {
 	try {
 		// Verificar permissões antes de mostrar
 		const { status } = await Notifications.getPermissionsAsync();
 		console.log("🔔 [Notificação] Status de permissão:", status);
-		
+
 		if (status !== "granted") {
 			console.warn("⚠️ [Notificação] Permissão não concedida:", status);
 			// Tentar solicitar novamente
@@ -360,4 +356,3 @@ export async function cancelAllNotifications(): Promise<void> {
 		console.error("❌ Erro ao cancelar notificações:", error);
 	}
 }
-

@@ -14,7 +14,6 @@ import {
 	ContactInfo,
 	ContactDetails,
 	ContactName,
-	LastMessage,
 	UnreadBadge,
 	UnreadCount,
 	EmptyContainer,
@@ -54,7 +53,6 @@ function ContactListItem({ contact, onPress }: ContactListItemProps) {
 			<ContactInfo>
 				<ContactDetails>
 					<ContactName>{contact.name}</ContactName>
-					{contact.lastMessage && <LastMessage numberOfLines={1}>{contact.lastMessage}</LastMessage>}
 				</ContactDetails>
 				{contact.unreadCount > 0 && (
 					<UnreadBadge>

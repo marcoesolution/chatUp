@@ -28,6 +28,7 @@ import {
 	getPendingMessages,
 	getChatIds,
 	messageExists,
+	getMessageById,
 } from "@/core/database";
 import type { MessageRow } from "@/core/database/schema";
 import type { Message } from "@/modules/chat/types";
@@ -74,27 +75,44 @@ export async function syncChat(chatId: string, userId: string): Promise<number> 
 				continue;
 			}
 
-			// Tentar descriptografar a mensagem
-			// decryptMessage detecta automaticamente a versão (v3 ou v4)
+			// Verificar se é mensagem própria ANTES de tentar descriptografar
+			const isOwnMessage = data.senderId === userId;
+
+			// Tentar descriptografar a mensagem (pular se for mensagem própria)
 			let decryptedText = data.text;
-			try {
-				// Verificar se é mensagem criptografada (começa com "ENC:")
-				if (data.text.startsWith("ENC:")) {
-					decryptedText = await decryptMessage(
-						data.text,
-						chatId,
-						userId,
-						data.senderId ?? "",
-						data.receiverId ?? ""
-					);
-				} else {
-					// Mensagem não criptografada (legado ou erro)
+			
+			if (isOwnMessage) {
+				// Mensagem própria: verificar se já existe no banco local
+				console.log("ℹ️ Mensagem própria durante sync - verificando banco local");
+				const alreadyExists = await messageExists(messageId);
+				if (alreadyExists) {
+					// Se mensagem já existe no banco local, pular sync (já tem texto plano)
+					console.log("ℹ️ Mensagem própria já existe no banco local, pulando sync");
+					continue;
+				}
+				// Se não encontrar no banco local, usar placeholder (não deve acontecer normalmente)
+				decryptedText = "[Mensagem própria]";
+			} else {
+				// Mensagem de outro usuário: descriptografar normalmente
+				try {
+					// Verificar se é mensagem criptografada (começa com "ENC:")
+					if (data.text.startsWith("ENC:")) {
+						decryptedText = await decryptMessage(
+							data.text,
+							chatId,
+							userId,
+							data.senderId ?? "",
+							data.receiverId ?? ""
+						);
+					} else {
+						// Mensagem não criptografada (legado ou erro)
+						decryptedText = data.text;
+					}
+				} catch (error) {
+					console.warn("⚠️ Erro ao descriptografar mensagem durante sync:", error);
+					// Tentar usar texto original se descriptografia falhar
 					decryptedText = data.text;
 				}
-			} catch (error) {
-				console.warn("⚠️ Erro ao descriptografar mensagem durante sync:", error);
-				// Tentar usar texto original se descriptografia falhar
-				decryptedText = data.text;
 			}
 
 			// Validar texto descriptografado
@@ -244,18 +262,36 @@ async function syncChatWithoutOrderBy(chatId: string, userId: string, lastSync: 
 				continue; // Pular mensagem duplicada
 			}
 
-			// decryptMessage detecta automaticamente a versão (v3 ou v4)
+			// Verificar se é mensagem própria ANTES de tentar descriptografar
+			const isOwnMessage = data.senderId === userId;
+
+			// Descriptografar mensagem (pular se for mensagem própria)
 			let decryptedText = data.text;
-			try {
-				decryptedText = await decryptMessage(
-					data.text,
-					chatId,
-					userId,
-					data.senderId ?? "",
-					data.receiverId ?? ""
-				);
-			} catch (error) {
-				console.warn("⚠️ Erro ao descriptografar mensagem durante sync:", error);
+			
+			if (isOwnMessage) {
+				// Mensagem própria: verificar se já existe no banco local
+				console.log("ℹ️ Mensagem própria durante sync (fallback) - verificando banco local");
+				const alreadyExists = await messageExists(messageId);
+				if (alreadyExists) {
+					// Se mensagem já existe no banco local, pular sync (já tem texto plano)
+					console.log("ℹ️ Mensagem própria já existe no banco local (fallback), pulando sync");
+					continue;
+				}
+				// Se não encontrar no banco local, usar placeholder (não deve acontecer normalmente)
+				decryptedText = "[Mensagem própria]";
+			} else {
+				// Mensagem de outro usuário: descriptografar normalmente
+				try {
+					decryptedText = await decryptMessage(
+						data.text,
+						chatId,
+						userId,
+						data.senderId ?? "",
+						data.receiverId ?? ""
+					);
+				} catch (error) {
+					console.warn("⚠️ Erro ao descriptografar mensagem durante sync:", error);
+				}
 			}
 
 			const timestamp = data.timestamp?.toDate() || new Date();
@@ -456,44 +492,7 @@ export function setupRealtimeListener(
 							continue;
 						}
 
-						// Descriptografar mensagem
-						let decryptedText = data.text;
-						let decryptionError = false;
-						try {
-							// Verificar se é mensagem criptografada (começa com "ENC:")
-							if (data.text.startsWith("ENC:")) {
-								decryptedText = await decryptMessage(
-									data.text,
-									chatId,
-									userId,
-									data.senderId ?? "",
-									data.receiverId ?? ""
-								);
-								// Verificar se descriptografia retornou erro (começa com "[")
-								if (decryptedText.startsWith("[") && decryptedText.includes("Erro")) {
-									decryptionError = true;
-									console.warn("⚠️ Mensagem não pôde ser descriptografada:", decryptedText);
-								}
-							} else {
-								// Mensagem não criptografada (legado ou erro)
-								decryptedText = data.text;
-							}
-						} catch (error) {
-							console.warn("⚠️ Erro ao descriptografar mensagem em tempo real:", error);
-							decryptedText = "[Erro ao descriptografar mensagem]";
-							decryptionError = true;
-						}
-
-						// Validar texto descriptografado
-						if (!decryptedText || typeof decryptedText !== "string") {
-							console.warn("⚠️ Texto descriptografado inválido em tempo real, usando texto original");
-							decryptedText = data.text || "";
-						}
-
-						// Ignorar mensagens próprias para notificação (mas ainda processar para UI)
-						const isOwnMessage = data.senderId === userId;
-
-						// Converter timestamps com validação
+						// Converter timestamp ANTES de usar (necessário para busca por timestamp)
 						let timestamp: Date;
 						try {
 							timestamp = data.timestamp?.toDate() || new Date();
@@ -503,6 +502,83 @@ export function setupRealtimeListener(
 						} catch (err) {
 							timestamp = new Date();
 						}
+
+						// Verificar se é mensagem própria ANTES de tentar descriptografar
+						const isOwnMessage = data.senderId === userId;
+
+						// Descriptografar mensagem (pular se for mensagem própria - texto já está no banco local)
+						let decryptedText = data.text;
+						let decryptionError = false;
+						
+						if (isOwnMessage) {
+							// Mensagem própria: buscar texto do banco local
+							console.log("ℹ️ Mensagem própria recebida do Firestore - buscando texto do banco local");
+							const messageId = docChange.doc.id;
+							
+							// Primeiro tentar buscar pelo ID do Firestore
+							let localMessage = await getMessageById(messageId);
+							
+							// Se não encontrar, pode ser que ainda tenha tempId - buscar por timestamp
+							if (!localMessage || !localMessage.text || localMessage.text === "[Mensagem própria]") {
+								console.log("ℹ️ Mensagem não encontrada pelo ID, buscando por timestamp...");
+								const allMessages = await getMessages(chatId, 100, 0);
+								const matchingMessage = allMessages.find(
+									(msg) =>
+										msg.senderId === userId &&
+										Math.abs(msg.timestamp.getTime() - timestamp.getTime()) < 10000 // 10 segundos de tolerância
+								);
+								if (matchingMessage && matchingMessage.text && matchingMessage.text !== "[Mensagem própria]") {
+									localMessage = matchingMessage;
+									console.log("✅ Mensagem encontrada por timestamp, ID:", matchingMessage.id);
+								}
+							}
+							
+							if (localMessage && localMessage.text && localMessage.text !== "[Mensagem própria]") {
+								// Usar texto do banco local (já descriptografado)
+								decryptedText = localMessage.text;
+								console.log("✅ Texto recuperado do banco local para mensagem própria:", decryptedText.substring(0, 50));
+							} else {
+								// Se ainda não encontrou, pode ser que a mensagem ainda não foi salva no banco local
+								// Neste caso, não devemos processar ainda - a mensagem já está na UI com texto correto
+								console.log("ℹ️ Mensagem própria não encontrada no banco local ainda - mensagem já está na UI, ignorando");
+								// Não processar esta mensagem agora - ela será processada quando o banco local for atualizado
+								continue;
+							}
+						} else {
+							// Mensagem de outro usuário: descriptografar normalmente
+							try {
+								// Verificar se é mensagem criptografada (começa com "ENC:")
+								if (data.text.startsWith("ENC:")) {
+									decryptedText = await decryptMessage(
+										data.text,
+										chatId,
+										userId,
+										data.senderId ?? "",
+										data.receiverId ?? ""
+									);
+									// Verificar se descriptografia retornou erro (começa com "[")
+									if (decryptedText.startsWith("[") && decryptedText.includes("Erro")) {
+										decryptionError = true;
+										console.warn("⚠️ Mensagem não pôde ser descriptografada:", decryptedText);
+									}
+								} else {
+									// Mensagem não criptografada (legado ou erro)
+									decryptedText = data.text;
+								}
+							} catch (error) {
+								console.warn("⚠️ Erro ao descriptografar mensagem em tempo real:", error);
+								decryptedText = "[Erro ao descriptografar mensagem]";
+								decryptionError = true;
+							}
+
+							// Validar texto descriptografado
+							if (!decryptedText || typeof decryptedText !== "string") {
+								console.warn("⚠️ Texto descriptografado inválido em tempo real, usando texto original");
+								decryptedText = data.text || "";
+							}
+						}
+
+						// Timestamp já foi convertido acima, não precisa converter novamente
 
 						// Verificar se mensagem é mais recente que lastSync (antes de processar)
 						const messageTimestamp = timestamp.getTime();
@@ -557,8 +633,28 @@ export function setupRealtimeListener(
 						const alreadyExists = await messageExists(messageId);
 
 						if (alreadyExists) {
-							console.log("ℹ️ Mensagem já existe no banco local, ignorando:", messageId);
-							continue; // Não processar mensagem duplicada
+							// Se for mensagem própria e já existe, verificar se precisa atualizar o texto
+							if (isOwnMessage) {
+								const localMessage = await getMessageById(messageId);
+								if (localMessage && localMessage.text && localMessage.text !== "[Mensagem própria]") {
+									// Mensagem já existe com texto correto, não precisa fazer nada
+									console.log("ℹ️ Mensagem própria já existe no banco local com texto correto, ignorando:", messageId);
+									continue;
+								} else if (localMessage && decryptedText && decryptedText !== "[Mensagem própria]") {
+									// Mensagem existe mas tem placeholder, atualizar com texto correto
+									console.log("ℹ️ Atualizando mensagem própria com texto do banco local:", messageId);
+									await updateMessage(messageId, {
+										text: decryptedText,
+									});
+									// Continuar para atualizar UI
+								} else {
+									console.log("ℹ️ Mensagem própria já existe no banco local, ignorando:", messageId);
+									continue;
+								}
+							} else {
+								console.log("ℹ️ Mensagem já existe no banco local, ignorando:", messageId);
+								continue; // Não processar mensagem duplicada
+							}
 						}
 
 						// Inserir no banco local
@@ -585,12 +681,22 @@ export function setupRealtimeListener(
 
 						// Notificar UI apenas se mensagem foi inserida com sucesso
 						try {
+							// Para mensagens próprias, garantir que usamos o texto do banco local
+							let finalText = decryptedText;
+							if (isOwnMessage && decryptedText === "[Mensagem própria]") {
+								const localMessage = await getMessageById(messageId);
+								if (localMessage && localMessage.text && localMessage.text !== "[Mensagem própria]") {
+									finalText = localMessage.text;
+									console.log("✅ Usando texto do banco local para notificar UI:", finalText.substring(0, 50));
+								}
+							}
+
 							const message: Message = {
 								id: messageId,
 								chatId: data.chatId,
 								senderId: data.senderId,
 								receiverId: data.receiverId,
-								text: decryptedText,
+								text: finalText,
 								timestamp,
 								read: data.read || false,
 								viewedAt,
@@ -661,27 +767,56 @@ function setupRealtimeListenerWithoutOrderBy(
 							continue; // Não processar mensagem duplicada
 						}
 
-						let decryptedText = data.text;
-						try {
-							decryptedText = await decryptMessage(
-								data.text,
-								chatId,
-								userId,
-								data.senderId ?? "",
-								data.receiverId ?? ""
-							);
-						} catch (error) {
-							console.warn("⚠️ Erro ao descriptografar mensagem (fallback):", error);
-							decryptedText = "[Erro ao descriptografar mensagem]";
-						}
-
-						// Validar texto descriptografado
-						if (!decryptedText || typeof decryptedText !== "string") {
-							decryptedText = "[Erro ao descriptografar mensagem]";
-						}
-
-						// Ignorar mensagens próprias para notificação
+						// Verificar se é mensagem própria ANTES de tentar descriptografar
 						const isOwnMessage = data.senderId === userId;
+
+						// Descriptografar mensagem (pular se for mensagem própria)
+						let decryptedText = data.text;
+						
+						if (isOwnMessage) {
+							// Mensagem própria: buscar texto do banco local
+							console.log("ℹ️ Mensagem própria recebida (fallback) - buscando texto do banco local");
+							const localMessage = await getMessageById(messageId);
+							if (localMessage && localMessage.text) {
+								// Usar texto do banco local (já descriptografado)
+								decryptedText = localMessage.text;
+								console.log("✅ Texto recuperado do banco local para mensagem própria (fallback)");
+							} else {
+								// Tentar buscar por timestamp aproximado
+								const allMessages = await getMessages(chatId, 100, 0);
+								const matchingMessage = allMessages.find(
+									(msg) =>
+										msg.senderId === userId &&
+										Math.abs(msg.timestamp.getTime() - timestamp.getTime()) < 5000
+								);
+								if (matchingMessage && matchingMessage.text) {
+									decryptedText = matchingMessage.text;
+									console.log("✅ Texto recuperado do banco local (por timestamp) para mensagem própria (fallback)");
+								} else {
+									decryptedText = "[Mensagem própria]";
+									console.warn("⚠️ Mensagem própria não encontrada no banco local (fallback), usando placeholder");
+								}
+							}
+						} else {
+							// Mensagem de outro usuário: descriptografar normalmente
+							try {
+								decryptedText = await decryptMessage(
+									data.text,
+									chatId,
+									userId,
+									data.senderId ?? "",
+									data.receiverId ?? ""
+								);
+							} catch (error) {
+								console.warn("⚠️ Erro ao descriptografar mensagem (fallback):", error);
+								decryptedText = "[Erro ao descriptografar mensagem]";
+							}
+
+							// Validar texto descriptografado
+							if (!decryptedText || typeof decryptedText !== "string") {
+								decryptedText = "[Erro ao descriptografar mensagem]";
+							}
+						}
 
 						const timestamp = data.timestamp?.toDate() || new Date();
 						const createdAt = data.createdAt?.toDate() || timestamp;
