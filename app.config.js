@@ -77,6 +77,7 @@ module.exports = () => {
 				enabled: true,
 				checkAutomatically: "ON_LOAD",
 				fallbackToCacheTimeout: 0,
+				url: "https://u.expo.dev/d662ef19-e2a8-4cf3-b18a-564a4faa4a3d",
 			},
 			runtimeVersion: "1.0.2",
 			extra: {
