@@ -30,6 +30,11 @@ import { trackEncryptionError, trackEncryptionEvent } from "./telemetry";
 import { removePrivateKey } from "./keyManagement";
 import { withCryptoLoading } from "./cryptoLoading";
 
+// Log de inicialização para verificar se arquivo foi carregado
+console.log('🔐 [CRYPTO] Módulo crypto.ts carregado com suporte a módulo nativo!');
+console.log('🔐 [CRYPTO] Versão: 2.0 (com integração nativa)');
+
+
 // Constantes de segurança
 // Adaptativo: valores baixos para desenvolvimento (rápido) e altos para produção (seguro)
 // Desenvolvimento: 5k iterações (~3-5s no S22) / 10k iterações chave mestre (~4-5s no S22)
@@ -203,9 +208,38 @@ async function hmacSha256(key: ArrayBuffer, data: ArrayBuffer): Promise<ArrayBuf
 }
 
 /**
- * Implementação simplificada de PBKDF2 usando SHA-256
+ * Implementação de PBKDF2 usando SHA-256
+ * Tenta usar módulo nativo primeiro (10-100x mais rápido), com fallback para JavaScript
  */
 async function pbkdf2(password: string, salt: string, iterations: number, keyLength: number): Promise<ArrayBuffer> {
+	// ============================================
+	// TENTAR MÓDULO NATIVO PRIMEIRO (ANDROID)
+	// ============================================
+	// Performance: 50k iterações em ~500ms-2s (vs ~5-10s em JS)
+	if (typeof window === 'undefined') { // React Native
+		try {
+			const { Platform } = await import('react-native');
+			if (Platform.OS === 'android') {
+				const { pbkdf2Native, isNativeCryptoAvailable } = await import('./nativeCrypto');
+				if (isNativeCryptoAvailable()) {
+					console.log('🚀 Usando PBKDF2 nativo (Android)...');
+					const keyBase64 = await pbkdf2Native(password, salt, iterations, keyLength);
+					const keyBuffer = base64ToArrayBuffer(keyBase64);
+					console.log('✅ PBKDF2 nativo concluído com sucesso');
+					return keyBuffer;
+				}
+			}
+		} catch (error) {
+			console.warn('⚠️ Erro ao usar PBKDF2 nativo, usando fallback JavaScript:', error);
+			// Continuar com implementação JavaScript abaixo
+		}
+	}
+
+	// ============================================
+	// FALLBACK: IMPLEMENTAÇÃO JAVASCRIPT
+	// ============================================
+	console.log('📱 Usando PBKDF2 JavaScript (fallback)...');
+	
 	const passwordBuffer = stringToArrayBuffer(password);
 	const saltBuffer = base64ToArrayBuffer(salt);
 
