@@ -80,7 +80,7 @@ export async function syncChat(chatId: string, userId: string): Promise<number> 
 
 			// Tentar descriptografar a mensagem (pular se for mensagem própria)
 			let decryptedText = data.text;
-			
+
 			if (isOwnMessage) {
 				// Mensagem própria: verificar se já existe no banco local
 				console.log("ℹ️ Mensagem própria durante sync - verificando banco local");
@@ -267,7 +267,7 @@ async function syncChatWithoutOrderBy(chatId: string, userId: string, lastSync: 
 
 			// Descriptografar mensagem (pular se for mensagem própria)
 			let decryptedText = data.text;
-			
+
 			if (isOwnMessage) {
 				// Mensagem própria: verificar se já existe no banco local
 				console.log("ℹ️ Mensagem própria durante sync (fallback) - verificando banco local");
@@ -509,39 +509,55 @@ export function setupRealtimeListener(
 						// Descriptografar mensagem (pular se for mensagem própria - texto já está no banco local)
 						let decryptedText = data.text;
 						let decryptionError = false;
-						
+
 						if (isOwnMessage) {
 							// Mensagem própria: buscar texto do banco local
-							console.log("ℹ️ Mensagem própria recebida do Firestore - buscando texto do banco local");
+							// IMPORTANTE: Mensagens próprias já estão na UI com texto plano (atualização otimista)
+							// Não devemos substituir na UI, apenas garantir que o banco local está atualizado
+							console.log("ℹ️ Mensagem própria recebida do Firestore - verificando banco local");
 							const messageId = docChange.doc.id;
-							
+
 							// Primeiro tentar buscar pelo ID do Firestore
 							let localMessage = await getMessageById(messageId);
-							
-							// Se não encontrar, pode ser que ainda tenha tempId - buscar por timestamp
+
+							// Se não encontrar pelo ID, buscar por timestamp (pode ainda ter tempId)
 							if (!localMessage || !localMessage.text || localMessage.text === "[Mensagem própria]") {
 								console.log("ℹ️ Mensagem não encontrada pelo ID, buscando por timestamp...");
-								const allMessages = await getMessages(chatId, 100, 0);
+								const allMessages = await getMessages(chatId, 200, 0); // Buscar mais mensagens
 								const matchingMessage = allMessages.find(
 									(msg) =>
 										msg.senderId === userId &&
-										Math.abs(msg.timestamp.getTime() - timestamp.getTime()) < 10000 // 10 segundos de tolerância
+										Math.abs(msg.timestamp.getTime() - timestamp.getTime()) < 30000 // 30 segundos de tolerância
 								);
-								if (matchingMessage && matchingMessage.text && matchingMessage.text !== "[Mensagem própria]") {
+								if (
+									matchingMessage &&
+									matchingMessage.text &&
+									matchingMessage.text !== "[Mensagem própria]"
+								) {
 									localMessage = matchingMessage;
-									console.log("✅ Mensagem encontrada por timestamp, ID:", matchingMessage.id);
+									console.log(
+										"✅ Mensagem encontrada por timestamp, ID:",
+										matchingMessage.id,
+										"Texto:",
+										matchingMessage.text.substring(0, 30)
+									);
 								}
 							}
-							
+
 							if (localMessage && localMessage.text && localMessage.text !== "[Mensagem própria]") {
 								// Usar texto do banco local (já descriptografado)
 								decryptedText = localMessage.text;
-								console.log("✅ Texto recuperado do banco local para mensagem própria:", decryptedText.substring(0, 50));
+								console.log(
+									"✅ Texto recuperado do banco local para mensagem própria:",
+									decryptedText.substring(0, 50)
+								);
 							} else {
-								// Se ainda não encontrou, pode ser que a mensagem ainda não foi salva no banco local
-								// Neste caso, não devemos processar ainda - a mensagem já está na UI com texto correto
-								console.log("ℹ️ Mensagem própria não encontrada no banco local ainda - mensagem já está na UI, ignorando");
-								// Não processar esta mensagem agora - ela será processada quando o banco local for atualizado
+								// Se não encontrou no banco local, a mensagem já está na UI com texto correto
+								// Não devemos substituir - apenas garantir que não duplicamos
+								console.log(
+									"ℹ️ Mensagem própria não encontrada no banco local - já está na UI, não processar"
+								);
+								// Não processar esta mensagem - ela já está na UI e será atualizada quando o banco local for atualizado
 								continue;
 							}
 						} else {
@@ -638,7 +654,10 @@ export function setupRealtimeListener(
 								const localMessage = await getMessageById(messageId);
 								if (localMessage && localMessage.text && localMessage.text !== "[Mensagem própria]") {
 									// Mensagem já existe com texto correto, não precisa fazer nada
-									console.log("ℹ️ Mensagem própria já existe no banco local com texto correto, ignorando:", messageId);
+									console.log(
+										"ℹ️ Mensagem própria já existe no banco local com texto correto, ignorando:",
+										messageId
+									);
 									continue;
 								} else if (localMessage && decryptedText && decryptedText !== "[Mensagem própria]") {
 									// Mensagem existe mas tem placeholder, atualizar com texto correto
@@ -683,11 +702,27 @@ export function setupRealtimeListener(
 						try {
 							// Para mensagens próprias, garantir que usamos o texto do banco local
 							let finalText = decryptedText;
-							if (isOwnMessage && decryptedText === "[Mensagem própria]") {
-								const localMessage = await getMessageById(messageId);
-								if (localMessage && localMessage.text && localMessage.text !== "[Mensagem própria]") {
-									finalText = localMessage.text;
-									console.log("✅ Usando texto do banco local para notificar UI:", finalText.substring(0, 50));
+							if (isOwnMessage) {
+								// Se ainda tem placeholder, tentar buscar do banco local novamente
+								if (decryptedText === "[Mensagem própria]") {
+									const localMessage = await getMessageById(messageId);
+									if (
+										localMessage &&
+										localMessage.text &&
+										localMessage.text !== "[Mensagem própria]"
+									) {
+										finalText = localMessage.text;
+										console.log(
+											"✅ Usando texto do banco local para notificar UI:",
+											finalText.substring(0, 50)
+										);
+									} else {
+										// Se não encontrou texto válido, não notificar UI (mensagem já está lá)
+										console.log(
+											"ℹ️ Mensagem própria sem texto válido - não notificar UI (já está na UI)"
+										);
+										continue;
+									}
 								}
 							}
 
@@ -772,7 +807,7 @@ function setupRealtimeListenerWithoutOrderBy(
 
 						// Descriptografar mensagem (pular se for mensagem própria)
 						let decryptedText = data.text;
-						
+
 						if (isOwnMessage) {
 							// Mensagem própria: buscar texto do banco local
 							console.log("ℹ️ Mensagem própria recebida (fallback) - buscando texto do banco local");
@@ -791,10 +826,14 @@ function setupRealtimeListenerWithoutOrderBy(
 								);
 								if (matchingMessage && matchingMessage.text) {
 									decryptedText = matchingMessage.text;
-									console.log("✅ Texto recuperado do banco local (por timestamp) para mensagem própria (fallback)");
+									console.log(
+										"✅ Texto recuperado do banco local (por timestamp) para mensagem própria (fallback)"
+									);
 								} else {
 									decryptedText = "[Mensagem própria]";
-									console.warn("⚠️ Mensagem própria não encontrada no banco local (fallback), usando placeholder");
+									console.warn(
+										"⚠️ Mensagem própria não encontrada no banco local (fallback), usando placeholder"
+									);
 								}
 							}
 						} else {
