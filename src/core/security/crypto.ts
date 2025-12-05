@@ -28,14 +28,16 @@ import { MessageEnvelopeCodec, type MessageEnvelope } from "@/modules/chat/proto
 import { encryptWithSignal, decryptWithSignal, clearSignalSessions } from "./signal";
 import { trackEncryptionError, trackEncryptionEvent } from "./telemetry";
 import { removePrivateKey } from "./keyManagement";
+import { withCryptoLoading } from "./cryptoLoading";
 
 // Constantes de segurança
-// Otimizado para fase de desenvolvimento - balanceamento entre segurança e performance
-// 5k iterações: ~3-5s no S22, adequado para desenvolvimento (pode aumentar em produção)
-// 10k iterações (chave mestre): ~4-5s no S22
-// NOTA: Em produção, considere aumentar para 10k/20k ou mais conforme necessário
-const PBKDF2_ITERATIONS = 5000; // Otimizado para desenvolvimento (~3-5s no S22)
-const PBKDF2_ITERATIONS_STORAGE = 10000; // Chave mestre otimizada para desenvolvimento (~4-5s no S22)
+// Adaptativo: valores baixos para desenvolvimento (rápido) e altos para produção (seguro)
+// Desenvolvimento: 5k iterações (~3-5s no S22) / 10k iterações chave mestre (~4-5s no S22)
+// Produção: 50k iterações (~5-10s no S22) / 50k iterações chave mestre (~5-10s no S22)
+// NOTA: 50k iterações ainda é 5x acima do mínimo NIST (10k) e considerado muito seguro
+// NOTA: Em produção, operações pesadas devem mostrar loading para o usuário
+const PBKDF2_ITERATIONS = __DEV__ ? 5000 : 50000; // Desenvolvimento: rápido | Produção: seguro e rápido
+const PBKDF2_ITERATIONS_STORAGE = __DEV__ ? 10000 : 50000; // Chave mestre (mesmas iterações)
 const SALT_LENGTH = 32; // 256 bits
 const IV_LENGTH = 16; // 128 bits para CBC
 const KEY_LENGTH = 32; // 256 bits para AES-256
@@ -451,7 +453,13 @@ async function getOrCreateMasterKey(userId: string): Promise<ArrayBuffer> {
 	const userIdHash = await sha256(userId);
 	console.log(`🔐 Gerando chave mestre com PBKDF2 (${PBKDF2_ITERATIONS_STORAGE} iterações)...`, { userId });
 	const pbkdf2StartTime = Date.now();
-	const masterKey = await pbkdf2(userIdHash, salt, PBKDF2_ITERATIONS_STORAGE, KEY_LENGTH);
+	
+	// Usar withCryptoLoading apenas em produção (onde PBKDF2 demora)
+	const masterKey = await withCryptoLoading(
+		() => pbkdf2(userIdHash, salt, PBKDF2_ITERATIONS_STORAGE, KEY_LENGTH),
+		'Gerando chave de segurança...\nIsso pode levar alguns segundos.'
+	);
+	
 	const pbkdf2Elapsed = Date.now() - pbkdf2StartTime;
 	console.log(`🔐 Chave mestre gerada em ${pbkdf2Elapsed}ms`, { userId });
 
@@ -636,7 +644,13 @@ async function getOrCreateChatKey(chatId: string, userId: string): Promise<Array
 		const password = chatHash;
 		console.log(`🔐 Gerando chave com PBKDF2 (${PBKDF2_ITERATIONS} iterações)...`, { chatId });
 		const pbkdf2StartTime = Date.now();
-		const key = await pbkdf2(password, salt, PBKDF2_ITERATIONS, KEY_LENGTH);
+		
+		// Usar withCryptoLoading para mostrar loading durante PBKDF2 (pode demorar em produção)
+		const key = await withCryptoLoading(
+			() => pbkdf2(password, salt, PBKDF2_ITERATIONS, KEY_LENGTH),
+			'Gerando chave de criptografia...\nAguarde alguns segundos.'
+		);
+		
 		const pbkdf2Elapsed = Date.now() - pbkdf2StartTime;
 		console.log(`🔐 PBKDF2 concluído em ${pbkdf2Elapsed}ms`, { chatId });
 

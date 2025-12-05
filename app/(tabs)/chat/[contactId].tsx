@@ -341,6 +341,17 @@ export default function ChatScreen() {
 		return item.id;
 	}, []);
 
+	// getItemLayout para otimizar scroll (altura estimada de ~80px por mensagem)
+	// Isso melhora significativamente a performance do scrollToIndex
+	const getItemLayout = useCallback(
+		(_data: ArrayLike<Message> | null | undefined, index: number) => ({
+			length: 80, // altura estimada da mensagem
+			offset: 80 * index,
+			index,
+		}),
+		[]
+	);
+
 	// Carregar mais mensagens antigas ao fazer scroll para o final da lista
 	const handleLoadMore = useCallback(() => {
 		if (hasMore && !isLoadingMore && !isLoading) {
@@ -460,6 +471,9 @@ export default function ChatScreen() {
 							maxToRenderPerBatch={10}
 							windowSize={10}
 							maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
+							removeClippedSubviews={true}
+							getItemLayout={getItemLayout}
+							inverted
 						/>
 					)}
 				</MessagesListContainer>
@@ -539,6 +553,9 @@ export default function ChatScreen() {
 						maxToRenderPerBatch={10}
 						windowSize={10}
 						maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
+						removeClippedSubviews={true}
+						getItemLayout={getItemLayout}
+						inverted
 					/>
 				)}
 			</MessagesListContainer>

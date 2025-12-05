@@ -4,7 +4,7 @@ import { queryClient } from "@/core/queryClient";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ThemeProvider } from "@/core/theme/ThemeProvider";
 import { I18nProvider } from "@/core/i18n/I18nProvider";
-import { UpdateDialog } from "@/shared/components";
+import { UpdateDialog, CryptoLoadingProvider } from "@/shared/components";
 import React, { Suspense, useEffect } from "react";
 import { View, Text, StyleSheet, ActivityIndicator } from "react-native";
 import "@/core/firebase";
@@ -139,10 +139,12 @@ export default function RootLayout() {
 			<SafeAreaProvider>
 				<I18nProvider>
 					<ThemeProvider>
-						<QueryClientProvider client={queryClient}>
-							<AppContent />
-							<UpdateDialog />
-						</QueryClientProvider>
+						<CryptoLoadingProvider>
+							<QueryClientProvider client={queryClient}>
+								<AppContent />
+								<UpdateDialog />
+							</QueryClientProvider>
+						</CryptoLoadingProvider>
 					</ThemeProvider>
 				</I18nProvider>
 			</SafeAreaProvider>
