@@ -1,50 +1,17 @@
 import "@/core/polyfills/textEncoding";
 
-import {
-	arrayRemove,
-	doc,
-	getDoc,
-	serverTimestamp,
-	setDoc,
-	updateDoc,
-	type DocumentReference,
-	type FirestoreDataConverter,
-} from "firebase/firestore";
 import { KeyHelper, type KeyPairType, type PreKeyPairType } from "libsignal-protocol-typescript";
-import { db } from "@/core/firebase";
+import api from "@/services/api";
 import { arrayBufferToBase64, base64ToArrayBuffer } from "@/core/security/utils";
 import { getSignalStorage, SignalStorage } from "./SignalStorage";
 
-const PREKEY_COLLECTION_ID = "prekeys";
-const PREKEY_DOCUMENT_ID = "bundle";
 const MIN_PREKEY_POOL = 5;
-const PREKEY_BATCH = 5;
+const PREKEY_BATCH = 10; // Increase batch for API efficiency
 
-interface FirestorePreKeyEntry {
+export interface ApiPreKeyEntry {
 	keyId: number;
 	publicKey: string;
 }
-
-interface FirestoreBundle {
-	identityKey: string;
-	registrationId: number;
-	signedPreKey: {
-		keyId: number;
-		publicKey: string;
-		signature: string;
-	};
-	preKeys: FirestorePreKeyEntry[];
-	updatedAt: unknown;
-}
-
-const bundleConverter: FirestoreDataConverter<FirestoreBundle> = {
-	toFirestore(value: FirestoreBundle) {
-		return value;
-	},
-	fromFirestore(snapshot) {
-		return snapshot.data() as FirestoreBundle;
-	},
-};
 
 export interface RemotePreKeyBundle {
 	identityKey: ArrayBuffer;
@@ -57,21 +24,12 @@ export interface RemotePreKeyBundle {
 	preKey?: {
 		keyId: number;
 		publicKey: ArrayBuffer;
-		rawEntry: FirestorePreKeyEntry;
+		// rawEntry no longer needed for backend consumption
 	};
 }
 
-const getBundleRef = (userId: string): DocumentReference<FirestoreBundle> => {
-	if (!db) {
-		throw new Error("Firestore não está inicializado");
-	}
-	return doc(db, "users", userId, PREKEY_COLLECTION_ID, PREKEY_DOCUMENT_ID).withConverter(bundleConverter);
-};
-
 export async function bootstrapSignalAccount(userId: string): Promise<SignalStorage> {
-	if (!db) {
-		throw new Error("Firestore não está inicializado");
-	}
+    // No db check needed
 
 	const storage = getSignalStorage(userId);
 
@@ -89,12 +47,18 @@ export async function bootstrapSignalAccount(userId: string): Promise<SignalStor
 
 	const signedPreKey = await ensureSignedPreKey(storage, identity);
 
-	const bundleRef = getBundleRef(userId);
-	const snapshot = await getDoc(bundleRef);
-	const currentPreKeys = snapshot.data()?.preKeys ?? [];
-	const additionalPreKeys = await ensurePreKeyInventory(storage, currentPreKeys.length);
+    // Check prekey count from backend
+    let additionalPreKeys: ApiPreKeyEntry[] = [];
+    try {
+        const countRes = await api.get('/keys/count/me');
+        const count = countRes.data.count || 0;
+        additionalPreKeys = await ensurePreKeyInventory(storage, count);
+    } catch (e) {
+        console.warn("Could not fetch prekey count, generating batch anyway", e);
+        additionalPreKeys = await ensurePreKeyInventory(storage, 0); 
+    }
 
-	const payload: FirestoreBundle = {
+	const payload = {
 		identityKey: arrayBufferToBase64(identity.pubKey),
 		registrationId,
 		signedPreKey: {
@@ -102,65 +66,48 @@ export async function bootstrapSignalAccount(userId: string): Promise<SignalStor
 			publicKey: arrayBufferToBase64(signedPreKey.keyPair.pubKey),
 			signature: arrayBufferToBase64(signedPreKey.signature),
 		},
-		preKeys: [...currentPreKeys, ...additionalPreKeys],
-		updatedAt: serverTimestamp(),
+		preKeys: additionalPreKeys,
 	};
 
-	await setDoc(bundleRef, payload, { merge: true });
+	await api.post('/keys', payload);
 
 	return storage;
 }
 
 export async function fetchRemotePreKeyBundle(userId: string): Promise<RemotePreKeyBundle | null> {
-	if (!db) {
-		throw new Error("Firestore não está inicializado");
-	}
-	const bundleRef = getBundleRef(userId);
-	const snapshot = await getDoc(bundleRef);
-	if (!snapshot.exists()) {
-		return null;
-	}
-	const data = snapshot.data();
-	if (!data.identityKey || !data.registrationId || !data.signedPreKey) {
-		return null;
-	}
+    try {
+        const response = await api.get(`/keys/${userId}`);
+        const data = response.data;
 
-	const preKeyEntry = data.preKeys?.[0];
+        if (!data || !data.identityKey || !data.signedPreKey) {
+            return null;
+        }
 
-	return {
-		identityKey: base64ToArrayBuffer(data.identityKey),
-		registrationId: data.registrationId,
-		signedPreKey: {
-			keyId: data.signedPreKey.keyId,
-			publicKey: base64ToArrayBuffer(data.signedPreKey.publicKey),
-			signature: base64ToArrayBuffer(data.signedPreKey.signature),
-		},
-		preKey: preKeyEntry
-			? {
-					keyId: preKeyEntry.keyId,
-					publicKey: base64ToArrayBuffer(preKeyEntry.publicKey),
-					rawEntry: preKeyEntry,
-			  }
-			: undefined,
-	};
+        return {
+            identityKey: base64ToArrayBuffer(data.identityKey),
+            registrationId: data.registrationId,
+            signedPreKey: {
+                keyId: data.signedPreKey.keyId,
+                publicKey: base64ToArrayBuffer(data.signedPreKey.publicKey),
+                signature: base64ToArrayBuffer(data.signedPreKey.signature),
+            },
+            preKey: data.preKey
+                ? {
+                        keyId: data.preKey.keyId,
+                        publicKey: base64ToArrayBuffer(data.preKey.publicKey),
+                        // rawEntry removed
+                  }
+                : undefined,
+        };
+    } catch (e) {
+        console.error("Error fetching remote bundle", e);
+        return null;
+    }
 }
 
-export async function consumeRemotePreKey(remoteUserId: string, entry?: FirestorePreKeyEntry): Promise<void> {
-	if (!db || !entry) {
-		return;
-	}
-
-	try {
-		const bundleRef = getBundleRef(remoteUserId);
-		await updateDoc(bundleRef, {
-			preKeys: arrayRemove(entry),
-		});
-	} catch (error) {
-		console.warn("⚠️ Não foi possível remover preKey remoto (provável falta de permissão)", {
-			remoteUserId,
-			error,
-		});
-	}
+export async function consumeRemotePreKey(remoteUserId: string, entry?: any): Promise<void> {
+	// Backend handles consumption on fetch
+    return;
 }
 
 async function ensureSignedPreKey(
@@ -185,7 +132,8 @@ async function ensureSignedPreKey(
 	return { keyId: nextId, keyPair: generated.keyPair, signature: generated.signature };
 }
 
-async function ensurePreKeyInventory(storage: SignalStorage, currentRemoteCount: number): Promise<FirestorePreKeyEntry[]> {
+async function ensurePreKeyInventory(storage: SignalStorage, currentRemoteCount: number): Promise<ApiPreKeyEntry[]> {
+    // Logic remains mostly same but types changed
 	const deficit = Math.max(MIN_PREKEY_POOL - currentRemoteCount, 0);
 	const needed = deficit > 0 ? Math.max(deficit, PREKEY_BATCH) : 0;
 	if (needed === 0) {
@@ -194,8 +142,8 @@ async function ensurePreKeyInventory(storage: SignalStorage, currentRemoteCount:
 	return generatePreKeys(storage, needed);
 }
 
-async function generatePreKeys(storage: SignalStorage, amount: number): Promise<FirestorePreKeyEntry[]> {
-	const entries: FirestorePreKeyEntry[] = [];
+async function generatePreKeys(storage: SignalStorage, amount: number): Promise<ApiPreKeyEntry[]> {
+	const entries: ApiPreKeyEntry[] = [];
 	let nextId = await storage.getLastPreKeyId();
 
 	for (let i = 0; i < amount; i += 1) {

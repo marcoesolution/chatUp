@@ -56,6 +56,7 @@ module.exports = () => {
 					"android.permission.ACCESS_COARSE_LOCATION",
 					"android.permission.ACCESS_FINE_LOCATION",
 				],
+				usesCleartextTraffic: true,
 			},
 			web: {
 				favicon: "./assets/favicon.png",

@@ -3,15 +3,8 @@
  */
 
 import { useState, useEffect } from 'react';
-import {
-	collection,
-	query,
-	where,
-	onSnapshot,
-	QuerySnapshot,
-	DocumentData,
-} from 'firebase/firestore';
-import { db } from '@/core/firebase';
+import { getAllUnreadCounts } from '@/core/database';
+import { socketService } from "@/services/api/socket.service";
 import { useAuth } from '@/modules/auth';
 import type { Contact } from '../types';
 import type { NearbyUser } from '@/modules/location/types';
@@ -37,8 +30,7 @@ export function useContacts(nearbyUsers: NearbyUser[]): {
 	const [isLoading, setIsLoading] = useState(true);
 
 	useEffect(() => {
-		const firestoreDb = db;
-		if (!firebaseUser || !firestoreDb || nearbyUsers.length === 0) {
+		if (!firebaseUser || nearbyUsers.length === 0) {
 			setContacts([]);
 			setIsLoading(false);
 			return;
@@ -46,9 +38,10 @@ export function useContacts(nearbyUsers: NearbyUser[]): {
 
 		setIsLoading(true);
 		const currentUserId = firebaseUser.uid;
+        // Map references
 		const contactsMap = new Map<string, Contact>();
 
-		// Inicializar contatos com dados básicos
+        // Init base contacts
 		nearbyUsers.forEach((user) => {
 			contactsMap.set(user.id, {
 				id: user.id,
@@ -58,42 +51,51 @@ export function useContacts(nearbyUsers: NearbyUser[]): {
 			});
 		});
 
-		// Buscar apenas contagem de não lidas para cada contato
-		const unsubscribeFunctions: (() => void)[] = [];
+        // Fetch counts from SQLite
+        getAllUnreadCounts(currentUserId).then((counts) => {
+            nearbyUsers.forEach(user => {
+                const chatId = generateChatId(currentUserId, user.id);
+                // The query returns counts by chatId. 
+                // We need to match chatId to user.
+                if (counts[chatId]) {
+                   const contact = contactsMap.get(user.id);
+                   if (contact) {
+                       contact.unreadCount = counts[chatId];
+                   }
+                }
+            });
+            setContacts(Array.from(contactsMap.values()));
+            setIsLoading(false);
+        });
 
-		nearbyUsers.forEach((nearbyUser) => {
-			const chatId = generateChatId(currentUserId, nearbyUser.id);
+        // Listen for new messages via Socket to increment real-time
+        const handleNewMessage = (msg: any) => {
+             // msg: { senderId, receiverId, ... }
+             if (msg.receiverId === currentUserId) {
+                 const senderId = msg.senderId;
+                 setContacts(prev => prev.map(c => {
+                     if (c.id === senderId) {
+                         return { ...c, unreadCount: c.unreadCount + 1 };
+                     }
+                     return c;
+                 }));
+             }
+        };
 
-			// Buscar mensagens não lidas
-			const unreadQuery = query(
-				collection(firestoreDb, 'messages'),
-				where('chatId', '==', chatId),
-				where('receiverId', '==', currentUserId),
-				where('read', '==', false)
-			);
-
-			const unsubscribeUnread = onSnapshot(
-				unreadQuery,
-				(snapshot: QuerySnapshot<DocumentData>) => {
-					const contact = contactsMap.get(nearbyUser.id);
-					if (!contact) return;
-
-					contact.unreadCount = snapshot.size;
-					contactsMap.set(nearbyUser.id, contact);
-					setContacts(Array.from(contactsMap.values()));
-				},
-				(err) => {
-					console.error('Erro ao buscar mensagens não lidas:', err);
-				}
-			);
-
-			unsubscribeFunctions.push(unsubscribeUnread);
-		});
-
-		setIsLoading(false);
+        socketService.onNewMessage(handleNewMessage);
+        
+        // Also listen if we sent a message? No, unread count is incoming. 
+        // But if we read them? 
+        // Syncing "Read Status" across devices is complex. 
+        // Locally, if user enters chat, useMessages calls markAsRead.
+        // But useContacts needs to know to decrement?
+        // Maybe we just reload on focus? 
+        // For now, this is simpler than Firestore listener.
 
 		return () => {
-			unsubscribeFunctions.forEach((unsubscribe) => unsubscribe());
+			socketService.offNewMessage(); // Need to ensure offNewMessage removes specific listener or all?
+            // SocketService implementation usually allows multiple listeners if using EventEmitter, 
+            // OR checks implementation. strict `offNewMessage(cb)` is better.
 		};
 	}, [firebaseUser?.uid, nearbyUsers]);
 

@@ -82,6 +82,43 @@
 -keep class com.tanstack.query.** { *; }
 
 # ============================================
+# Criptografia e Segurança - CRÍTICO
+# ============================================
+# Módulo nativo de criptografia
+-keep class com.chatup.app.crypto.** { *; }
+-keepclassmembers class com.chatup.app.crypto.** { *; }
+-keep class com.chatup.app.crypto.CryptoModule { *; }
+-keep class com.chatup.app.crypto.CryptoPackage { *; }
+
+# Kotlin Coroutines (usado pelo CryptoModule)
+-keep class kotlinx.coroutines.** { *; }
+-keep class kotlin.coroutines.** { *; }
+-dontwarn kotlinx.coroutines.**
+
+# Keychain (react-native-keychain)
+-keep class com.oblador.keychain.** { *; }
+-keep class com.facebook.react.bridge.** { *; }
+
+# SecureStore (expo-secure-store)
+-keep class expo.modules.securestore.** { *; }
+
+# MMKV (react-native-mmkv) - usado pelo Signal Protocol
+-keep class com.tencent.mmkv.** { *; }
+-keep class com.reactnativemmkv.** { *; }
+
+# Bibliotecas de criptografia JavaScript (via reflection)
+# Manter todas as classes que podem ser usadas via reflection
+-keep class * implements java.security.Key { *; }
+-keep class javax.crypto.** { *; }
+-keep class java.security.** { *; }
+
+# Proteger métodos nativos de criptografia
+-keepclassmembers class com.chatup.app.crypto.CryptoModule {
+    public *;
+    @com.facebook.react.bridge.ReactMethod *;
+}
+
+# ============================================
 # Métodos Nativos e Interfaces
 # ============================================
 # Keep native methods

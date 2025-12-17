@@ -478,3 +478,27 @@ export async function clearChatMessages(chatId: string): Promise<void> {
 		throw error;
 	}
 }
+
+/**
+ * Obtém contagem de mensagens não lidas por chat
+ */
+export async function getAllUnreadCounts(receiverId: string): Promise<Record<string, number>> {
+    const db = await getDb();
+    try {
+        const result = await db.getAllAsync<{ chatId: string; count: number }>(`
+            SELECT chatId, COUNT(*) as count 
+            FROM messages 
+            WHERE receiverId = ? AND read = 0 
+            GROUP BY chatId
+        `, [receiverId]);
+
+        const counts: Record<string, number> = {};
+        result.forEach(row => {
+            counts[row.chatId] = row.count;
+        });
+        return counts;
+    } catch (error) {
+        console.error("❌ Erro ao buscar contagem de não lidas:", error);
+        return {};
+    }
+}

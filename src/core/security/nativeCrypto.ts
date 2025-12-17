@@ -50,7 +50,15 @@ const NativeCrypto: NativeCryptoModule | null =
 
 // Verificar se módulo está disponível
 export const isNativeCryptoAvailable = (): boolean => {
-	return NativeCrypto !== null && NativeCrypto !== undefined;
+	const available = NativeCrypto !== null && NativeCrypto !== undefined;
+	if (!available && Platform.OS === 'android') {
+		// Logonce para evitar spam, mas útil para debug em produção
+		if (!(global as any).__loggedNativeCryptoMissing) {
+			console.warn("⚠️ [NativeCrypto] Módulo nativo não detectado. NativeModules.NativeCrypto é undefined.");
+			(global as any).__loggedNativeCryptoMissing = true;
+		}
+	}
+	return available;
 };
 
 // Constantes

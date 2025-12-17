@@ -1,8 +1,8 @@
-import { useFirebaseAuth } from "./useFirebaseAuth";
+import { useBackendAuth } from "./useBackendAuth";
 import type { LoginCredentials, RegisterData } from "../types";
 
 /**
- * Hook principal de autenticação (wrapper do Firebase Auth)
+ * Hook principal de autenticação (wrapper do Backend Auth agora)
  * Mantém compatibilidade com a interface anterior
  */
 export function useAuth() {
@@ -19,7 +19,7 @@ export function useAuth() {
 		createProfile,
 		logout,
 		syncPhotoURL,
-	} = useFirebaseAuth();
+	} = useBackendAuth(); // Switched to Backend Auth
 
 	const login = async (credentials: LoginCredentials) => {
 		await signIn(credentials.email, credentials.password);

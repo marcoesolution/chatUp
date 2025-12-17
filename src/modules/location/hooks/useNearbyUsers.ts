@@ -3,16 +3,14 @@
  */
 
 import { useState, useEffect } from "react";
-import { collection, query, where, onSnapshot, QuerySnapshot, DocumentData } from "firebase/firestore";
-import { db } from "@/core/firebase";
 import { useAuth } from "@/modules/auth";
 import { useLocation } from "./useLocation";
 import {
 	calculateLocationDistance,
 	isWithinRadius,
 	NEARBY_RADIUS_METERS,
-	calculateBoundingBox,
 } from "../utils/geolocation";
+import api from "@/services/api";
 import type { NearbyUser, Location } from "../types";
 import type { UserProfile } from "@/modules/auth/types";
 
@@ -47,10 +45,8 @@ export function useNearbyUsers(): UseNearbyUsersReturn {
 		}
 
 		// Verificar condições básicas
-		if (!firebaseUser || !db) {
-			if (!firebaseUser) {
-				setError("Usuário não autenticado");
-			}
+		if (!firebaseUser) {
+            setError("Usuário não autenticado");
 			setIsLoading(false);
 			setNearbyUsers([]);
 			return;
@@ -104,64 +100,45 @@ export function useNearbyUsers(): UseNearbyUsersReturn {
 		setIsLoading(true);
 
 		try {
-			// Firestore não suporta queries geográficas nativas nem múltiplas condições de range
-			// Vamos buscar todos os usuários com localização habilitada e filtrar no cliente
-			// Para melhor performance, podemos limitar a busca inicial
-			const usersQuery = query(collection(db, "users"), where("isLocationEnabled", "==", true));
+            // 1. Atualizar localização do usuário atual no backend
+            // não esperar para buscar, mas enviar update
+            api.put('/location', {
+                latitude: userLocation.latitude,
+                longitude: userLocation.longitude
+            }).catch(e => console.warn("Erro ao atualizar localização", e));
 
-			// Escutar mudanças em tempo real
-			const unsubscribe = onSnapshot(
-				usersQuery,
-				(snapshot: QuerySnapshot<DocumentData>) => {
-					const currentUserId = firebaseUser.uid;
-					const nearby: NearbyUser[] = [];
+            // 2. Buscar usuários próximos
+            api.get('/location/nearby', {
+                params: {
+                    latitude: userLocation.latitude,
+                    longitude: userLocation.longitude,
+                    radius: NEARBY_RADIUS_METERS / 1000 // Convert to KM
+                }
+            }).then(response => {
+                const users = response.data;
+                setNearbyUsers(users);
+                setIsLoading(false);
+                setError(null);
+            }).catch(e => {
+                console.error("Erro ao buscar usuários próximos API", e);
+                setError("Erro ao buscar usuários próximos");
+                setIsLoading(false);
+            });
 
-					snapshot.forEach((docSnapshot) => {
-						const userData = docSnapshot.data() as UserProfile & {
-							location?: Location;
-						};
-
-						// Pular o próprio usuário
-						if (docSnapshot.id === currentUserId) {
-							return;
-						}
-
-						// Verificar se o usuário tem localização válida
-						if (!userData.location || !userData.location.latitude || !userData.location.longitude) {
-							return;
-						}
-
-						// Verificar se está dentro do raio de 2km usando cálculo exato
-						if (isWithinRadius(userLocation, userData.location, NEARBY_RADIUS_METERS)) {
-							// Calcular distância exata
-							const distance = calculateLocationDistance(userLocation, userData.location);
-
-							nearby.push({
-								id: docSnapshot.id,
-								name: userData.displayName || "Usuário",
-								avatar: userData.photoURL,
-								location: userData.location,
-								distance: Math.round(distance), // Arredondar para metros
-							});
-						}
-					});
-
-					// Ordenar por distância (mais próximos primeiro)
-					nearby.sort((a, b) => a.distance - b.distance);
-
-					setNearbyUsers(nearby);
-					setIsLoading(false);
-					setError(null);
-				},
-				(err) => {
-					console.error("❌ Erro ao buscar usuários próximos:", err);
-					setError("Erro ao buscar usuários próximos");
-					setIsLoading(false);
-				}
-			);
+            // Polling simples a cada 30s se quiser atualização
+            const interval = setInterval(() => {
+                 api.get('/location/nearby', {
+                    params: {
+                        latitude: userLocation.latitude,
+                        longitude: userLocation.longitude,
+                        radius: NEARBY_RADIUS_METERS / 1000
+                    }
+                }).then(res => setNearbyUsers(res.data))
+                  .catch(e => console.warn("Polling nearby error", e));
+            }, 30000);
 
 			return () => {
-				unsubscribe();
+				clearInterval(interval);
 			};
 		} catch (err: any) {
 			console.error("❌ Erro ao configurar query de usuários próximos:", err);

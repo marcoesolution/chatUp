@@ -1,7 +1,6 @@
 import * as Notifications from "expo-notifications";
 import { Platform, AppState, AppStateStatus } from "react-native";
-import { db } from "@/core/firebase";
-import { getDoc, doc } from "firebase/firestore";
+import { userService } from "@/services/api/user.service";
 import type { UserProfile } from "@/modules/auth/types";
 import type { Message } from "@/modules/chat/types";
 
@@ -63,15 +62,9 @@ async function getUserName(userId: string): Promise<string> {
 		return userNameCache.get(userId)!;
 	}
 
-	if (!db) {
-		console.warn("⚠️ Firestore não inicializado, usando nome padrão");
-		return "Usuário";
-	}
-
 	try {
-		const userDoc = await getDoc(doc(db, "users", userId));
-		if (userDoc.exists()) {
-			const userData = userDoc.data() as UserProfile;
+		const userData = await userService.getUserById(userId);
+		if (userData) {
 			const displayName = userData.displayName || "Usuário";
 			const firstName = getFirstName(displayName);
 			// Armazenar no cache

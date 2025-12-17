@@ -31,9 +31,8 @@ import { removePrivateKey } from "./keyManagement";
 import { withCryptoLoading } from "./cryptoLoading";
 
 // Log de inicialização para verificar se arquivo foi carregado
-console.log('🔐 [CRYPTO] Módulo crypto.ts carregado com suporte a módulo nativo!');
-console.log('🔐 [CRYPTO] Versão: 2.0 (com integração nativa)');
-
+console.log("🔐 [CRYPTO] Módulo crypto.ts carregado com suporte a módulo nativo!");
+console.log("🔐 [CRYPTO] Versão: 2.0 (com integração nativa)");
 
 // Constantes de segurança
 // Adaptativo: valores baixos para desenvolvimento (rápido) e altos para produção (seguro)
@@ -216,21 +215,22 @@ async function pbkdf2(password: string, salt: string, iterations: number, keyLen
 	// TENTAR MÓDULO NATIVO PRIMEIRO (ANDROID)
 	// ============================================
 	// Performance: 50k iterações em ~500ms-2s (vs ~5-10s em JS)
-	if (typeof window === 'undefined') { // React Native
+	if (typeof window === "undefined") {
+		// React Native
 		try {
-			const { Platform } = await import('react-native');
-			if (Platform.OS === 'android') {
-				const { pbkdf2Native, isNativeCryptoAvailable } = await import('./nativeCrypto');
+			const { Platform } = await import("react-native");
+			if (Platform.OS === "android") {
+				const { pbkdf2Native, isNativeCryptoAvailable } = await import("./nativeCrypto");
 				if (isNativeCryptoAvailable()) {
-					console.log('🚀 Usando PBKDF2 nativo (Android)...');
+					console.log("🚀 Usando PBKDF2 nativo (Android)...");
 					const keyBase64 = await pbkdf2Native(password, salt, iterations, keyLength);
 					const keyBuffer = base64ToArrayBuffer(keyBase64);
-					console.log('✅ PBKDF2 nativo concluído com sucesso');
+					console.log("✅ PBKDF2 nativo concluído com sucesso");
 					return keyBuffer;
 				}
 			}
 		} catch (error) {
-			console.warn('⚠️ Erro ao usar PBKDF2 nativo, usando fallback JavaScript:', error);
+			console.warn("⚠️ Erro ao usar PBKDF2 nativo, usando fallback JavaScript:", error);
 			// Continuar com implementação JavaScript abaixo
 		}
 	}
@@ -238,61 +238,27 @@ async function pbkdf2(password: string, salt: string, iterations: number, keyLen
 	// ============================================
 	// FALLBACK: IMPLEMENTAÇÃO JAVASCRIPT
 	// ============================================
-	console.log('📱 Usando PBKDF2 JavaScript (fallback)...');
-	
-	const passwordBuffer = stringToArrayBuffer(password);
-	const saltBuffer = base64ToArrayBuffer(salt);
+	console.log("📱 Usando PBKDF2 CryptoJS (fallback)...");
 
-	// U1 = PRF(password, salt || 1)
-	// U2 = PRF(password, U1)
-	// ...
-	// Key = U1 XOR U2 XOR ... XOR Un
+	try {
+		// Converter salt de Base64 para WordArray
+		const saltWords = CryptoJS.enc.Base64.parse(salt);
 
-	const hLen = 32; // SHA-256 output length
-	const l = Math.ceil(keyLength / hLen);
+		// Executar PBKDF2 (Síncrono - bloqueia a thread mas é muito mais rápido que await loop)
+		// keySize no CryptoJS é em palavras de 32 bits (4 bytes)
+		const derivedKey = CryptoJS.PBKDF2(password, saltWords, {
+			keySize: keyLength / 4,
+			iterations: iterations,
+			hasher: CryptoJS.algo.SHA256,
+		});
 
-	const keyParts: Uint8Array[] = [];
-
-	for (let i = 1; i <= l; i++) {
-		// Create salt || i (4 bytes big-endian)
-		const counter = new Uint8Array(4);
-		counter[0] = (i >>> 24) & 0xff;
-		counter[1] = (i >>> 16) & 0xff;
-		counter[2] = (i >>> 8) & 0xff;
-		counter[3] = i & 0xff;
-
-		const saltWithCounter = new Uint8Array(saltBuffer.byteLength + 4);
-		saltWithCounter.set(new Uint8Array(saltBuffer), 0);
-		saltWithCounter.set(counter, saltBuffer.byteLength);
-
-		// U1 = HMAC(password, salt || i)
-		let u = await hmacSha256(passwordBuffer, saltWithCounter.buffer);
-		const uArray = new Uint8Array(u);
-		const t = new Uint8Array(uArray);
-
-		// U2, U3, ... Un
-		for (let j = 1; j < iterations; j++) {
-			u = await hmacSha256(passwordBuffer, u);
-			const uBytes = new Uint8Array(u);
-			for (let k = 0; k < hLen; k++) {
-				t[k] ^= uBytes[k];
-			}
-		}
-
-		keyParts.push(t);
+		// Converter resultado para ArrayBuffer
+		const keyHex = derivedKey.toString(CryptoJS.enc.Hex);
+		return hexToArrayBuffer(keyHex);
+	} catch (error) {
+		console.error("❌ Erro no fallback PBKDF2 CryptoJS:", error);
+		throw new Error("Falha ao gerar chave (fallback JS)");
 	}
-
-	// Concatenate all parts
-	const key = new Uint8Array(keyLength);
-	let offset = 0;
-	for (const part of keyParts) {
-		const copyLength = Math.min(part.length, keyLength - offset);
-		key.set(part.subarray(0, copyLength), offset);
-		offset += copyLength;
-		if (offset >= keyLength) break;
-	}
-
-	return key.buffer;
 }
 
 /**
@@ -487,13 +453,13 @@ async function getOrCreateMasterKey(userId: string): Promise<ArrayBuffer> {
 	const userIdHash = await sha256(userId);
 	console.log(`🔐 Gerando chave mestre com PBKDF2 (${PBKDF2_ITERATIONS_STORAGE} iterações)...`, { userId });
 	const pbkdf2StartTime = Date.now();
-	
+
 	// Usar withCryptoLoading apenas em produção (onde PBKDF2 demora)
 	const masterKey = await withCryptoLoading(
 		() => pbkdf2(userIdHash, salt, PBKDF2_ITERATIONS_STORAGE, KEY_LENGTH),
-		'Gerando chave de segurança...\nIsso pode levar alguns segundos.'
+		"Gerando chave de segurança...\nIsso pode levar alguns segundos."
 	);
-	
+
 	const pbkdf2Elapsed = Date.now() - pbkdf2StartTime;
 	console.log(`🔐 Chave mestre gerada em ${pbkdf2Elapsed}ms`, { userId });
 
@@ -678,13 +644,13 @@ async function getOrCreateChatKey(chatId: string, userId: string): Promise<Array
 		const password = chatHash;
 		console.log(`🔐 Gerando chave com PBKDF2 (${PBKDF2_ITERATIONS} iterações)...`, { chatId });
 		const pbkdf2StartTime = Date.now();
-		
+
 		// Usar withCryptoLoading para mostrar loading durante PBKDF2 (pode demorar em produção)
 		const key = await withCryptoLoading(
 			() => pbkdf2(password, salt, PBKDF2_ITERATIONS, KEY_LENGTH),
-			'Gerando chave de criptografia...\nAguarde alguns segundos.'
+			"Gerando chave de criptografia...\nAguarde alguns segundos."
 		);
-		
+
 		const pbkdf2Elapsed = Date.now() - pbkdf2StartTime;
 		console.log(`🔐 PBKDF2 concluído em ${pbkdf2Elapsed}ms`, { chatId });
 
@@ -877,7 +843,6 @@ export async function decryptMessage(
 		// Tentar novo formato (envelope protobuf)
 		const envelope = tryDecodeSignalEnvelope(withoutPrefix);
 		if (envelope?.version === SIGNAL_ENVELOPE_VERSION) {
-
 			const remoteParticipant = senderId;
 			if (!remoteParticipant) {
 				throw new Error("Participante remoto não identificado para descriptografia");
@@ -1066,9 +1031,18 @@ export async function decryptMessage(
 
 		return plaintext;
 	} catch (error: any) {
-		console.error("❌ Erro ao descriptografar mensagem:", error);
-		console.error("ChatId:", chatId, "UserId:", userId);
-		console.error("Texto criptografado (primeiros 50 chars):", encryptedText.substring(0, 50));
+		const errorDetails = {
+			error: error?.message || String(error),
+			chatId,
+			userId,
+			senderId,
+			receiverId,
+			encryptedTextPrefix: encryptedText.substring(0, 50),
+			encryptedTextLength: encryptedText.length,
+			hasEncryptedPrefix: encryptedText.startsWith(ENCRYPTED_PREFIX),
+			stack: error?.stack,
+		};
+		console.error("❌ Erro ao descriptografar mensagem:", errorDetails);
 
 		// Se for erro de autenticação (tag inválida), pode ser mensagem corrompida ou chave incorreta
 		if (error.message && error.message.includes("Autenticação falhou")) {

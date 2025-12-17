@@ -5,8 +5,7 @@ import { useTheme } from "styled-components/native";
 import { useTranslation } from "@/core/i18n";
 import { Image } from "expo-image";
 import { useState, useEffect } from "react";
-import { doc, getDoc } from "firebase/firestore";
-import { db } from "@/core/firebase";
+import { userService } from "@/services/api/user.service";
 import { formatShortName } from "@/shared/utils";
 import type { UserProfile } from "@/modules/auth/types";
 import styled from "styled-components/native";
@@ -49,12 +48,16 @@ const HeaderTitleText = styled.Text`
 /**
  * Hook para buscar informações do contato
  */
+
+/**
+ * Hook para buscar informações do contato
+ */
 function useContactInfo(contactId: string | undefined) {
 	const [contactInfo, setContactInfo] = useState<{ name: string; avatar?: string } | null>(null);
 	const [isLoading, setIsLoading] = useState(true);
 
 	useEffect(() => {
-		if (!contactId || !db) {
+		if (!contactId) {
 			setContactInfo(null);
 			setIsLoading(false);
 			return;
@@ -62,9 +65,8 @@ function useContactInfo(contactId: string | undefined) {
 
 		const fetchContactInfo = async () => {
 			try {
-				const userDoc = await getDoc(doc(db!, "users", contactId));
-				if (userDoc.exists()) {
-					const userData = userDoc.data() as UserProfile;
+				const userData = await userService.getUserById(contactId);
+				if (userData) {
 					setContactInfo({
 						name: userData.displayName || "Usuário",
 						avatar: userData.photoURL,
@@ -85,6 +87,7 @@ function useContactInfo(contactId: string | undefined) {
 
 	return { contactInfo, isLoading };
 }
+
 
 /**
  * Componente de Avatar para o header

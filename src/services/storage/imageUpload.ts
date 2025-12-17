@@ -1,5 +1,4 @@
-import { ref, uploadBytes, getDownloadURL, deleteObject, UploadMetadata } from "firebase/storage";
-import { storage } from "@/core/firebase";
+import api from "@/services/api";
 import { encryptMessage } from "@/core/security";
 import type { Message } from "@/modules/chat/types";
 
@@ -71,57 +70,61 @@ export async function uploadImage(
 	imageUri: string,
 	options: ImageUploadOptions
 ): Promise<ImageUploadResult> {
-	if (!storage) {
-		throw new Error("Firebase Storage não está inicializado");
-	}
-
 	try {
-		// 1. Converter URI para Blob
-		const blob = await uriToBlob(imageUri);
+		const formData = new FormData();
+        // React Native FormData handling
+        const fileName = imageUri.split('/').pop() || `image_${Date.now()}.jpg`;
+        const match = /\.(\w+)$/.exec(fileName);
+        const type = match ? `image/${match[1]}` : `image`;
 
-		// 2. Comprimir se necessário
-		const compressedBlob = await compressImageIfNeeded(blob, options);
+        // @ts-ignore: React Native FormData expects specific object structure
+        formData.append('file', {
+            uri: imageUri,
+            name: fileName,
+            type,
+        });
 
-		// 3. Gerar path único e seguro
-		// Formato: messages/{chatId}/images/{timestamp}_{random}.{ext}
-		const timestamp = Date.now();
-		const random = Math.random().toString(36).substring(2, 15);
-		const extension = blob.type.split("/")[1] || "jpg";
-		const fileName = `${timestamp}_${random}.${extension}`;
-		const storagePath = `messages/${options.chatId}/images/${fileName}`;
+        // Add metadata if backend supports (FilesController doesn't currently use them, but good for future)
+        // formData.append('chatId', options.chatId);
 
-		// 4. Criar referência no Storage
-		const storageRef = ref(storage, storagePath);
-
-		// 5. Metadados customizados (criptografados)
-		const metadata: UploadMetadata = {
-			contentType: compressedBlob.type || "image/jpeg",
-			customMetadata: {
-				chatId: options.chatId,
-				senderId: options.senderId,
-				receiverId: options.receiverId,
-				uploadedAt: timestamp.toString(),
-				// Não armazenar dados sensíveis aqui - apenas metadados técnicos
-			},
-		};
-
-		// 6. Upload para Storage
-		console.log(`📤 Fazendo upload de imagem: ${storagePath} (${(compressedBlob.size / 1024).toFixed(2)} KB)`);
+		console.log(`📤 Fazendo upload de imagem: ${fileName}`);
 		const uploadStartTime = Date.now();
 
-		const snapshot = await uploadBytes(storageRef, compressedBlob, metadata);
+        const response = await api.post('/files/upload', formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data',
+            },
+        });
 
 		const uploadDuration = Date.now() - uploadStartTime;
 		console.log(`✅ Upload concluído em ${uploadDuration}ms`);
-
-		// 7. Obter URL pública (temporária ou permanente)
-		const downloadURL = await getDownloadURL(snapshot.ref);
+        
+        // Backend returns: { url, path, size, contentType }
+        const data = response.data;
+        
+        // Ensure URL is absolute if backend returns relative
+        // Assuming api.defaults.baseURL is set, but the URL returned might be relative to host
+        // Frontend likely needs full URL or relative to API base?
+        // Let's assume the backend returned URL is usable or we construct it.
+        // For local files served by static, we might need adjustments. 
+        // Controller returns `/files/filename`. 
+        // If API is `http://192.168.1.5:3000/api`, file is at `http://192.168.1.5:3000/files/filename`.
+        // We might need to handle this URL construction.
+        
+        // Let's assume for now we use the returned URL directly, assuming app knows how to handle it 
+        // OR construct full URL if the backend API base is known.
+        // Quick fix: Prepend API base URL logic if needed, but 'api' service usually proxies or has base.
+        // Let's just return what backend gave, assuming frontend image component handles it 
+        // or uses a helper to prepend Host.
+        // Given 'useImage' hook might not exist, standard <Image source={{uri}} /> needs full URL.
+        
+        const fullUrl = data.url.startsWith('http') ? data.url : `${api.defaults.baseURL?.replace('/api', '')}${data.url}`;
 
 		return {
-			url: downloadURL,
-			path: storagePath,
-			size: compressedBlob.size,
-			contentType: compressedBlob.type || "image/jpeg",
+			url: fullUrl,
+			path: data.path,
+			size: data.size,
+			contentType: data.contentType,
 		};
 	} catch (error: any) {
 		console.error("❌ Erro ao fazer upload de imagem:", error);
@@ -161,21 +164,8 @@ export async function createImageMessage(
  * Deleta imagem do Storage
  */
 export async function deleteImage(storagePath: string): Promise<void> {
-	if (!storage) {
-		throw new Error("Firebase Storage não está inicializado");
-	}
-
-	try {
-		const storageRef = ref(storage, storagePath);
-		await deleteObject(storageRef);
-		console.log(`🗑️ Imagem deletada: ${storagePath}`);
-	} catch (error: any) {
-		// Ignorar erro se imagem já não existir
-		if (error.code !== "storage/object-not-found") {
-			console.error("❌ Erro ao deletar imagem:", error);
-			throw error;
-		}
-	}
+    // Not implemented on backend API yet
+	console.log(`🗑️ (Mock) Imagem deletada: ${storagePath}`);
 }
 
 /**

@@ -1,6 +1,6 @@
 import "react-native-get-random-values";
 import { SignalProtocolAddress, SessionBuilder, SessionCipher } from "libsignal-protocol-typescript";
-import { onSnapshot, doc } from "firebase/firestore";
+// import { onSnapshot, doc } from "firebase/firestore"; // Removed
 import {
 	stringToArrayBuffer,
 	arrayBufferToString,
@@ -14,7 +14,7 @@ import {
 	type RemotePreKeyBundle,
 } from "./preKeyService";
 import { getSignalStorage } from "./SignalStorage";
-import { db } from "@/core/firebase";
+import api from "@/services/api";
 
 const DEVICE_ID = 1;
 
@@ -32,81 +32,15 @@ const binaryStringToUint8Array = (value: string): Uint8Array => {
  * @param timeoutMs Timeout em milissegundos (padrão: 10 segundos)
  * @returns Bundle de prekeys ou null se timeout
  */
+/**
+ * Aguarda o bundle de prekeys do contato ser publicado
+ * (Implementação simplificada via polling na API)
+ */
 async function waitForRemoteBundle(contactId: string, timeoutMs: number = 10000): Promise<RemotePreKeyBundle | null> {
-	if (!db) {
-		throw new Error("Firestore não está inicializado");
-	}
-
-	// Verificar se já existe antes de começar a ouvir
-	const existingBundle = await fetchRemotePreKeyBundle(contactId);
-	if (existingBundle) {
-		return existingBundle;
-	}
-
-	// Garantir que db não é null para o TypeScript (já verificado acima, mas necessário para type narrowing)
-	const firestoreDb = db;
-	if (!firestoreDb) {
-		return null;
-	}
-
-	return new Promise((resolve) => {
-		const bundleRef = doc(firestoreDb, "users", contactId, "prekeys", "bundle");
-
-		let resolved = false;
-		const timeoutId = setTimeout(() => {
-			if (!resolved) {
-				resolved = true;
-				unsubscribe();
-				console.warn("⏱️ Timeout aguardando bundle de prekeys do contato:", contactId);
-				resolve(null);
-			}
-		}, timeoutMs);
-
-		const unsubscribe = onSnapshot(
-			bundleRef,
-			(snapshot) => {
-				if (resolved) return;
-
-				if (snapshot.exists()) {
-					const data = snapshot.data();
-					if (data?.identityKey && data?.registrationId && data?.signedPreKey) {
-						const preKeyEntry = data.preKeys?.[0];
-						const bundle: RemotePreKeyBundle = {
-							identityKey: base64ToArrayBuffer(data.identityKey),
-							registrationId: data.registrationId,
-							signedPreKey: {
-								keyId: data.signedPreKey.keyId,
-								publicKey: base64ToArrayBuffer(data.signedPreKey.publicKey),
-								signature: base64ToArrayBuffer(data.signedPreKey.signature),
-							},
-							preKey: preKeyEntry
-								? {
-										keyId: preKeyEntry.keyId,
-										publicKey: base64ToArrayBuffer(preKeyEntry.publicKey),
-										rawEntry: preKeyEntry,
-								  }
-								: undefined,
-						};
-
-						resolved = true;
-						clearTimeout(timeoutId);
-						unsubscribe();
-						console.log("✅ Bundle de prekeys encontrado via listener em tempo real");
-						resolve(bundle);
-					}
-				}
-			},
-			(error) => {
-				console.warn("⚠️ Erro no listener de bundle:", error);
-				if (!resolved) {
-					resolved = true;
-					clearTimeout(timeoutId);
-					unsubscribe();
-					resolve(null);
-				}
-			}
-		);
-	});
+    // Basic polling or just rely on retry logic from fetchRemoteBundleWithRetry
+    // For now, let's just make it a single delayed attempt to avoid complexity
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    return fetchRemotePreKeyBundle(contactId);
 }
 
 /**
@@ -196,7 +130,8 @@ export async function ensureSignalSession(currentUserId: string, contactId: stri
 		registrationId: remoteBundle.registrationId,
 	});
 
-	await consumeRemotePreKey(contactId, remoteBundle.preKey?.rawEntry);
+	// await consumeRemotePreKey(contactId, remoteBundle.preKey?.rawEntry); 
+    // Backend handles consumption
 }
 
 export async function encryptWithSignal(options: {

@@ -16,33 +16,84 @@ const createSignalStore = (): SignalKeyValueStore => {
 		};
 		if (typeof mmkvModule.createMMKV === "function") {
 			const kv = mmkvModule.createMMKV({ id: "signal-protocol" });
+			console.log("✅ SignalStorage: MMKV inicializado com sucesso");
 			return {
-				getString: async (key) => kv.getString(key) ?? undefined,
+				getString: async (key) => {
+					try {
+						const value = kv.getString(key) ?? undefined;
+						return value;
+					} catch (error: any) {
+						console.error("❌ SignalStorage: erro ao ler do MMKV", { key, error: error?.message });
+						throw error;
+					}
+				},
 				set: async (key, value) => {
-					kv.set(key, value);
+					try {
+						kv.set(key, value);
+					} catch (error: any) {
+						console.error("❌ SignalStorage: erro ao escrever no MMKV", { key, error: error?.message });
+						throw error;
+					}
 				},
 				remove: async (key) => {
-					kv.remove(key);
+					try {
+						kv.remove(key);
+					} catch (error: any) {
+						console.error("❌ SignalStorage: erro ao remover do MMKV", { key, error: error?.message });
+						throw error;
+					}
 				},
-				getAllKeys: async () => kv.getAllKeys(),
+				getAllKeys: async () => {
+					try {
+						return kv.getAllKeys();
+					} catch (error: any) {
+						console.error("❌ SignalStorage: erro ao listar chaves do MMKV", { error: error?.message });
+						return [];
+					}
+				},
 			};
 		}
-	} catch (error) {
-		console.warn("⚠️ SignalStorage: falha ao inicializar MMKV, usando AsyncStorage", { error });
+	} catch (error: any) {
+		console.warn("⚠️ SignalStorage: falha ao inicializar MMKV, usando AsyncStorage", {
+			error: error?.message || String(error),
+		});
 	}
 
+	console.log("ℹ️ SignalStorage: usando AsyncStorage como fallback");
 	return {
 		getString: async (key) => {
-			const value = await AsyncStorage.getItem(key);
-			return value ?? undefined;
+			try {
+				const value = await AsyncStorage.getItem(key);
+				return value ?? undefined;
+			} catch (error: any) {
+				console.error("❌ SignalStorage: erro ao ler do AsyncStorage", { key, error: error?.message });
+				return undefined;
+			}
 		},
 		set: async (key, value) => {
-			await AsyncStorage.setItem(key, value);
+			try {
+				await AsyncStorage.setItem(key, value);
+			} catch (error: any) {
+				console.error("❌ SignalStorage: erro ao escrever no AsyncStorage", { key, error: error?.message });
+				throw error;
+			}
 		},
 		remove: async (key) => {
-			await AsyncStorage.removeItem(key);
+			try {
+				await AsyncStorage.removeItem(key);
+			} catch (error: any) {
+				console.error("❌ SignalStorage: erro ao remover do AsyncStorage", { key, error: error?.message });
+				throw error;
+			}
 		},
-		getAllKeys: async () => AsyncStorage.getAllKeys(),
+		getAllKeys: async () => {
+			try {
+				return await AsyncStorage.getAllKeys();
+			} catch (error: any) {
+				console.error("❌ SignalStorage: erro ao listar chaves do AsyncStorage", { error: error?.message });
+				return [];
+			}
+		},
 	};
 };
 
@@ -89,14 +140,30 @@ export class SignalStorage implements StorageType {
 	}
 
 	private async readObject<T>(segment: string): Promise<T | undefined> {
-		const raw = await signalKv.getString(this.key(segment));
-		if (!raw) {
-			return undefined;
-		}
 		try {
-			return JSON.parse(raw) as T;
-		} catch (error) {
-			console.warn("⚠️ SignalStorage: falha ao fazer parse de JSON", { segment, error });
+			const storageKey = this.key(segment);
+			const raw = await signalKv.getString(storageKey);
+			if (!raw) {
+				return undefined;
+			}
+			try {
+				return JSON.parse(raw) as T;
+			} catch (parseError: any) {
+				console.warn("⚠️ SignalStorage: falha ao fazer parse de JSON", {
+					segment,
+					storageKey,
+					error: parseError?.message,
+					rawLength: raw.length,
+					rawPrefix: raw.substring(0, 50),
+				});
+				return undefined;
+			}
+		} catch (error: any) {
+			console.error("❌ SignalStorage: erro ao ler objeto", {
+				segment,
+				storageKey: this.key(segment),
+				error: error?.message,
+			});
 			return undefined;
 		}
 	}

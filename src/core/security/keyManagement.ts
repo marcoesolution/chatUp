@@ -1,6 +1,6 @@
 /**
  * Gerenciamento de Chaves Públicas/Privadas para E2EE
- * 
+ *
  * Gerencia pares de chaves assimétricas (Curve25519) para criptografia End-to-End
  * - Chave privada: Armazenada no Keychain (nunca sai do dispositivo)
  * - Chave pública: Armazenada no Firestore (users/{userId}/publicKey)
@@ -11,8 +11,7 @@ import * as Keychain from "react-native-keychain";
 import { x25519 } from "@noble/curves/ed25519";
 import { randomBytes } from "@noble/hashes/utils";
 import { bytesToHex, hexToBytes } from "@noble/hashes/utils";
-import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
-import { db } from "@/core/firebase";
+import api from "@/services/api";
 import * as Crypto from "expo-crypto";
 import * as SecureStore from "expo-secure-store";
 
@@ -63,10 +62,10 @@ export async function generateKeyPair(): Promise<{ privateKey: Uint8Array; publi
 		// Gerar chave privada aleatória usando expo-crypto
 		const privateKeyBytes = await Crypto.getRandomBytesAsync(32);
 		const privateKey = new Uint8Array(privateKeyBytes);
-		
+
 		// Derivar chave pública da chave privada
 		const publicKey = x25519.getPublicKey(privateKey);
-		
+
 		console.log("✅ Par de chaves gerado com sucesso");
 		return {
 			privateKey,
@@ -86,18 +85,14 @@ export async function storePrivateKey(userId: string, privateKey: Uint8Array): P
 		// Converter chave privada para base64 para armazenar
 		const privateKeyBase64 = uint8ArrayToBase64(privateKey);
 		const storageKey = `${KEYCHAIN_SERVICE}_${KEYCHAIN_KEY_PRIVATE}_${userId}`;
-		
+
 		if (isKeychainAvailable) {
 			try {
 				// Tentar usar Keychain primeiro
-				await Keychain.setGenericPassword(
-					userId,
-					privateKeyBase64,
-					{
-						service: `${KEYCHAIN_SERVICE}_${KEYCHAIN_KEY_PRIVATE}`,
-						accessible: Keychain.ACCESSIBLE.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
-					}
-				);
+				await Keychain.setGenericPassword(userId, privateKeyBase64, {
+					service: `${KEYCHAIN_SERVICE}_${KEYCHAIN_KEY_PRIVATE}`,
+					accessible: Keychain.ACCESSIBLE.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
+				});
 				console.log("✅ Chave privada armazenada no Keychain");
 				return;
 			} catch (keychainError) {
@@ -105,7 +100,7 @@ export async function storePrivateKey(userId: string, privateKey: Uint8Array): P
 				isKeychainAvailable = false;
 			}
 		}
-		
+
 		// Fallback: usar SecureStore
 		await SecureStore.setItemAsync(storageKey, privateKeyBase64);
 		console.log("✅ Chave privada armazenada no SecureStore (fallback)");
@@ -121,36 +116,69 @@ export async function storePrivateKey(userId: string, privateKey: Uint8Array): P
 export async function getPrivateKey(userId: string): Promise<Uint8Array | null> {
 	try {
 		const storageKey = `${KEYCHAIN_SERVICE}_${KEYCHAIN_KEY_PRIVATE}_${userId}`;
-		
+
 		if (isKeychainAvailable) {
 			try {
 				// Tentar usar Keychain primeiro
 				const credentials = await Keychain.getGenericPassword({
 					service: `${KEYCHAIN_SERVICE}_${KEYCHAIN_KEY_PRIVATE}`,
 				});
-				
+
 				if (credentials && credentials.password && credentials.username === userId) {
 					// Converter de base64 para Uint8Array
 					const privateKey = base64ToUint8Array(credentials.password);
+					console.log("✅ Chave privada recuperada do Keychain", {
+						userId,
+						keyLength: privateKey.length,
+					});
 					return privateKey;
+				} else {
+					console.warn("⚠️ Keychain retornou credenciais inválidas ou username não corresponde", {
+						userId,
+						hasCredentials: !!credentials,
+						hasPassword: !!credentials?.password,
+						username: credentials?.username,
+					});
 				}
-			} catch (keychainError) {
-				console.warn("⚠️ Erro ao usar Keychain, tentando SecureStore:", keychainError);
+			} catch (keychainError: any) {
+				console.warn("⚠️ Erro ao usar Keychain, tentando SecureStore:", {
+					error: keychainError?.message || String(keychainError),
+					userId,
+					storageKey,
+				});
 				isKeychainAvailable = false;
 			}
 		}
-		
+
 		// Fallback: usar SecureStore
-		const storedKey = await SecureStore.getItemAsync(storageKey);
-		if (!storedKey) {
+		try {
+			const storedKey = await SecureStore.getItemAsync(storageKey);
+			if (!storedKey) {
+				console.warn("⚠️ Chave privada não encontrada no SecureStore", { userId, storageKey });
+				return null;
+			}
+
+			// Converter de base64 para Uint8Array
+			const privateKey = base64ToUint8Array(storedKey);
+			console.log("✅ Chave privada recuperada do SecureStore", {
+				userId,
+				keyLength: privateKey.length,
+			});
+			return privateKey;
+		} catch (secureStoreError: any) {
+			console.error("❌ Erro ao recuperar chave privada do SecureStore:", {
+				error: secureStoreError?.message || String(secureStoreError),
+				userId,
+				storageKey,
+			});
 			return null;
 		}
-		
-		// Converter de base64 para Uint8Array
-		const privateKey = base64ToUint8Array(storedKey);
-		return privateKey;
-	} catch (error) {
-		console.error("❌ Erro ao recuperar chave privada:", error);
+	} catch (error: any) {
+		console.error("❌ Erro ao recuperar chave privada:", {
+			error: error?.message || String(error),
+			userId,
+			stack: error?.stack,
+		});
 		return null;
 	}
 }
@@ -159,30 +187,22 @@ export async function getPrivateKey(userId: string): Promise<Uint8Array | null> 
  * Armazena chave pública no Firestore
  */
 export async function storePublicKey(userId: string, publicKey: Uint8Array): Promise<void> {
-	if (!db) {
-		throw new Error("Firestore não inicializado");
-	}
-	
 	try {
-		// Converter chave pública para base64 para armazenar no Firestore
+		// Converter chave pública para base64
 		const publicKeyBase64 = uint8ArrayToBase64(publicKey);
-		
-		await setDoc(
-			doc(db, "users", userId),
-			{
-				publicKey: publicKeyBase64,
-				publicKeyUpdatedAt: serverTimestamp(),
-			},
-			{ merge: true }
-		);
-		
+
+        // Enviar para API
+        await api.post('/keys', {
+            publicKey: publicKeyBase64
+        });
+
 		// Atualizar cache
 		publicKeyCache.set(userId, {
 			key: publicKey,
 			timestamp: Date.now(),
 		});
-		
-		console.log("✅ Chave pública armazenada no Firestore");
+
+		console.log("✅ Chave pública armazenada na API");
 	} catch (error) {
 		console.error("❌ Erro ao armazenar chave pública:", error);
 		throw new Error("Falha ao armazenar chave pública");
@@ -193,10 +213,6 @@ export async function storePublicKey(userId: string, publicKey: Uint8Array): Pro
  * Busca chave pública do Firestore (com cache)
  */
 export async function getPublicKey(userId: string): Promise<Uint8Array | null> {
-	if (!db) {
-		throw new Error("Firestore não inicializado");
-	}
-	
 	try {
 		// Verificar cache primeiro
 		const cached = publicKeyCache.get(userId);
@@ -204,29 +220,25 @@ export async function getPublicKey(userId: string): Promise<Uint8Array | null> {
 			console.log("🔑 Chave pública recuperada do cache", { userId });
 			return cached.key;
 		}
-		
-		// Buscar do Firestore
-		const userDoc = await getDoc(doc(db, "users", userId));
-		
-		if (!userDoc.exists()) {
+
+		// Buscar da API
+        const response = await api.get(`/keys/${userId}`);
+        const data = response.data;
+
+		if (!data || !data.publicKey) {
 			return null;
 		}
-		
-		const data = userDoc.data();
-		if (!data.publicKey) {
-			return null;
-		}
-		
+
 		// Converter de base64 para Uint8Array
 		const publicKey = base64ToUint8Array(data.publicKey);
-		
+
 		// Atualizar cache
 		publicKeyCache.set(userId, {
 			key: publicKey,
 			timestamp: Date.now(),
 		});
-		
-		console.log("✅ Chave pública recuperada do Firestore", { userId });
+
+		console.log("✅ Chave pública recuperada da API", { userId });
 		return publicKey;
 	} catch (error) {
 		console.error("❌ Erro ao buscar chave pública:", error);
@@ -242,11 +254,11 @@ export async function getOrCreateKeyPair(userId: string): Promise<{ privateKey: 
 	try {
 		// Tentar recuperar chave privada do Keychain/SecureStore
 		let privateKey = await getPrivateKey(userId);
-		
+
 		if (privateKey) {
 			// Chave privada existe, derivar chave pública
 			let resolvedPublicKey = x25519.getPublicKey(privateKey);
-			
+
 			// Verificar se chave pública está no Firestore
 			const storedPublicKey = await getPublicKey(userId);
 			if (!storedPublicKey) {
@@ -256,20 +268,20 @@ export async function getOrCreateKeyPair(userId: string): Promise<{ privateKey: 
 				// Usar chave pública do Firestore (pode ser mais recente)
 				resolvedPublicKey = storedPublicKey;
 			}
-			
+
 			return { privateKey, publicKey: resolvedPublicKey };
 		}
-		
+
 		// Chave privada não existe, gerar novo par
 		console.log("🔄 Gerando novo par de chaves para usuário", { userId });
 		const keyPair = await generateKeyPair();
-		
+
 		// Armazenar chave privada no Keychain/SecureStore
 		await storePrivateKey(userId, keyPair.privateKey);
-		
+
 		// Armazenar chave pública no Firestore
 		await storePublicKey(userId, keyPair.publicKey);
-		
+
 		return keyPair;
 	} catch (error) {
 		console.error("❌ Erro ao obter/criar par de chaves:", error);
@@ -299,7 +311,7 @@ export function clearPublicKeyCache(): void {
 export async function removePrivateKey(userId: string): Promise<void> {
 	try {
 		const storageKey = `${KEYCHAIN_SERVICE}_${KEYCHAIN_KEY_PRIVATE}_${userId}`;
-		
+
 		if (isKeychainAvailable) {
 			try {
 				await Keychain.resetGenericPassword({
@@ -319,4 +331,3 @@ export async function removePrivateKey(userId: string): Promise<void> {
 		console.error("❌ Erro ao remover chave privada:", error);
 	}
 }
-

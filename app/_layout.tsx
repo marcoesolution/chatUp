@@ -7,7 +7,7 @@ import { I18nProvider } from "@/core/i18n/I18nProvider";
 import { UpdateDialog, CryptoLoadingProvider } from "@/shared/components";
 import React, { Suspense, useEffect } from "react";
 import { View, Text, StyleSheet, ActivityIndicator } from "react-native";
-import "@/core/firebase";
+// import "@/core/firebase";
 import { initDatabase } from "@/core/database";
 import { requestNotificationPermissions } from "@/services/notifications";
 
