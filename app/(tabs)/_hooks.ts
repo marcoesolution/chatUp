@@ -17,7 +17,7 @@ interface UseConversationsReturn {
 
 export function useConversations(): UseConversationsReturn {
 	const router = useRouter();
-	const { firebaseUser } = useAuth();
+	const { user } = useAuth();
 
 	// Hook de localização para acessar openSettings
 	const { openSettings, permissionStatus } = useLocation();
@@ -43,8 +43,8 @@ export function useConversations(): UseConversationsReturn {
 		console.log("Navegando para chat do contato:", contactId);
 
 		// Pré-estabelecer sessão ANTES de navegar para o chat
-		if (firebaseUser) {
-			ensureSignalSession(firebaseUser.uid, contactId).catch(() => {
+		if (user) {
+			ensureSignalSession(user.id, contactId).catch(() => {
 				// Ignorar erros - é apenas otimização
 			});
 		}

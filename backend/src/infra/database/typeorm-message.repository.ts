@@ -38,6 +38,19 @@ export class TypeOrmMessageRepository implements IMessageRepository {
     await this.repository.update(messageId, { isDelivered: true });
   }
 
+  async findChatMessages(userId1: string, userId2: string, limit: number, offset: number): Promise<Message[]> {
+     const entities = await this.repository.find({
+       where: [
+         { senderId: userId1, receiverId: userId2 },
+         { senderId: userId2, receiverId: userId1 },
+       ],
+       order: { timestamp: 'DESC' },
+       take: limit,
+       skip: offset,
+     });
+     return entities.map(e => this.toDomain(e));
+  }
+
   private toDomain(entity: TypeOrmMessageEntity): Message {
     return new Message({
       id: entity.id,

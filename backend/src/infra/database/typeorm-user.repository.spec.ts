@@ -37,7 +37,6 @@ describe('TypeOrmUserRepository Integration', () => {
       email: `integration_test_${timestamp}@example.com`,
       passwordHash: 'hash123',
       publicKey: 'pubkey123',
-      username: undefined, // remove or ensure it's not set if property removed
     });
 
     // 1. Save

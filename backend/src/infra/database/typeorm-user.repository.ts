@@ -2,7 +2,7 @@ import { IUserRepository } from '../../core/interfaces/user.repository.interface
 import { User } from '../../core/entities/user.entity';
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, ILike } from 'typeorm';
 import { TypeOrmUserEntity } from './entities/typeorm-user.entity';
 import { UserMapper } from './mappers/user.mapper';
 
@@ -35,5 +35,16 @@ export class TypeOrmUserRepository implements IUserRepository {
     const entity = await this.repository.findOne({ where: { id } });
     if (!entity) return null;
     return UserMapper.toDomain(entity);
+  }
+
+  async search(query: string): Promise<User[]> {
+    const entities = await this.repository.find({
+      where: [
+        { displayName: ILike(`%${query}%`) },
+        { email: ILike(`%${query}%`) },
+      ],
+      take: 20,
+    });
+    return entities.map((e) => UserMapper.toDomain(e));
   }
 }

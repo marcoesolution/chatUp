@@ -87,6 +87,8 @@ export const en = {
 		locationPermissionError: "To see nearby users, you need to allow location access.",
 		locationError: "Please check if location is enabled and try again.",
 		openSettings: "Open Settings",
+		searchPlaceholder: "Search users by name or email...",
+		noResultsFound: "No users found for your search.",
 	},
 
 	// Chat

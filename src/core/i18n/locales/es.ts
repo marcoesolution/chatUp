@@ -88,6 +88,8 @@ export const es = {
 		locationPermissionError: "Para ver usuarios cercanos, es necesario permitir el acceso a la ubicación.",
 		locationError: "Verifique si la ubicación está habilitada e intente nuevamente.",
 		openSettings: "Abrir Configuración",
+		searchPlaceholder: "Buscar usuarios por nombre o email...",
+		noResultsFound: "No se encontraron usuarios para su búsqueda.",
 	},
 
 	// Chat

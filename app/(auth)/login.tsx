@@ -14,30 +14,35 @@ const Container = styled(SafeAreaView)`
 
 export default function LoginScreen() {
 	const router = useRouter();
-	const { login, loginWithGoogle, isLoading, error, hasCompleteProfile, isAuthenticated } = useAuth();
+	const { login, loginWithGoogle, isAuthenticated, hasCompleteProfile } = useAuth();
+
+	// NOVO: Hook useActionState (React 19)
+	// Encapsula o estado da ação, o carregamento (isPending) e o resultado (error/success)
+	const [error, loginAction, isPending] = React.useActionState(
+		async (prevState: string | null, credentials: LoginCredentials) => {
+			try {
+				await login(credentials);
+				return null; // Sucesso, sem erro
+			} catch (err: any) {
+				console.error("Login action error:", err);
+				return err.message || "Erro ao fazer login";
+			}
+		},
+		null // Estado inicial
+	);
 
 	// Redirecionar quando autenticação mudar
 	React.useEffect(() => {
-		if (isAuthenticated && !isLoading) {
+		if (isAuthenticated && !isPending) {
 			if (hasCompleteProfile) {
 				router.replace("/(tabs)");
 			} else {
 				router.replace("/(auth)/create-profile");
 			}
 		}
-	}, [isAuthenticated, hasCompleteProfile, isLoading]);
-
-	const handleLogin = async (credentials: LoginCredentials) => {
-		try {
-			await login(credentials);
-			// Navegação será feita pelo useEffect acima
-		} catch (error: any) {
-			console.error("Login error:", error);
-		}
-	};
+	}, [isAuthenticated, hasCompleteProfile, isPending]);
 
 	const handleForgotPassword = () => {
-		// TODO: Implementar navegação para recuperação de senha
 		console.log("Forgot password pressed");
 	};
 
@@ -48,15 +53,12 @@ export default function LoginScreen() {
 	const handleGoogleSignIn = async () => {
 		try {
 			await loginWithGoogle();
-			// Navegação será feita pelo useEffect acima
 		} catch (error: any) {
 			console.error("Google sign in error:", error);
-			// O erro já está sendo tratado no hook e exibido através do estado 'error'
 		}
 	};
 
 	const handleFacebookSignIn = () => {
-		// TODO: Implementar autenticação com Facebook
 		console.log("Facebook sign in pressed");
 	};
 
@@ -64,13 +66,13 @@ export default function LoginScreen() {
 		<Container>
 			<StatusBar barStyle="dark-content" />
 			<LoginForm
-				onSubmit={handleLogin}
+				onSubmit={loginAction} // Passamos o loginAction diretamente
 				onForgotPassword={handleForgotPassword}
 				onSignUp={handleSignUp}
 				onGoogleSignIn={handleGoogleSignIn}
 				onFacebookSignIn={handleFacebookSignIn}
-				isLoading={isLoading}
-				error={error}
+				isLoading={isPending} // Usamos o isPending do useActionState
+				error={error} // Usamos o error do useActionState
 			/>
 		</Container>
 	);

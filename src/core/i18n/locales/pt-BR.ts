@@ -87,6 +87,8 @@ export const ptBR = {
 		locationPermissionError: "Para ver usuários próximos, é necessário permitir o acesso à localização.",
 		locationError: "Verifique se a localização está habilitada e tente novamente.",
 		openSettings: "Abrir Configurações",
+		searchPlaceholder: "Buscar usuários por nome ou email...",
+		noResultsFound: "Nenhum usuário encontrado para sua busca.",
 	},
 
 	// Chat

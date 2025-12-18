@@ -11,9 +11,13 @@ const getApiUrl = () => {
     return Constants.expoConfig.extra.apiUrl;
   }
 
-  // Fallback for development (assuming standard emulator/simulator ports)
+  // Fallback for development
   if (Platform.OS === 'android') {
-    return 'http://192.168.0.14:3000'; // Machine LAN IP
+    // 192.168.0.14 is your computer's LAN IP. 
+    // This allows physical devices on the same WiFi to connect.
+    // (Genymotion can also use this if it's in 'Bridge' mode, 
+    // otherwise 10.0.3.2 is only for the emulator itself)
+    return 'http://192.168.0.14:3000'; 
   }
   
   // iOS Simulator or Web uses localhost
@@ -36,7 +40,15 @@ api.interceptors.request.use(
     try {
       const token = await AsyncStorage.getItem(STORAGE_KEY_TOKEN);
       if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
+        console.log(`📡 [API] Request: ${config.method?.toUpperCase()} ${config.url} with token: ${token.substring(0, 10)}...`);
+        // Use .set() for better compatibility with different axios versions
+        if (config.headers.set) {
+            config.headers.set('Authorization', `Bearer ${token}`);
+        } else {
+            (config.headers as any).Authorization = `Bearer ${token}`;
+        }
+      } else {
+        console.warn(`📡 [API] No token found for ${config.method?.toUpperCase()} ${config.url}`);
       }
     } catch (error) {
       console.error('Error getting auth token:', error);

@@ -122,6 +122,25 @@ const ConversationsDistanceText = styled.Text`
 	margin-top: 2px;
 `;
 
+const SearchBarContainer = styled.View`
+	flex-direction: row;
+	align-items: center;
+	background-color: ${(props) => props.theme.colors.background.secondary};
+	margin: ${(props) => props.theme.spacing.md}px;
+	padding: ${(props) => props.theme.spacing.sm}px ${(props) => props.theme.spacing.md}px;
+	border-radius: ${(props) => props.theme.borderRadius.md}px;
+	border-width: 1px;
+	border-color: ${(props) => props.theme.colors.border.secondary};
+`;
+
+const SearchInput = styled.TextInput`
+	flex: 1;
+	height: 40px;
+	color: ${(props) => props.theme.colors.text.primary};
+	font-size: 16px;
+	margin-left: ${(props) => props.theme.spacing.sm}px;
+`;
+
 // ============================================================================
 // Estilos para ProfileScreen (profile.tsx)
 // ============================================================================
@@ -259,6 +278,8 @@ export {
 	ConversationsErrorButtonContainer as ErrorButtonContainer,
 	ConversationsLoadingContainer as LoadingContainer,
 	ConversationsDistanceText as DistanceText,
+	SearchBarContainer,
+	SearchInput,
 };
 
 // ============================================================================

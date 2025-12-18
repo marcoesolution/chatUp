@@ -143,11 +143,23 @@ export default function ChatScreen() {
 	const { contactId } = useLocalSearchParams<{ contactId: string }>();
 	const theme = useTheme();
 	const { t } = useTranslation();
-	const { firebaseUser } = useAuth();
+	const { user } = useAuth();
 	const insets = useSafeAreaInsets();
 
 	const { messages, isLoading, error, sendMessage, loadMoreMessages, hasMore, isLoadingMore, markAsViewed } =
 		useMessages(contactId || "");
+
+	// NOVO: Hook useOptimistic para mensagens
+	// state: o estado atual (messages do hook)
+	// action: a função que define como o estado "otimista" deve ser calculado
+	const [optimisticMessages, addOptimisticMessage] = React.useOptimistic(
+		messages,
+		(state, newMessage: Message) => {
+			// Adicionar a nova mensagem ao início (invertido) ou fim dependendo da ordenação
+			// Como o sortedMessages inverteu, aqui vamos manter a lógica de ordenação
+			return [newMessage, ...state];
+		}
+	);
 
 	// Esconder tab bar e marcar mensagens como visualizadas quando a tela de chat estiver em foco
 	useFocusEffect(
@@ -191,23 +203,24 @@ export default function ChatScreen() {
 	const contact = mockContacts.find((c) => c.id === contactId);
 
 	// Lista com mensagens mais recentes no topo (inverter ordem)
-	// IMPORTANTE: Declarar ANTES dos useEffects que o usam
+	// IMPORTANTE: Agora usamos optimisticMessages em vez de messages
 	const sortedMessages = useMemo(() => {
-		if (!messages || !Array.isArray(messages)) {
+		if (!optimisticMessages || !Array.isArray(optimisticMessages)) {
 			return [];
 		}
 		// Remover duplicatas por ID antes de ordenar
-		const unique = messages.reduce((acc, msg) => {
+		const unique = optimisticMessages.reduce((acc, msg) => {
 			if (!acc.find((m) => m.id === msg.id)) {
 				acc.push(msg);
 			}
 			return acc;
 		}, [] as Message[]);
+		
 		// Ordenar por timestamp (mais antigas primeiro)
 		unique.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
-		// Reverter para mostrar mais recentes no topo
+		// Reverter para mostrar mais recentes no topo (FlatList inverted)
 		return unique.reverse();
-	}, [messages]);
+	}, [optimisticMessages]);
 
 	// Rastrear última mensagem enviada para medir tempo de aparecimento
 	const lastSentMessageRef = useRef<{ text: string; timestamp: number } | null>(null);
@@ -225,7 +238,7 @@ export default function ChatScreen() {
 
 		// Buscar mensagem mais recente do usuário atual que corresponda ao texto enviado
 		const matchingMessage = messages.find((m) => {
-			const isOwnMessage = m.senderId === firebaseUser?.uid;
+			const isOwnMessage = m.senderId === user?.id;
 			const textMatches = m.text === lastSent.text || m.text.includes(lastSent.text.substring(0, 20));
 			const isRecent = currentTime - m.timestamp.getTime() < 10000; // Últimos 10 segundos
 
@@ -240,7 +253,7 @@ export default function ChatScreen() {
 			messageTimerRef.current = null;
 			lastSentMessageRef.current = null;
 		}
-	}, [messages, firebaseUser?.uid]);
+	}, [messages, user?.id]);
 
 	// Rolar para o topo (mensagem mais recente) quando a tela carregar ou novas mensagens chegarem
 	useEffect(() => {
@@ -314,7 +327,7 @@ export default function ChatScreen() {
 				return null;
 			}
 
-			const isOwn = message.senderId === firebaseUser?.uid;
+			const isOwn = message.senderId === user?.id;
 			const isViewed = message.viewedAt !== null && message.viewedAt !== undefined;
 
 			return (
@@ -327,7 +340,7 @@ export default function ChatScreen() {
 				</MessageBubble>
 			);
 		},
-		[firebaseUser?.uid, formatTime]
+		[user?.id, formatTime]
 	);
 
 	// Key extractor para FlatList
@@ -371,7 +384,7 @@ export default function ChatScreen() {
 
 	// Enviar mensagem
 	const handleSendMessage = async () => {
-		if (!messageText.trim() || !contactId || isSending) {
+		if (!messageText.trim() || !contactId || isSending || !user) {
 			return;
 		}
 
@@ -393,15 +406,33 @@ export default function ChatScreen() {
 		};
 
 		try {
+			// 1. Criar objeto de mensagem otimista
+			const optimisticMsg: Message = {
+				id: `temp_${Date.now()}`,
+				chatId: `${user.id}_${contactId}`, // Simples, será corrigido no hook
+				senderId: user.id,
+				receiverId: contactId,
+				text: textToSend,
+				timestamp: new Date(),
+				read: false,
+				createdAt: new Date(),
+				updatedAt: new Date(),
+			};
+
+			// 2. Atualizar UI otimisticamente
+			React.startTransition(() => {
+				addOptimisticMessage(optimisticMsg);
+			});
+			
 			const messageData: CreateMessageData = {
 				text: textToSend,
 				receiverId: contactId,
 			};
 
-			// sendMessage agora retorna imediatamente (atualização otimista)
-			// A mensagem já aparece na UI antes mesmo de criptografar
-			sendMessage(messageData);
+			// 3. Enviar de fato (o hook vai lidar com a persistência)
 			setMessageText("");
+			await sendMessage(messageData);
+
 			// Rolar para o topo após enviar mensagem
 			setTimeout(() => {
 				if (sortedMessages && sortedMessages.length > 0) {

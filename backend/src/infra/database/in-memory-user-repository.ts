@@ -34,4 +34,13 @@ export class InMemoryUserRepository implements IUserRepository {
   async findById(id: string): Promise<User | null> {
     return this.users.find((u) => u.id === id) || null;
   }
+
+  async search(query: string): Promise<User[]> {
+    const lowerQuery = query.toLowerCase();
+    return this.users.filter(
+      (u) =>
+        u.email.toLowerCase().includes(lowerQuery) ||
+        (u.displayName && u.displayName.toLowerCase().includes(lowerQuery)),
+    );
+  }
 }
